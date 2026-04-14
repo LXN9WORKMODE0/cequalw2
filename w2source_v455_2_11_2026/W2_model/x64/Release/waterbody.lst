@@ -1,0 +1,1259 @@
+Page 1           Source Listing                  WATERBODY
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180644.i90
+
+      1 # 1 "..\..\..\waterbody.f90"
+      2 
+      3 !***************************************************************************************************************************
+      3 ********
+      4 !**                                            S U B R O U T I N E    W A T E R B O D Y                                     
+      4       **
+      5 !***************************************************************************************************************************
+      5 ********
+      6 
+      7 SUBROUTINE WATERBODY
+      8   USE GLOBAL; USE GEOMC; USE TVDC; USE LOGICC; USE PREC
+      9 
+     10 ! Type declarations
+     11   IMPLICIT NONE
+     12   
+     13   REAL, SAVE, ALLOCATABLE, DIMENSION(:)   :: ELL,    ELR,    CL
+     14   REAL, SAVE, ALLOCATABLE, DIMENSION(:,:) :: QU,     QD
+     15   REAL(R8)                                :: C(KMX,IMX), SS(KMX,IMX)
+     16   REAL                                    :: ELW, EL1
+     17   REAL                                    :: Q1,HT,FRAC,BRTOT,T1L,T2L,U1,B1,B2
+     18   INTEGER                                 :: IUT,IDT,JJW,K,KL,KR
+     19 
+     20 ! Allocation declarations
+     21 
+     22   ALLOCATE (ELL(KMX), ELR(KMX), CL(NCT), QU(KMX,IMX), QD(KMX,IMX))
+     23 
+     24 ! Variable initialization
+     25 
+     26   ELL = 0.0; ELR = 0.0; CL = 0.0; QU = 0.0; QD = 0.0
+     27 
+     28 ! Debug variable
+     29 !  ncount=0
+     30 ! End debug
+     31 
+     32 RETURN
+     33 
+     34 !***************************************************************************************************************************
+     34 ********
+     35 !**                                               U P S T R E A M   V E L O C I T Y                                         
+     35       **
+     36 !***************************************************************************************************************************
+     36 ********
+     37 
+     38 ENTRY UPSTREAM_VELOCITY
+     39   DO JJB=1,NBR
+     40     IF (UHS(JB) >= US(JJB) .AND. UHS(JB) <= DS(JJB)) EXIT
+     41   END DO
+     42   DO JJW=1,NWB
+     43     IF (JJB >=BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+     44   END DO
+     45   DO K=KTWB(JJW),KB(UHS(JB))+1
+     46     ELL(K) = EL(K,UHS(JB))-SINA(JJB)*DLX(UHS(JB))*0.5
+     47   END DO
+     48   DO K=KT,KB(IU)+1
+     49     ELR(K) = EL(K,IU)+SINA(JB)*DLX(IU)*0.5
+     50   END DO
+     51   ELW = ELWS(UHS(JB))                     !EL(KTWB(JJW),UHS(JB))-Z(UHS(JB))*COSA(JJB)
+
+Page 2           Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+     52   EL1  = ELW-SINA(JJB)*DLX(UHS(JB))*0.5
+     53 !   IF(SLOPE(JB) /= 0.0)THEN
+     54 !   EL1  = ELW-(ELWS(UHS(JB)+1)-ELW)/(0.5*(DLX(UHS(JB)+DLX(JB)+1))*DLX(UHS(JB))*0.5   ! SW 7/17/09
+     55 !   ELSE
+     56 !   EL1=ELW
+     57 !   ENDIF
+     58   ELW = EL1
+     59   KL   = KTWB(JJW)+1
+     60   DO K=KT+1,KB(IU)+1
+     61     IF (ELR(K) >= ELL(KL)) THEN
+     62       IF (KL == KTWB(JJW)+1) THEN
+     63         Q1 = U(KL-1,UHS(JB))*BHR1(KTWB(JJW),UHS(JB))
+     64         IF (KL == KB(UHS(JB))+1 .AND. ELL(KL) < ELR(KB(IU)+1)) THEN
+     65           HT = ELW-ELR(KB(IU)+1)
+     66         ELSE
+     67           HT = H1(KTWB(JJW),UHS(JB))
+     68         END IF
+     69       ELSE
+     70         Q1 = U(KL-1,UHS(JB))*BHR1(KL-1,UHS(JB))
+     71         HT = H1(KL-1,UHS(JB))
+     72       END IF
+     73       IF (K == KT+1) THEN
+     74         EL1         = EL(KTWB(JJW),UHS(JB))-Z(UHS(JB))*COSA(JJB)-SINA(JJB)*DLX(UHS(JB))*0.5
+     75         U(K-1,IU-1) = Q1*((EL1-ELR(K))/HT)/BHR1(KT,IU-1)
+     76       ELSE
+     77         U(K-1,IU-1) = Q1*((EL1-ELR(K))/HT)/BHR1(K-1,IU-1)
+     78       END IF
+     79       EL1 = ELR(K)
+     80       IF (ELR(K) == ELL(KL)) KL = KL+1
+     81     ELSE
+     82       Q1 = 0.0
+     83       DO WHILE (ELR(K) <= ELL(KL))
+     84         IF (KL == KTWB(JJW)+1 .AND. K == KT+1) THEN
+     85           Q1 = Q1+U(KL-1,UHS(JB))*BHR1(KTWB(JJW),UHS(JB))
+     86         ELSE IF (KL == KTWB(JJW)+1) THEN
+     87           Q1 = Q1+U(KL-1,UHS(JB))*BHR1(KTWB(JJW),UHS(JB))*(EL1-ELL(KL))/H1(KTWB(JJW),UHS(JB))
+     88         ELSE
+     89           FRAC = (EL1-ELL(KL))/H1(KL-1,UHS(JB))
+     90           Q1   =  Q1+U(KL-1,UHS(JB))*BHR1(KL-1,UHS(JB))*FRAC
+     91         END IF
+     92         EL1 = ELL(KL)
+     93         KL  = KL+1
+     94         IF (KL > KB(UHS(JB))) EXIT
+     95       END DO
+     96       IF (K == KT+1) THEN
+     97         BRTOT = BHR1(KT,IU-1)
+     98       ELSE
+     99         BRTOT = BHR1(K-1,IU-1)
+    100       END IF
+    101       FRAC = 0.0
+    102 !      IF (KL < KMX) THEN                             ! SW 6/29/06
+    103         HT   =  H1(KL-1,UHS(JB))
+    104         FRAC = (EL1-ELR(K))/HT
+    105         IF (KB(UHS(JB)) >= KB(IU-1) .AND. K > KB(IU-1)) FRAC = (EL1-ELL(KL))/HT     ! SW 6/29/06
+    106         IF (KL >= KMX .and. ELR(K) < ELL(KL)) FRAC=1.0          ! SW 6/29/06
+    107         Q1   =  Q1+U(KL-1,UHS(JB))*BHR1(KL-1,UHS(JB))*FRAC
+    108 !      ELSE                                           ! SW 6/29/06
+
+Page 3           Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    109 !        Q1 = Q1+U(KL-1,UHS(JB))*BHR1(KL-1,UHS(JB))   ! SW 6/29/06
+    110 !      END IF                                         ! SW 6/29/06
+    111       U(K-1,IU-1) = Q1/BRTOT
+    112       IF (KL > KB(UHS(JB))) THEN
+    113         IF (FRAC < 1.0 .AND. FRAC /= 0.0) THEN
+    114           IF (K == KB(IU)+1) THEN
+    115             U(K-1,IU-1) = (Q1+U(KL-1,UHS(JB))*BHR1(KL-1,UHS(JB))*(1.0-FRAC))/BRTOT
+    116           ELSE
+    117             U(K,IU-1) = U(KL-1,UHS(JB))*BHR1(KL-1,UHS(JB))*(1.0-FRAC)/BHR(K,IU-1)
+    118           END IF
+    119         END IF
+    120         GO TO 100
+    121       END IF
+    122       EL1 = ELR(K)
+    123     END IF
+    124   END DO
+    125 100 CONTINUE
+    126 
+    127 ! Debug
+    128 !    QL=0.0; QR=0.0
+    129 !  do k=ktwb(jjw),kb(uhs(jb))
+    130 !    QL=QL+u(k,uhs(jb))*BHR1(k,uhs(jb))
+    131 !  enddo
+    132 !  do k=kt,kb(iu-1)
+    133 !    QR=QR+u(k,iu-1)*BHR1(k,iu-1)
+    134 !  enddo
+    135 !  if((QR-QL)/QL > 0.02)then
+    136 !     if(ncount.eq.0)open(1299,file='debug_out.txt',status='unknown')
+    137 !     ncount=ncount+1
+    138 !     write(1299,*)'***QL=',QL,' QR=',QR
+    139 !     write(1299,*)'UHS(JB)=',uhs(jb),'  iu-1=',iu-1,' ELWS=', elw
+    140 !     write(1299,*)'LEFT: K      U     BHR1    ELEV      H1     BHR    ELL'
+    141 !     do k=ktwb(jjw),kb(uhs(jb))
+    142 !       write(1299,'(i8,f8.3,f8.3,5f8.3)')k,u(k,uhs(jb)),BHR1(k,uhs(jb)),el(k,uhs(jb)),h1(k,uhs(jb)),bhr(k,uhs(jb)),ell(k)
+    143 !     enddo
+    144 !     write(1299,*)'RIGHT: K     U     BHR1    ELEV      H1     BHR    ELR'
+    145 !     do k=kt,kb(iu-1)
+    146 !       write(1299,'(i8,f8.3,f8.3,5f8.3)')k,u(k,iu-1),BHR1(k,iu-1),el(k,iu-1),h1(k,iu-1),bhr(k,iu-1),elr(k)
+    147 !     enddo
+    148 !  end if
+    149 ! End debug
+    150 
+    151 RETURN
+    152 
+    153 !***************************************************************************************************************************
+    153 ********
+    154 !**                                              U P S T R E A M   W A T E R B O D Y                                        
+    154       **
+    155 !***************************************************************************************************************************
+    155 ********
+    156 
+    157 ENTRY UPSTREAM_WATERBODY
+    158   DO JJB=1,NBR
+    159     IF (UHS(JB) >= US(JJB) .AND. UHS(JB) <= DS(JJB)) EXIT
+    160   END DO
+    161   DO JJW=1,NWB
+    162     IF (JJB >=BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+
+Page 4           Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    163   END DO
+    164   DO K=KTWB(JJW),KB(UHS(JB))+1
+    165     ELL(K) = EL(K,UHS(JB))-SINA(JJB)*DLX(UHS(JB))*0.5
+    166   END DO
+    167   DO K=KT,KB(IU)+1
+    168     ELR(K) = EL(K,IU)+SINA(JB)*DLX(IU)*0.5
+    169   END DO
+    170   ELW  = ELWS(UHS(JB))                                !EL(KTWB(JJW),UHS(JB))-Z(UHS(JB))*COSA(JJB)
+    171   EL1  = ELW-SINA(JJB)*DLX(UHS(JB))*0.5
+    172 ! EL1  = ELW-(ELWS(UHS(JB)+1)-ELW)/(0.5*(DLX(UHS(JB)+DLX(JB)+1))*DLX(UHS(JB))*0.5   ! SW 7/17/09
+    173   KL   = KTWB(JJW)+1
+    174   DO K=KT+1,KB(IU)+1
+    175     IF (ELR(K) >= ELL(KL)) THEN
+    176       T1(K-1,IU-1)            = T1(KL-1,UHS(JB))
+    177       T2(K-1,IU-1)            = T2(KL-1,UHS(JB))
+    178       C1S(K-1,IU-1,CN(1:NAC)) = C1S(KL-1,UHS(JB),CN(1:NAC))
+    179       C1(K-1,IU-1,CN(1:NAC))  = C1S(KL-1,UHS(JB),CN(1:NAC))
+    180       C2(K-1,IU-1,CN(1:NAC))  = C1S(KL-1,UHS(JB),CN(1:NAC))
+    181       EL1                     = ELR(K)
+    182       IF (ELR(K) == ELL(KL)) KL = KL+1
+    183     ELSE
+    184       BRTOT = 0.0
+    185       CL    = 0.0
+    186       T1L   = 0.0
+    187       T2L   = 0.0
+    188       DO WHILE (ELR(K) <= ELL(KL))
+    189         IF (KL == KTWB(JJW)+1 .AND. K == KT+1) THEN
+    190           B1 = BH2(KTWB(JJW),UHS(JB))
+    191         ELSE
+    192           B1 = B(KL-1,UHS(JB))*(EL1-ELL(KL))
+    193         END IF
+    194         BRTOT         = BRTOT+B1
+    195         T1L           = T1L+B1*T1(KL-1,UHS(JB))
+    196         T2L           = T2L+B1*T2(KL-1,UHS(JB))
+    197         CL(CN(1:NAC)) = CL(CN(1:NAC))+B1*C1S(KL-1,UHS(JB),CN(1:NAC))
+    198         EL1 = ELL(KL)
+    199         KL  = KL+1
+    200         IF (KL > KB(UHS(JB))+1) EXIT
+    201       END DO
+    202       IF (KL <= KB(UHS(JB))+1) THEN
+    203         B1    = B(KL-1,UHS(JB))*(EL1-ELR(K))
+    204         BRTOT = BRTOT+B1
+    205         IF (BRTOT > 0.0) THEN
+    206           T1(K-1,IU-1)            = (T1L+B1*T1(KL-1,UHS(JB)))/BRTOT
+    207           T2(K-1,IU-1)            = (T2L+B1*T2(KL-1,UHS(JB)))/BRTOT
+    208           C1S(K-1,IU-1,CN(1:NAC)) = (CL(CN(1:NAC))+B1*C1S(KL-1,UHS(JB),CN(1:NAC)))/BRTOT
+    209           C1(K-1,IU-1,CN(1:NAC))  =  C1S(K-1,IU-1,CN(1:NAC))
+    210           C2(K-1,IU-1,CN(1:NAC))  =  C1S(K-1,IU-1,CN(1:NAC))
+    211         ELSE
+    212           T1(K-1,IU-1)            = T1(KL-1,UHS(JB))
+    213           T2(K-1,IU-1)            = T2(KL-1,UHS(JB))
+    214           C1S(K-1,IU-1,CN(1:NAC)) = C1S(KL-1,UHS(JB),CN(1:NAC))
+    215           C1(K-1,IU-1,CN(1:NAC))  = C1S(K-1,IU-1,CN(1:NAC))
+    216           C2(K-1,IU-1,CN(1:NAC))  = C1S(K-1,IU-1,CN(1:NAC))
+    217         END IF
+    218       ELSE
+    219         IF (BRTOT > 0.0) THEN
+
+Page 5           Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    220           T1(K-1,IU-1)            = T1L          /BRTOT
+    221           T2(K-1,IU-1)            = T2L          /BRTOT
+    222           C1S(K-1,IU-1,CN(1:NAC)) = CL(CN(1:NAC))/BRTOT
+    223           C1(K-1,IU-1,CN(1:NAC))  = C1S(K-1,IU-1,CN(1:NAC))
+    224           C2(K-1,IU-1,CN(1:NAC))  = C1S(K-1,IU-1,CN(1:NAC))
+    225         ELSE
+    226           T1(K-1,IU-1)            = T1(KL-1,UHS(JB))
+    227           T2(K-1,IU-1)            = T2(KL-1,UHS(JB))
+    228           C1S(K-1,IU-1,CN(1:NAC)) = C1S(KL-1,UHS(JB),CN(1:NAC))
+    229           C1(K-1,IU-1,CN(1:NAC))  = C1S(K-1,IU-1,CN(1:NAC))
+    230           C2(K-1,IU-1,CN(1:NAC))  = C1S(K-1,IU-1,CN(1:NAC))
+    231         END IF
+    232         EXIT
+    233       END IF
+    234       EL1 = ELR(K)
+    235     END IF
+    236   END DO
+    237 RETURN
+    238 
+    239 !***************************************************************************************************************************
+    239 ********
+    240 !**                                            D O W N S T R E A M   W A T E R B O D Y                                      
+    240       **
+    241 !***************************************************************************************************************************
+    241 ********
+    242 
+    243 ENTRY DOWNSTREAM_WATERBODY
+    244   DO JJB=1,NBR
+    245     IF (CDHS(JB) >= CUS(JJB) .AND. CDHS(JB) <= DS(JJB)) EXIT
+    246   END DO
+    247   DO JJW=1,NWB
+    248     IF (JJB >= BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+    249   END DO
+    250   KR = KTWB(JJW)+1
+    251   DO K=KT,KB(ID)+1
+    252     ELL(K) = EL(K,ID)-SINA(JB)*DLX(ID)*0.5
+    253   END DO
+    254   DO K=KTWB(JJW),KB(CDHS(JB))+1
+    255     ELR(K) = EL(K,CDHS(JB))+SINA(JJB)*DLX(CDHS(JB))*0.5
+    256   END DO
+    257   ELW = ELWS(ID)                                             !EL(KTWB(JW),ID)-Z(ID)*COSA(JB)
+    258   EL1  = ELW-SINA(JB)*DLX(ID)*0.5
+    259 !   EL1  = ELW+(ELW-ELWS(ID-1))/(0.5*(DLX(ID)+DLX(ID-1))*DLX(ID)*0.5   ! SW 7/17/09
+    260   IDT  = ID+1
+    261   DO K=KT+1,KB(ID)+1
+    262     IF (ELL(K) >= ELR(KR)) THEN
+    263       T1(K-1,IDT)            = T1(KR-1,CDHS(JB))
+    264       T2(K-1,IDT)            = T2(KR-1,CDHS(JB))
+    265       C1S(K-1,IDT,CN(1:NAC)) = C1S(KR-1,CDHS(JB),CN(1:NAC))
+    266       C1(K-1,IDT,CN(1:NAC))  = C1S(KR-1,CDHS(JB),CN(1:NAC))
+    267       C2(K-1,IDT,CN(1:NAC))  = C1S(KR-1,CDHS(JB),CN(1:NAC))
+    268       EL1                    = ELL(K)
+    269       IF (ELL(K) == ELR(KR)) KR = KR+1
+    270       IF (KR > KB(CDHS(JB))+1) EXIT
+    271     ELSE
+    272       BRTOT = 0.0
+    273       CL    = 0.0
+
+Page 6           Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    274       T1L   = 0.0
+    275       T2L   = 0.0
+    276       DO WHILE (ELL(K) <= ELR(KR))
+    277         IF (KR == KTWB(JJW)+1 .AND. K == KT+1) THEN
+    278           B1    = BH2(KTWB(JJW),CDHS(JB))
+    279         ELSE
+    280           B1    = B(KR-1,CDHS(JB))*(EL1-ELR(KR))
+    281         END IF
+    282         BRTOT = BRTOT+B1
+    283         T1L           = T1L+B1*T1(KR-1,CDHS(JB))
+    284         T2L           = T2L+B1*T2(KR-1,CDHS(JB))
+    285         CL(CN(1:NAC)) = CL(CN(1:NAC))+B1*C1S(KR-1,CDHS(JB),CN(1:NAC))
+    286         EL1           = ELR(KR)
+    287         KR            = KR+1
+    288         IF (KR > KB(CDHS(JB))+1) EXIT
+    289       END DO
+    290       IF (KR <= KB(CDHS(JB))+1) THEN     ! SR 1/2024
+    291         B1 = B(KR-1,CDHS(JB))*(EL1-ELL(K))
+    292       ELSE
+    293         B1 = 0.0
+    294       END IF
+    295       BRTOT = BRTOT+B1
+    296       IF (BRTOT == 0.0) EXIT
+    297       T1(K-1,IDT)            = (T1L+B1*T1(KR-1,CDHS(JB)))/BRTOT
+    298       T2(K-1,IDT)            = (T2L+B1*T2(KR-1,CDHS(JB)))/BRTOT
+    299       C1S(K-1,IDT,CN(1:NAC)) = (CL(CN(1:NAC))+B1*C1S(KR-1,CDHS(JB),CN(1:NAC)))/BRTOT
+    300       C1(K-1,IDT,CN(1:NAC))  =  C1S(K-1,IDT,CN(1:NAC))
+    301       C2(K-1,IDT,CN(1:NAC))  =  C1S(K-1,IDT,CN(1:NAC))
+    302       EL1                    =  ELL(K)
+    303     END IF
+    304   END DO
+    305 RETURN
+    306 
+    307 !***************************************************************************************************************************
+    307 ********
+    308 !**                                                 U P S T R E A M   B R A N C H                                           
+    308       **
+    309 !***************************************************************************************************************************
+    309 ********
+    310 
+    311 ENTRY UPSTREAM_BRANCH
+    312   DO JJW=1,NWB
+    313     IF (JJB >=BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+    314   END DO
+    315   DO K=KT,KB(I)+1
+    316     ELL(K) = EL(K,I)
+    317   END DO
+    318   DO K=KTWB(JWUH(JB)),KB(CUS(JJB))+1
+    319     ELR(K) = EL(K,CUS(JJB))+SINA(JJB)*DLX(CUS(JJB))*0.5
+    320   END DO
+    321   ELW  = ELWS(CUS(JJB))                               !EL(KTWB(JWUH(JB)),CUS(JJB))-Z(CUS(JJB))*COSA(JJB)
+    322   EL1  = ELW+SINA(JJB)*DLX(CUS(JJB))*0.5
+    323 !   EL1  = ELW-(ELWS(CUS(JJB)+1)-ELW)/(0.5*(DLX(CUS(JJB)+DLX(CUS(JJB)+1))*DLX(CUS(JJB))*0.5   ! SW 7/17/09
+    324   KR   = KTWB(JWUH(JB))+1
+    325   DO K=KT+1,KB(I)+1
+    326     IF (ELL(K) >= ELR(KR)) THEN
+    327       Q1 = VOLUH2(KR-1,JJB)/DLT
+
+Page 7           Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    328       B1 = BHR(KR-1,CUS(JJB)-1)
+    329       IF (KR == KTWB(JWUH(JB))+1) B1 = BHR2(KT,CUS(JJB)-1)
+    330       U1 = U(KR-1,CUS(JJB)-1)*B1
+    331       HT = H2(KR-1,JWUH(JB))
+    332       IF (KR == KTWB(JWUH(JB))+1) HT = H2(KT,CUS(JJB))
+    333       Q1 = Q1*((EL1-ELL(K))/HT)
+    334       B2 = BHR(K-1,I)
+    335       IF (K == KTWB(JW)+1) B2 = BHR2(KT,I)
+    336       UXBR(K-1,I) = UXBR(K-1,I)+(ABS((U1/B2)*COS(BETABR)*Q1)/DLX(I))
+    337       UYBR(K-1,I) = UYBR(K-1,I)+ABS(Q1*SIN(BETABR))
+    338       EL1         = ELL(K)
+    339       IF (ELL(K) == ELR(KR)) KR = KR+1
+    340     ELSE
+    341       U1    = 0.0
+    342       Q1    = 0.0
+    343       BRTOT = 0.0
+    344       DO WHILE (ELL(K) <= ELR(KR))
+    345         IF (KR /= KTWB(JWUH(JB))+1) THEN
+    346           FRAC = (EL1-ELR(KR))/(H(KR-1,JWUH(JB)))
+    347           B1   =  BHR(KR-1,CUS(JJB)-1)
+    348         ELSE
+    349           FRAC = (EL1-ELR(KR))/H2(KT,CUS(JJB))
+    350           B1   =  BHR2(KT,CUS(JJB)-1)
+    351         END IF
+    352         U1  = U1+U(KR-1,CUS(JJB)-1)*B1*FRAC
+    353         Q1  = Q1+VOLUH2(KR-1,JJB)/DLT*FRAC
+    354         EL1 = ELR(KR)
+    355         KR  = KR+1
+    356         IF (KR > KB(CUS(JJB)+1)) EXIT
+    357       END DO
+    358       IF (K == KTWB(JW)+1) THEN
+    359         B2 = BHR2(KT,I)
+    360       ELSE
+    361         B2 = BHR(K-1,I)
+    362       END IF
+    363       IF (H(KR-1,JWUH(JB)) /= 0.0) THEN
+    364         IF (KR-1 == KTWB(JWUH(JB))) THEN
+    365           HT = H2(KT,CUS(JJB))
+    366         ELSE
+    367           HT = H2(KR-1,JWUH(JB))
+    368         END IF
+    369         FRAC        = (EL1-ELL(KR-1))/HT
+    370         Q1          =  Q1+FRAC*VOLUH2(KR-1,JJB)/DLT
+    371         UXBR(K-1,I) =  UXBR(K-1,I)+(ABS((U1/B2)*COS(BETABR)*Q1)/DLX(I))
+    372         UYBR(K-1,I) =  UYBR(K-1,I)+ABS(Q1*SIN(BETABR))
+    373       END IF
+    374       IF (KR > KB(CUS(JJB)+1)) EXIT
+    375       EL1 = ELL(K)
+    376     END IF
+    377   END DO
+    378 RETURN
+    379 
+    380 !***************************************************************************************************************************
+    380 ********
+    381 !**                                               D O W N S T R E A M   B R A N C H                                         
+    381       **
+    382 !***************************************************************************************************************************
+
+Page 8           Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    382 ********
+    383 
+    384 ENTRY DOWNSTREAM_BRANCH
+    385   DO JJW=1,NWB
+    386     IF (JJB >= BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+    387   END DO
+    388   DO K=KT,KB(I)+1
+    389     ELR(K) = EL(K,I)
+    390   END DO
+    391   DO K=KTWB(JJW),KB(DS(JJB))+1
+    392     ELL(K) = EL(K,DS(JJB))+SINA(JJB)*DLX(DS(JJB))*0.5
+    393   END DO
+    394   ELW = ELWS(DS(JJB))                                      !EL(KTWB(JJW),DS(JJB))-Z(DS(JJB))*COSA(JJB)
+    395   EL1  = ELW-SINA(JJB)*DLX(DS(JJB))*0.5
+    396 !  IF(SLOPE(JJB) /= 0.0)THEN
+    397 !  EL1  = ELW+(ELW-ELWS(DS(JJB)-1))/(0.5*(DLX(DS(JJB)+DLX(DS(JJB)+1))*DLX(DS(JJB))*0.5   ! SW 7/17/09
+    398 !  ELSE
+    399 !  EL1=ELW
+    400 !  ENDIF
+    401   KL   = KTWB(JJW)+1
+    402   DO K=KT+1,KB(I)+1
+    403     IF (ELR(K) >= ELL(KL)) THEN
+    404       Q1 = VOLDH2(KL-1,JJB)/DLT
+    405       B1 = BHR(KL-1,DS(JJB)-1)
+    406       IF (KL == KTWB(JJW)+1) B1 = BHR2(KT,DS(JJB))
+    407       U1 = U(KL-1,DS(JJB)-1)*B1
+    408       HT = H2(KL-1,JJW)
+    409       IF (KL == KTWB(JJW)+1) HT = H2(KT,DS(JJB))
+    410       Q1 = Q1*((EL1-ELR(K))/HT)
+    411       B2 = BHR(K-1,I)
+    412       IF (K == KTWB(JW)+1) B2 = BHR2(KT,I)
+    413       UXBR(K-1,I) = UXBR(K-1,I)+(ABS((U1/B2)*COS(BETABR)*Q1)/DLX(I))
+    414       UYBR(K-1,I) = UYBR(K-1,I)+ABS(Q1*SIN(BETABR))
+    415       EL1 = ELR(K)
+    416       IF (ELR(K) == ELL(KL)) KL = KL+1
+    417     ELSE
+    418       U1    = 0.0
+    419       Q1    = 0.0
+    420       BRTOT = 0.0
+    421       DO WHILE (ELR(K) <= ELL(KL))
+    422         IF (KL /= KTWB(JJW)+1) THEN
+    423           FRAC = (EL1-ELL(KL))/H(KL-1,JJW)
+    424           B1   = BHR(KL-1,DS(JJB)-1)
+    425         ELSE
+    426           FRAC = (EL1-ELL(KL))/H2(KT,DS(JJB))
+    427           B1   = BHR2(KT,DS(JJB))
+    428         END IF
+    429         U1  = U1+U(KL-1,DS(JJB))*B1*FRAC
+    430         Q1  = Q1+(VOLDH2(KL-1,JJB)/DLT)*FRAC
+    431         EL1 = ELL(KL)
+    432         KL  = KL+1
+    433         IF (KL > KB(DS(JJB)+1)) EXIT
+    434       END DO
+    435       IF (K == KTWB(JW)+1) THEN
+    436         B2 = BHR2(KT,I)
+    437       ELSE
+    438         B2 = BHR(K-1,I)
+
+Page 9           Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    439       END IF
+    440       IF (H(KL-1,JJW) /= 0.0) THEN
+    441         IF (KL-1 == KTWB(JJW)) THEN
+    442           HT = H2(KT,DS(JJB))
+    443         ELSE
+    444           HT = H2(KL-1,JJW)
+    445         END IF
+    446         FRAC        = (EL1-ELL(KL-1))/HT
+    447         Q1          =  Q1+FRAC*(VOLDH2(KL-1,JJB)/DLT)
+    448         UXBR(K-1,I) =  UXBR(K-1,I)+(ABS((U1/B2)*COS(BETABR)*Q1)/DLX(I))
+    449         UYBR(K-1,I) =  UYBR(K-1,I)+ABS(Q1*SIN(BETABR))
+    450       END IF
+    451       IF (KL > KB(DS(JJB)+1)) EXIT
+    452       EL1 = ELR(K)
+    453     END IF
+    454   END DO
+    455 RETURN
+    456 
+    457 !***************************************************************************************************************************
+    457 ********
+    458 !**                                                   U P S T R E A M   F L O W                                             
+    458       **
+    459 !***************************************************************************************************************************
+    459 ********
+    460 
+    461 ENTRY UPSTREAM_FLOW
+    462   DO JJB=1,NBR
+    463     IF (UHS(JB) >= US(JJB) .AND. UHS(JB) <= DS(JJB)) EXIT
+    464   END DO
+    465   DO JJW=1,NWB
+    466     IF (JJB >=BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+    467   END DO
+    468   DO K=KTWB(JWUH(JB)), KB(UHS(JB))+1
+    469     ELL(K) = EL(K,UHS(JB))
+    470   END DO
+    471   DO K=KT,KB(IU)+1
+    472     ELR(K) = EL(K,IU)+SINA(JB)*DLX(IU)*0.5
+    473   END DO
+    474   ELW = ELWS(IU)                                  !EL(KTWB(JW),IU)-Z(IU)*COSA(JB)
+    475   EL1  = ELW+SINA(JB)*DLX(IU)*0.5
+    476 !  IF(SLOPE(JB) /= 0.0)THEN
+    477 !  EL1  = ELW-(ELWS(IU+1)-ELW)/(0.5*(DLX(IU)+DLX(IU+1))*DLX(IU)*0.5   ! SW 7/17/09
+    478 !  ELSE
+    479 !  EL1=ELW
+    480 !  ENDIF
+    481   KR   = KT+1
+    482   DO K=KTWB(JWUH(JB))+1,KB(UHS(JB))+1
+    483     IF (ELL(K) >= ELR(KR)) THEN
+    484       Q1 = VOLUH2(KR-1,JB)/DLT
+    485       HT = H2(KR-1,JW)
+    486       IF (KR == KTWB(JW)+1) THEN
+    487         QU(K-1,UHS(JB))  = Q1
+    488         QSS(K-1,UHS(JB)) = QSS(K-1,UHS(JB))-Q1
+    489       ELSE
+    490         QU(K-1,UHS(JB))  = Q1*((EL1-ELL(K))/HT)
+    491         QSS(K-1,UHS(JB)) = QSS(K-1,UHS(JB))-QU(K-1,UHS(JB))
+    492       END IF
+
+Page 10          Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    493       EL1 = ELL(K)
+    494       IF (ELL(K) == ELR(KR)) KR = KR+1
+    495     ELSE
+    496       Q1 = 0.0
+    497       DO WHILE (ELL(K) <= ELR(KR))
+    498         IF (KR /= KTWB(JW)+1) THEN
+    499           FRAC = (EL1-ELR(KR))/(H(KR-1,JW))
+    500         ELSE
+    501           FRAC = (EL1-ELR(KR))/(H2(KT,IU))
+    502         END IF
+    503         Q1  = Q1+VOLUH2(KR-1,JB)/DLT*FRAC
+    504         EL1 = ELR(KR)
+    505         KR  = KR+1
+    506         IF (KR > KB(IU)+1) EXIT
+    507       END DO
+    508       IF (H(KR-1,JW) /= 0.0) THEN
+    509         FRAC = (EL1-ELL(K))/H(KR-1,JW)
+    510         QU(K-1,UHS(JB)) = Q1+FRAC*VOLUH2(KR-1,JB)/DLT
+    511       ELSE
+    512         QU(K-1,UHS(JB)) = Q1
+    513       END IF
+    514       QSS(K-1,UHS(JB)) = QSS(K-1,UHS(JB))-QU(K-1,UHS(JB))
+    515       IF (KR > KB(IU)+1) EXIT
+    516       EL1 = ELL(K)
+    517     END IF
+    518   END DO
+    519 RETURN
+    520 
+    521 !***************************************************************************************************************************
+    521 ********
+    522 !**                                                 D O W N S T R E A M   F L O W                                           
+    522       **
+    523 !***************************************************************************************************************************
+    523 ********
+    524 
+    525 ENTRY DOWNSTREAM_FLOW
+    526   DO JJB=1,NBR
+    527     IF (CDHS(JB) >= US(JJB) .AND. CDHS(JB) <= DS(JJB)) EXIT
+    528   END DO
+    529   DO JJW=1,NWB
+    530     IF (JJB >=BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+    531   END DO
+    532   DO K=KTWB(JJW),KB(CDHS(JB))+1
+    533     ELR(K) = EL(K,CDHS(JB))
+    534   END DO
+    535   DO K=KT,KB(ID)+1
+    536     ELL(K) = EL(K,ID)-SINA(JB)*DLX(ID)*0.5
+    537   END DO
+    538   ELW  = ELWS(ID)                            !EL(KTWB(JW),ID)-Z(ID)*COSA(JB)
+    539   EL1  = ELW-SINA(JB)*DLX(ID)*0.5
+    540 !  IF(SLOPE(JB) /= 0.0)THEN
+    541 !  EL1  = ELW+(ELW-ELWS(ID-1))/(0.5*(DLX(ID)+DLX(ID-1))*DLX(ID)*0.5   ! SW 7/17/09
+    542 !  ELSE
+    543 !  EL1=ELW
+    544 !  ENDIF
+    545   KL   = KT+1
+    546   DO K=KTWB(JJW)+1,KB(CDHS(JB))+1
+
+Page 11          Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    547     IF (ELR(K) >= ELL(KL)) THEN
+    548       Q1 = VOLDH2(KL-1,JB)/DLT
+    549       HT = H2(KL-1,JW)
+    550       IF (KL == KTWB(JW)+1) HT = H2(KT,ID)
+    551       QD(K-1,CDHS(JB))  = Q1*((EL1-ELR(K))/HT)
+    552       QSS(K-1,CDHS(JB)) = QSS(K-1,CDHS(JB))+QD(K-1,DHS(JB))
+    553       EL1               = ELR(K)
+    554       IF (ELR(K) == ELL(KL)) KL = KL+1
+    555     ELSE
+    556       Q1 = 0.0
+    557       DO WHILE (ELR(K) <= ELL(KL))
+    558         IF (KL /= KTWB(JW)+1) THEN
+    559           FRAC = (EL1-ELL(KL))/(H(KL-1,JW))
+    560         ELSE
+    561           FRAC = (EL1-ELL(KL))/(H2(KT,ID))
+    562         END IF
+    563         Q1  = Q1+(VOLDH2(KL-1,JB)/DLT)*FRAC
+    564         EL1 = ELL(KL)
+    565         KL  = KL+1
+    566         IF (KL > KB(ID)+1) EXIT
+    567       END DO
+    568       IF (H(KL-1,JW) /= 0.0) THEN
+    569         FRAC             = (EL1-ELR(K))/H(KL-1,JW)
+    570         QD(K-1,CDHS(JB)) =  Q1+FRAC*(VOLDH2(KL-1,JB)/DLT)
+    571       ELSE
+    572         QD(K-1,CDHS(JB)) = Q1
+    573       END IF
+    574       QSS(K-1,CDHS(JB)) = QSS(K-1,CDHS(JB))+QD(K-1,CDHS(JB))
+    575       IF (KL > KB(ID)+1) EXIT
+    576       EL1 = ELR(K)
+    577     END IF
+    578   END DO
+    579 RETURN
+    580 
+    581 !***************************************************************************************************************************
+    581 ********
+    582 !**                                            U P S T R E A M   C O N S T I T U E N T                                      
+    582       **
+    583 !***************************************************************************************************************************
+    583 ********
+    584 
+    585 ENTRY UPSTREAM_CONSTITUENT(C,SS)
+    586   DO JJB=1,NBR
+    587     IF (UHS(JB) >= US(JJB) .AND. UHS(JB) <= DS(JJB)) EXIT
+    588   END DO
+    589   DO JJW=1,NWB
+    590     IF (JJB >=BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+    591   END DO
+    592   DO K=KTWB(JWUH(JB)),KB(UHS(JB))+1
+    593     ELL(K) = EL(K,UHS(JB))
+    594   END DO
+    595   DO K=KT,KB(IU)+1
+    596     ELR(K) = EL(K,IU)+SINA(JB)*DLX(IU)*0.5
+    597   END DO
+    598   ELW  = ELWS(IU)                            !EL(KTWB(JW),IU)-Z(IU)*COSA(JB)
+    599   EL1  = ELW+SINA(JB)*DLX(IU)*0.5
+    600 !  IF(SLOPE(JB) /= 0.0)THEN
+
+Page 12          Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    601 !  EL1  = ELW-(ELWS(IU+1)-ELW)/(0.5*(DLX(IU)+DLX(IU+1))*DLX(IU)*0.5   ! SW 7/17/09
+    602 !  ELSE
+    603 !  EL1=ELW
+    604 !  ENDIF
+    605   KR   = KT+1
+    606   DO K=KTWB(JWUH(JB))+1,KB(UHS(JB))+1
+    607     IUT = IU
+    608     IF (QU(K-1,UHS(JB)) >= 0.0) IUT = IU-1
+    609     IF (ELL(K) >= ELR(KR)) THEN
+    610       T1L             = C(KR-1,IUT)
+    611       SS(K-1,UHS(JB)) = SS(K-1,UHS(JB))-T1L*QU(K-1,UHS(JB))
+    612       EL1             = ELL(K)
+    613       IF (ELL(K) == ELR(KR)) KR = KR+1
+    614     ELSE
+    615       T1L   = 0.0
+    616       BRTOT = 0.0
+    617       DO WHILE (ELL(K) <= ELR(KR))
+    618         IF (KR == KT+1 .AND. K == KTWB(JWUH(JB))+1) THEN
+    619           B1    = BH2(KT,IU)
+    620         ELSE
+    621           B1    = B(KR-1,IU)*(EL1-ELR(KR))
+    622         END IF
+    623         BRTOT = BRTOT+B1
+    624         T1L = T1L+B1*C(KR-1,IUT)
+    625         EL1 = ELR(KR)
+    626         KR  = KR+1
+    627         IF (KR > KB(IU)+1) EXIT
+    628       END DO
+    629       B1              =  B(KR-1,IU)*(EL1-ELL(K))
+    630       BRTOT           =  BRTOT+B1
+    631       T1L             = (T1L+B1*C(KR-1,IUT))/BRTOT
+    632       SS(K-1,UHS(JB)) = SS(K-1,UHS(JB))-T1L*QU(K-1,UHS(JB))
+    633       IF (KR > KB(IU)+1) EXIT
+    634       EL1 = ELL(K)
+    635     END IF
+    636   END DO
+    637 RETURN
+    638 
+    639 !***************************************************************************************************************************
+    639 ********
+    640 !**                                          D O W N S T R E A M   C O N S T I T U E N T                                    
+    640       **
+    641 !***************************************************************************************************************************
+    641 ********
+    642 
+    643 ENTRY DOWNSTREAM_CONSTITUENT (C,SS)
+    644   DO JJB=1,NBR
+    645     IF (CDHS(JB) >= US(JJB) .AND. CDHS(JB) <= DS(JJB)) EXIT
+    646   END DO
+    647   DO JJW=1,NWB
+    648     IF (JJB >=BS(JJW) .AND. JJB <= BE(JJW)) EXIT
+    649   END DO
+    650   DO K=KTWB(JJW),KB(CDHS(JB))+1
+    651     ELR(K) = EL(K,CDHS(JB))
+    652   END DO
+    653   DO K=KT,KB(ID)+1
+    654     ELL(K) = EL(K,ID)+SINA(JB)*DLX(ID)*0.5
+
+Page 13          Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    655   END DO
+    656   ELW  = ELWS(ID)                                     !EL(KTWB(JW),ID)-Z(ID)*COSA(JB)
+    657   EL1  = ELW+SINA(JB)*DLX(ID)*0.5
+    658 !  IF(SLOPE(JB) /= 0.0)THEN
+    659 !  EL1  = ELW+(ELW-ELWS(ID-1))/(0.5*(DLX(ID)+DLX(ID-1))*DLX(ID)*0.5   ! SW 7/17/09
+    660 !  ELSE
+    661 !  EL1=ELW
+    662 !  ENDIF
+    663   KL   = KT+1
+    664   DO K=KTWB(JJW)+1,KB(CDHS(JB))+1
+    665     IDT = ID+1
+    666     IF (QD(K-1,CDHS(JB)) >= 0.0) IDT = ID
+    667     IF (ELR(K) >= ELL(KL)) THEN
+    668       T1L              = C(KL-1,IDT)
+    669       SS(K-1,CDHS(JB)) = SS(K-1,CDHS(JB))+T1L*QD(K-1,CDHS(JB))
+    670       EL1              = ELR(K)
+    671       IF (ELR(K) == ELL(KL)) KL = KL+1
+    672     ELSE
+    673       T1L   = 0.0
+    674       BRTOT = 0.0
+    675       DO WHILE (ELR(K) <= ELL(KL))
+    676         IF (KL == KTWB(JW)+1 .AND. K == KTWB(JJW)+1) THEN
+    677           B1    = BH2(KT,ID)
+    678         ELSE
+    679           B1    = B(KL-1,ID)*(EL1-ELL(KL))
+    680         END IF
+    681         BRTOT = BRTOT+B1
+    682         T1L = T1L+B1*C(KL-1,IDT)
+    683         EL1 = ELL(KL)
+    684         KL  = KL+1
+    685         IF (KL > KB(ID)) THEN
+    686           B1               =  B(KL-1,ID)*(EL1-ELR(K))
+    687           BRTOT            =  BRTOT+B1
+    688           T1L              = (T1L+B1*C(KL-1,IDT))/BRTOT
+    689           SS(K-1,CDHS(JB)) =  SS(K-1,CDHS(JB))+T1L*QD(K-1,CDHS(JB))
+    690           GO TO 200
+    691         END IF
+    692       END DO
+    693       B1               =  B(KL-1,ID)*(EL1-ELR(K))
+    694       BRTOT            =  BRTOT+B1
+    695       T1L              = (T1L+B1*C(KL-1,IDT))/BRTOT
+    696       SS(K-1,CDHS(JB)) =  SS(K-1,CDHS(JB))+T1L*QD(K-1,CDHS(JB))
+    697       EL1              =  ELL(KL)
+    698     END IF
+    699   END DO
+    700 200 CONTINUE
+    701 RETURN
+    702 ENTRY DEALLOCATE_WATERBODY
+
+Page 14          Source Listing                  WATERBODY
+2026-03-30 08:47 Entry Points                    ..\..\..\waterbody.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name                     Address      Type  Name                     Address      Type  Name                   
+                                                                                                                                   
+       DEALLOCATE_WATERBODY                        DOWNSTREAM_WATERBODY                        UPSTREAM_VELOCITY                   
+       DOWNSTREAM_BRANCH                           UPSTREAM_BRANCH                             UPSTREAM_WATERBODY                  
+       DOWNSTREAM_CONSTITUENT                      UPSTREAM_CONSTITUENT                        WATERBODY                           
+       DOWNSTREAM_FLOW                             UPSTREAM_FLOW                                                                   
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 100                        Label  125                                                            120                               
+ 200                        Label  700                                                            690                               
+ ABS                        Func   336                                  scalar                    336,337,371,372,413,414,448,449   
+ B                          Local  192      R(8)            8     2     1        ALC              192,203,280,291,621,629,679,686,69
+                                                                                                  3                                 
+ B1                         Local  17       R(4)            4           scalar                    190,192,194,195,196,197,203,204,20
+                                                                                                  6,207,208,278,280,282,283,284,285,
+                                                                                                  291,293,295,297,298,299,328,329,33
+                                                                                                  0,347,350,352,405,406,407,424,427,
+                                                                                                  429,619,621,623,624,629,630,631,67
+                                                                                                  7,679,681,682,686,687,688,693,694,
+                                                                                                  695                               
+ B2                         Local  17       R(4)            4           scalar                    334,335,336,359,361,371,411,412,41
+                                                                                                  3,436,438,448                     
+ BE                         Local  43       I(4)            4     1     1        ALC              43,162,248,313,386,466,530,590,648
+ BETABR                     Local  336      R(8)            8           scalar                    336,337,371,372,413,414,448,449   
+ BH2                        Local  190      R(8)            8     2     1        ALC              190,278,619,677                   
+ BHR                        Local  117      R(8)            8     2     1        ALC              117,328,334,347,361,405,411,424,43
+                                                                                                  8                                 
+ BHR1                       Local  63       R(8)            8     2     1        ALC              63,70,75,77,85,87,90,97,99,107,115
+                                                                                                  ,117                              
+ BHR2                       Local  329      R(8)            8     2     1        ALC              329,335,350,359,406,412,427,436   
+ BRTOT                      Local  17       R(4)            4           scalar                    97,99,111,115,184,194,204,205,206,
+                                                                                                  207,208,219,220,221,222,272,282,29
+                                                                                                  5,296,297,298,299,343,420,616,623,
+                                                                                                  630,631,674,681,687,688,694,695   
+ BS                         Local  43       I(4)            4     1     1        ALC              43,162,248,313,386,466,530,590,648
+ C                          Dummy  15       R(8)            8     2     0        ARG,INOUT        610,624,631,668,682,688,695       
+ C1                         Local  179      R(8)            8     3     1        ALC,TGT          179,209,215,223,229,266,300       
+ C1S                        Local  178      R(8)            8     3     1        ALC,TGT          178,179,180,197,208,209,210,214,21
+                                                                                                  5,216,222,223,224,228,229,230,265,
+                                                                                                  266,267,285,299,300,301           
+ C2                         Local  180      R(8)            8     3     1        ALC,TGT          180,210,216,224,230,267,301       
+ CDHS                       Local  245      I(4)            4     1     1        ALC              245,254,255,263,264,265,266,267,27
+                                                                                                  0,278,280,283,284,285,288,290,291,
+                                                                                                  297,298,299,527,532,533,546,551,55
+                                                                                                  2,570,572,574,645,650,651,664,666,
+                                                                                                  669,689,696                       
+ CL                         Local  13       R(4)            4     1     1        ALC,SAVE         22,26,185,197,208,222,273,285,299,
+                                                                                                  703                               
+ CN                         Local  178      I(4)            4     1     1        ALC              178,179,180,197,208,209,210,214,21
+
+Page 15          Source Listing                  WATERBODY
+2026-03-30 08:47 Symbol Table                    ..\..\..\waterbody.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  5,216,222,223,224,228,229,230,265,
+                                                                                                  266,267,285,299,300,301           
+ COS                        Func   336                                  scalar                    336,371,413,448                   
+ COSA                       Local  74       R(8)            8     1     1        ALC              74                                
+ CUS                        Local  245      I(4)            4     1     1        ALC              245,318,319,321,322,328,329,330,33
+                                                                                                  2,347,349,350,352,356,365,374     
+ DEALLOCATE_WATERBODY       Subr   702                                                                                              
+ DHS                        Local  552      I(4)            4     1     1        ALC              552                               
+ DLT                        Local  327      R(8)            8           scalar                    327,353,370,404,430,447,484,503,51
+                                                                                                  0,548,563,570                     
+ DLX                        Local  46       R(8)            8     1     1        ALC              46,49,52,74,165,168,171,252,255,25
+                                                                                                  8,319,322,336,371,392,395,413,448,
+                                                                                                  472,475,536,539,596,599,654,657   
+ DOWNSTREAM_BRANCH          Subr   384                                                                                              
+ DOWNSTREAM_CONSTITUENT     Subr   643                                                                                              
+ DOWNSTREAM_FLOW            Subr   525                                                                                              
+ DOWNSTREAM_WATERBODY       Subr   243                                                                                              
+ DS                         Local  40       I(4)            4     1     1        ALC              40,159,245,391,392,394,395,405,406
+                                                                                                  ,407,409,424,426,427,429,433,442,4
+                                                                                                  51,463,527,587,645                
+ EL                         Local  46       R(8)            8     2     1        ALC              46,49,74,165,168,252,255,316,319,3
+                                                                                                  89,392,469,472,533,536,593,596,651
+                                                                                                  ,654                              
+ EL1                        Local  16       R(4)            4           scalar                    52,58,74,75,77,79,87,89,92,104,105
+                                                                                                  ,122,171,181,192,198,203,234,258,2
+                                                                                                  68,280,286,291,302,322,333,338,346
+                                                                                                  ,349,354,369,375,395,410,415,423,4
+                                                                                                  26,431,446,452,475,490,493,499,501
+                                                                                                  ,504,509,516,539,551,553,559,561,5
+                                                                                                  64,569,576,599,612,621,625,629,634
+                                                                                                  ,657,670,679,683,686,693,697      
+ ELL                        Local  13       R(4)            4     1     1        ALC,SAVE         22,26,46,61,64,80,83,87,89,92,105,
+                                                                                                  106,165,175,182,188,192,198,252,26
+                                                                                                  2,268,269,276,291,302,316,326,333,
+                                                                                                  338,339,344,369,375,392,403,416,42
+                                                                                                  1,423,426,431,446,469,483,490,493,
+                                                                                                  494,497,509,516,536,547,554,557,55
+                                                                                                  9,561,564,593,609,612,613,617,629,
+                                                                                                  634,654,667,671,675,679,683,697,70
+                                                                                                  3                                 
+ ELR                        Local  13       R(4)            4     1     1        ALC,SAVE         22,26,49,61,64,65,75,77,79,80,83,1
+                                                                                                  04,106,122,168,175,181,182,188,203
+                                                                                                  ,234,255,262,269,276,280,286,319,3
+                                                                                                  26,339,344,346,349,354,389,403,410
+                                                                                                  ,415,416,421,452,472,483,494,497,4
+                                                                                                  99,501,504,533,547,551,553,554,557
+                                                                                                  ,569,576,596,609,613,617,621,625,6
+                                                                                                  51,667,670,671,675,686,693,703    
+ ELW                        Local  16       R(4)            4           scalar                    51,52,58,65,170,171,257,258,321,32
+                                                                                                  2,394,395,474,475,538,539,598,599,
+                                                                                                  656,657                           
+ ELWS                       Local  51       R(8)            8     1     1        ALC              51,170,257,321,394,474,538,598,656
+ FRAC                       Local  17       R(4)            4           scalar                    89,90,101,104,105,106,107,113,115,
+                                                                                                  117,346,349,352,353,369,370,423,42
+                                                                                                  6,429,430,446,447,499,501,503,509,
+
+Page 16          Source Listing                  WATERBODY
+2026-03-30 08:47 Symbol Table                    ..\..\..\waterbody.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  510,559,561,563,569,570           
+ GEOMC                      Module 8                                                              8                                 
+ GLOBAL                     Module 8                                                              8                                 
+ H                          Local  346      R(8)            8     2     1        ALC              346,363,423,440,499,508,509,559,56
+                                                                                                  8,569                             
+ H1                         Local  67       R(8)            8     2     1        ALC              67,71,87,89,103                   
+ H2                         Local  331      R(8)            8     2     1        ALC              331,332,349,365,367,408,409,426,44
+                                                                                                  2,444,485,501,549,550,561         
+ HT                         Local  17       R(4)            4           scalar                    65,67,71,75,77,103,104,105,331,332
+                                                                                                  ,333,365,367,369,408,409,410,442,4
+                                                                                                  44,446,485,490,549,550,551        
+ I                          Local  315      I(4)            4           scalar                    315,316,325,334,335,336,337,359,36
+                                                                                                  1,371,372,388,389,402,411,412,413,
+                                                                                                  414,436,438,448,449               
+ ID                         Local  251      I(4)            4           scalar                    251,252,257,258,260,261,535,536,53
+                                                                                                  8,539,550,561,566,575,653,654,656,
+                                                                                                  657,665,666,677,679,685,686,693   
+ IDT                        Local  18       I(4)            4           scalar                    260,263,264,265,266,267,297,298,29
+                                                                                                  9,300,301,665,666,668,682,688,695 
+ IMX                        Local  15       I(4)            4           scalar                    15,22                             
+ IU                         Local  48       I(4)            4           scalar                    48,49,60,64,65,75,77,97,99,105,111
+                                                                                                  ,114,115,117,167,168,174,176,177,1
+                                                                                                  78,179,180,206,207,208,209,210,212
+                                                                                                  ,213,214,215,216,220,221,222,223,2
+                                                                                                  24,226,227,228,229,230,471,472,474
+                                                                                                  ,475,501,506,515,595,596,598,599,6
+                                                                                                  07,608,619,621,627,629,633        
+ IUT                        Local  18       I(4)            4           scalar                    607,608,610,624,631               
+ JB                         Local  40       I(4)            4           scalar                    40,45,46,49,51,52,63,64,67,70,71,7
+                                                                                                  4,85,87,89,90,94,103,105,107,112,1
+                                                                                                  15,117,159,164,165,168,170,171,176
+                                                                                                  ,177,178,179,180,190,192,195,196,1
+                                                                                                  97,200,202,203,206,207,208,212,213
+                                                                                                  ,214,226,227,228,245,252,254,255,2
+                                                                                                  58,263,264,265,266,267,270,278,280
+                                                                                                  ,283,284,285,288,290,291,297,298,2
+                                                                                                  99,318,324,329,331,332,345,346,363
+                                                                                                  ,364,367,463,468,469,472,475,482,4
+                                                                                                  84,487,488,490,491,503,510,512,514
+                                                                                                  ,527,532,533,536,539,546,548,551,5
+                                                                                                  52,563,570,572,574,587,592,593,596
+                                                                                                  ,599,606,608,611,618,632,645,650,6
+                                                                                                  51,654,657,664,666,669,689,696    
+ JJB                        Local  39       I(4)            4           scalar                    39,40,43,46,52,74,158,159,162,165,
+                                                                                                  171,244,245,248,255,313,318,319,32
+                                                                                                  1,322,327,328,329,330,332,347,349,
+                                                                                                  350,352,353,356,365,370,374,386,39
+                                                                                                  1,392,394,395,404,405,406,407,409,
+                                                                                                  424,426,427,429,430,433,442,447,45
+                                                                                                  1,462,463,466,526,527,530,586,587,
+                                                                                                  590,644,645,648                   
+ JJW                        Local  18       I(4)            4           scalar                    42,43,45,59,62,63,67,74,84,85,86,8
+                                                                                                  7,161,162,164,173,189,190,247,248,
+                                                                                                  250,254,277,278,312,313,385,386,39
+                                                                                                  1,401,406,408,409,422,423,440,441,
+
+Page 17          Source Listing                  WATERBODY
+2026-03-30 08:47 Symbol Table                    ..\..\..\waterbody.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  444,465,466,529,530,532,546,589,59
+                                                                                                  0,647,648,650,664,676             
+ JW                         Local  335      I(4)            4           scalar                    335,358,412,435,485,486,498,499,50
+                                                                                                  8,509,549,550,558,559,568,569,676 
+ JWUH                       Local  318      I(4)            4     1     1        ALC              318,324,329,331,332,345,346,363,36
+                                                                                                  4,367,468,482,592,606,618         
+ K                          Local  18       I(4)            4           scalar                    45,46,48,49,60,61,73,75,77,79,80,8
+                                                                                                  3,84,96,99,104,105,106,111,114,115
+                                                                                                  ,117,122,164,165,167,168,174,175,1
+                                                                                                  76,177,178,179,180,181,182,188,189
+                                                                                                  ,203,206,207,208,209,210,212,213,2
+                                                                                                  14,215,216,220,221,222,223,224,226
+                                                                                                  ,227,228,229,230,234,251,252,254,2
+                                                                                                  55,261,262,263,264,265,266,267,268
+                                                                                                  ,269,276,277,291,297,298,299,300,3
+                                                                                                  01,302,315,316,318,319,325,326,333
+                                                                                                  ,334,335,336,337,338,339,344,358,3
+                                                                                                  61,371,372,375,388,389,391,392,402
+                                                                                                  ,403,410,411,412,413,414,415,416,4
+                                                                                                  21,435,438,448,449,452,468,469,471
+                                                                                                  ,472,482,483,487,488,490,491,493,4
+                                                                                                  94,497,509,510,512,514,516,532,533
+                                                                                                  ,535,536,546,547,551,552,553,554,5
+                                                                                                  57,569,570,572,574,576,592,593,595
+                                                                                                  ,596,606,608,609,611,612,613,617,6
+                                                                                                  18,629,632,634,650,651,653,654,664
+                                                                                                  ,666,667,669,670,671,675,676,686,6
+                                                                                                  89,693,696                        
+ KB                         Local  45       I(4)            4     1     1        ALC              45,48,60,64,65,94,105,112,114,164,
+                                                                                                  167,174,200,202,251,254,261,270,28
+                                                                                                  8,290,315,318,325,356,374,388,391,
+                                                                                                  402,433,451,468,471,482,506,515,53
+                                                                                                  2,535,546,566,575,592,595,606,627,
+                                                                                                  633,650,653,664,685               
+ KL                         Local  18       I(4)            4           scalar                    59,61,62,63,64,70,71,80,83,84,85,8
+                                                                                                  6,87,89,90,92,93,94,103,105,106,10
+                                                                                                  7,112,115,117,173,175,176,177,178,
+                                                                                                  179,180,182,188,189,192,195,196,19
+                                                                                                  7,198,199,200,202,203,206,207,208,
+                                                                                                  212,213,214,226,227,228,401,403,40
+                                                                                                  4,405,406,407,408,409,416,421,422,
+                                                                                                  423,424,426,429,430,431,432,433,44
+                                                                                                  0,441,444,446,447,451,545,547,548,
+                                                                                                  549,550,554,557,558,559,561,563,56
+                                                                                                  4,565,566,568,569,570,575,663,667,
+                                                                                                  668,671,675,676,679,682,683,684,68
+                                                                                                  5,686,688,693,695,697             
+ KMX                        Local  15       I(4)            4           scalar                    15,22,106                         
+ KR                         Local  18       I(4)            4           scalar                    250,262,263,264,265,266,267,269,27
+                                                                                                  0,276,277,280,283,284,285,286,287,
+                                                                                                  288,290,291,297,298,299,324,326,32
+                                                                                                  7,328,329,330,331,332,339,344,345,
+                                                                                                  346,347,349,352,353,354,355,356,36
+                                                                                                  3,364,367,369,370,374,481,483,484,
+                                                                                                  485,486,494,497,498,499,501,503,50
+
+Page 18          Source Listing                  WATERBODY
+2026-03-30 08:47 Symbol Table                    ..\..\..\waterbody.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  4,505,506,508,509,510,515,605,609,
+                                                                                                  610,613,617,618,621,624,625,626,62
+                                                                                                  7,629,631,633                     
+ KT                         Local  48       I(4)            4           scalar                    48,60,73,75,84,96,97,167,174,189,2
+                                                                                                  51,261,277,315,325,329,332,335,349
+                                                                                                  ,350,359,365,388,402,406,409,412,4
+                                                                                                  26,427,436,442,471,481,501,535,545
+                                                                                                  ,550,561,595,605,618,619,653,663,6
+                                                                                                  77                                
+ KTWB                       Local  45       I(4)            4     1     1        ALC              45,59,62,63,67,74,84,85,86,87,164,
+                                                                                                  173,189,190,250,254,277,278,318,32
+                                                                                                  4,329,332,335,345,358,364,391,401,
+                                                                                                  406,409,412,422,435,441,468,482,48
+                                                                                                  6,498,532,546,550,558,592,606,618,
+                                                                                                  650,664,676                       
+ LOGICC                     Module 8                                                              8                                 
+ NAC                        Local  178      I(4)            4           scalar                    178,179,180,197,208,209,210,214,21
+                                                                                                  5,216,222,223,224,228,229,230,265,
+                                                                                                  266,267,285,299,300,301           
+ NBR                        Local  39       I(4)            4           scalar                    39,158,244,462,526,586,644        
+ NCT                        Local  22       I(4)            4           scalar                    22                                
+ NWB                        Local  42       I(4)            4           scalar                    42,161,247,312,385,465,529,589,647
+ PREC                       Module 8                                                              8                                 
+ Q1                         Local  17       R(4)            4           scalar                    63,70,75,77,82,85,87,90,107,111,11
+                                                                                                  5,327,333,336,337,342,353,370,371,
+                                                                                                  372,404,410,413,414,419,430,447,44
+                                                                                                  8,449,484,487,488,490,496,503,510,
+                                                                                                  512,548,551,556,563,570,572       
+ QD                         Local  14       R(4)            4     2     1        ALC,SAVE         22,26,551,552,570,572,574,666,669,
+                                                                                                  689,696,703                       
+ QSS                        Local  488      R(8)            8     2     1        ALC              488,491,514,552,574               
+ QU                         Local  14       R(4)            4     2     1        ALC,SAVE         22,26,487,490,491,510,512,514,608,
+                                                                                                  611,632,703                       
+ R8                         Param  15       I(4)            4           scalar                    15                                
+ SIN                        Func   337                                  scalar                    337,372,414,449                   
+ SINA                       Local  46       R(8)            8     1     1        ALC              46,49,52,74,165,168,171,252,255,25
+                                                                                                  8,319,322,392,395,472,475,536,539,
+                                                                                                  596,599,654,657                   
+ SS                         Dummy  15       R(8)            8     2     0        ARG,INOUT        611,632,669,689,696               
+ T1                         Local  176      R(8)            8     2     1        ALC,TGT          176,195,206,212,220,226,263,283,29
+                                                                                                  7                                 
+ T1L                        Local  17       R(4)            4           scalar                    186,195,206,220,274,283,297,610,61
+                                                                                                  1,615,624,631,632,668,669,673,682,
+                                                                                                  688,689,695,696                   
+ T2                         Local  177      R(8)            8     2     1        PTR              177,196,207,213,221,227,264,284,29
+                                                                                                  8                                 
+ T2L                        Local  17       R(4)            4           scalar                    187,196,207,221,275,284,298       
+ TVDC                       Module 8                                                              8                                 
+ U                          Local  63       R(8)            8     2     1        PTR              63,70,75,77,85,87,90,107,111,115,1
+                                                                                                  17,330,352,407,429                
+ U1                         Local  17       R(4)            4           scalar                    330,336,341,352,371,407,413,418,42
+                                                                                                  9,448                             
+ UHS                        Local  40       I(4)            4     1     1        ALC              40,45,46,51,52,63,64,67,70,71,74,8
+                                                                                                  5,87,89,90,94,103,105,107,112,115,
+                                                                                                  117,159,164,165,170,171,176,177,17
+
+Page 19          Source Listing                  WATERBODY
+2026-03-30 08:47 Symbol Table                    ..\..\..\waterbody.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  8,179,180,190,192,195,196,197,200,
+                                                                                                  202,203,206,207,208,212,213,214,22
+                                                                                                  6,227,228,463,468,469,482,487,488,
+                                                                                                  490,491,510,512,514,587,592,593,60
+                                                                                                  6,608,611,632                     
+ UPSTREAM_BRANCH            Subr   311                                                                                              
+ UPSTREAM_CONSTITUENT       Subr   585                                                                                              
+ UPSTREAM_FLOW              Subr   461                                                                                              
+ UPSTREAM_VELOCITY          Subr   38                                                                                               
+ UPSTREAM_WATERBODY         Subr   157                                                                                              
+ US                         Local  40       I(4)            4     1     1        ALC              40,159,463,527,587,645            
+ UXBR                       Local  336      R(8)            8     2     1        ALC              336,371,413,448                   
+ UYBR                       Local  337      R(8)            8     2     1        ALC              337,372,414,449                   
+ VOLDH2                     Local  404      R(8)            8     2     1        ALC              404,430,447,548,563,570           
+ VOLUH2                     Local  327      R(8)            8     2     1        ALC              327,353,370,484,503,510           
+ WATERBODY                  Subr   7                                                                                                
+ Z                          Local  74       R(8)            8     1     1        ALC              74                                
+
+Page 20          Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+    703   DEALLOCATE (ELL, ELR, CL, QU, QD)
+    704 RETURN
+    705 END SUBROUTINE WATERBODY
+
+Page 21          Source Listing                  WATERBODY
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\waterbody.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ WATERBODY                  Subr   7                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 22          Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:waterbody.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 23          Source Listing                  WATERBODY
+2026-03-30 08:47                                 ..\..\..\waterbody.f90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : waterbody.lst
+  /object:waterbody.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

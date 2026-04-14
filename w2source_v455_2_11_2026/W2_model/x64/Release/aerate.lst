@@ -1,0 +1,421 @@
+Page 1           Source Listing                  AERATE
+2026-03-30 08:48                                 C:\Users\NING\AppData\Local\Temp\341801334.i90
+
+      1 # 1 "..\..\..\aerate.f90"
+      2 MODULE HYPOAERATION
+      3     
+      4   REAL, ALLOCATABLE, DIMENSION (:) ::  DZMULTA,SMASS,ATIMON,ATIMOFF,CUMDOMASS
+      5   REAL, ALLOCATABLE, DIMENSION (:,:) ::  DZMULT
+      6   INTEGER, ALLOCATABLE, DIMENSION (:) ::   IASEG,KTOPA,KBOTA,IPRB,KPRB
+      7   REAL, ALLOCATABLE, DIMENSION (:) :: DOOFF,DOON
+      8   REAL, ALLOCATABLE, DIMENSION (:) :: ACTUAL_MASS
+      9   LOGICAL, ALLOCATABLE, DIMENSION (:) :: AERATEO2
+     10   INTEGER NAER, NLAYERS, KTOP,KBOT
+     11   CHARACTER(16) :: CONAER
+     12   CHARACTER(30) :: HEADER
+     13     
+     14 END MODULE HYPOAERATION
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ACTUAL_MASS                Local  8        R(4)            4     1     1        ALC                                                
+ AERATEO2                   Local  9        L(4)            4     1     1        ALC                                                
+ ATIMOFF                    Local  4        R(4)            4     1     1        ALC                                                
+ ATIMON                     Local  4        R(4)            4     1     1        ALC                                                
+ CONAER                     Local  11       CHAR            16          scalar                                                      
+ CUMDOMASS                  Local  4        R(4)            4     1     1        ALC                                                
+ DOOFF                      Local  7        R(4)            4     1     1        ALC                                                
+ DOON                       Local  7        R(4)            4     1     1        ALC                                                
+ DZMULT                     Local  5        R(4)            4     2     1        ALC                                                
+ DZMULTA                    Local  4        R(4)            4     1     1        ALC                                                
+ HEADER                     Local  12       CHAR            30          scalar                                                      
+ HYPOAERATION               Module 2                                                                                                
+ IASEG                      Local  6        I(4)            4     1     1        ALC                                                
+ IPRB                       Local  6        I(4)            4     1     1        ALC                                                
+ KBOT                       Local  10       I(4)            4           scalar                                                      
+ KBOTA                      Local  6        I(4)            4     1     1        ALC                                                
+ KPRB                       Local  6        I(4)            4     1     1        ALC                                                
+ KTOP                       Local  10       I(4)            4           scalar                                                      
+ KTOPA                      Local  6        I(4)            4     1     1        ALC                                                
+ NAER                       Local  10       I(4)            4           scalar                                                      
+ NLAYERS                    Local  10       I(4)            4           scalar                                                      
+ SMASS                      Local  4        R(4)            4     1     1        ALC                                                
+
+Page 2           Source Listing                  AERATE
+2026-03-30 08:48                                 ..\..\..\aerate.f90
+
+     15     
+     16 SUBROUTINE AERATE
+     17   USE GLOBAL;USE MAIN; USE KINETIC; USE TRANS; USE SCREENC; USE HYPOAERATION
+     18   IMPLICIT NONE
+     19   LOGICAL :: CSVFORMAT
+     20   SAVE
+     21   
+     22   CSVFORMAT=.FALSE.
+     23   ALLOCATE(DZMULT(KMX,IMX))
+     24    DZMULT=1.0
+     25    OPEN(AERATEFN,FILE='W2_AERATE.NPT',STATUS='OLD')
+     26     READ(AERATEFN,'(//A)')HEADER
+     27      DO J=1,30
+     28          IF(HEADER(J:J)==',')THEN
+     29              CSVFORMAT=.TRUE.
+     30              EXIT
+     31          ENDIF
+     32      ENDDO
+     33    REWIND(AERATEFN)
+     34    
+     35   IF(CSVFORMAT)THEN
+     36        READ (AERATEFN,*)
+     37        READ (AERATEFN,*)
+     38        READ (AERATEFN,*)NAER,CONAER
+     39    ELSE
+     40        READ (AERATEFN,'(//I8,A16)')NAER,CONAER
+     41    ENDIF
+     42 
+     43      IF(NAER.EQ.0)NAER=1    
+     44      ALLOCATE(DZMULTA(NAER),IASEG(NAER),KTOPA(NAER),KBOTA(NAER),SMASS(NAER),ATIMON(NAER),ATIMOFF(NAER),DOOFF(NAER),DOON(NAER
+     44 ),IPRB(NAER),KPRB(NAER),ACTUAL_MASS(NAER),AERATEO2(NAER),CUMDOMASS(NAER))
+     45      DZMULTA=0.0; ACTUAL_MASS=0.0; CUMDOMASS=0.0
+     46      READ(AERATEFN,1013)
+     47 1013 FORMAT(/)
+     48       DO I=1,NAER
+     49         IF(CSVFORMAT)THEN
+     50           READ(AERATEFN,*)IASEG(I),KTOPA(I),KBOTA(I),SMASS(I),ATIMON(I),ATIMOFF(I),DZMULTA(I),DOOFF(I),DOON(I),IPRB(I),KPRB(
+     50 I)
+     51           ELSE 
+     52           READ(AERATEFN,'(I8,I8,I8,F8.0,F8.0,F8.0,3F8.0,2I8)')IASEG(I),KTOPA(I),KBOTA(I),SMASS(I),ATIMON(I),ATIMOFF(I),DZMUL
+     52 TA(I),DOOFF(I),DOON(I),IPRB(I),KPRB(I)
+     53         ENDIF  
+     54       END DO
+     55 
+     56 	CLOSE(AERATEFN)
+     57 
+     58 IF(RESTART_IN)THEN
+     59   OPEN(AERATEFN,FILE=CONAER,POSITION='APPEND')
+     60         JDAY1=0.0
+     61         REWIND (AERATEFN)
+     62         READ   (AERATEFN,'(//)')
+     63         DO WHILE (JDAY1 < JDAY)
+     64           READ (AERATEFN,'(F9.0)',END=106) JDAY1
+     65         END DO
+     66         BACKSPACE (AERATEFN)
+     67         106     JDAY1=0.0
+     68 ELSE
+
+Page 3           Source Listing                  AERATE
+2026-03-30 08:48                                 ..\..\..\aerate.f90
+
+     69   OPEN(AERATEFN,FILE=CONAER,STATUS='UNKNOWN')
+     70   WRITE(AERATEFN,'(A,I3,A)')'OUTPUT FILE FOR AERATION INPUT WITH',NAER,' INPUT(S).'
+     71   WRITE(AERATEFN,'(A114)')'JDAY,INSTMASSRATE#1(KGO2/D),CUMMASS#1(KGO2),DOPROBE#1(MG/L),INSTMASSRATE#2(KGO2/D),CUMMASS#2(KGO2
+     71 ),DOPROBE#2(MG/L)'
+     72 ENDIF
+     73   DZMULT=1.0  ! ALWAYS RESET MIXING COEFFICIENT FOR AERATION SW IPC 2/01/01
+     74  RETURN
+     75  
+     76 !ENTRY DZAERATE   ! FROM W2_ MAIN CODE
+     77 !   DO I=1,NAER
+     78 !   DZ(KTOPA(I):KBOTA(I),IASEG(I))=DZ(KTOPA(I):KBOTA(I),IASEG(I))*DZMULT(KTOPA(I):KBOTA(I),IASEG(I))
+     79 !   ENDDO
+     80 !RETURN
+     81     
+     82  ENTRY AERATEMASS   ! FROM WQ_CONSTITUENTS
+     83 
+     84 ! SECTION FOR HYPOLIMNETIC AERATION
+     85  DZMULT=1.0   ! ALWAYS RESET TO 1.0 IN CASE NO AERATION
+     86               DO II=1,NAER
+     87                 IF(JDAY.GE.ATIMON(II).AND.JDAY.LE.ATIMOFF(II))THEN
+     88 
+     89 ! FIND BRANCH AND WATERBODY FOR ISEG
+     90                   DO JJB=1,NBR
+     91                     IF(BR_INACTIVE(JJB))CYCLE  ! SW 6/12/2017
+     92                     IF(IASEG(II).GE.US(JJB).AND.IASEG(II).LE.DS(JJB))THEN
+     93                       EXIT
+     94                     END IF
+     95                   END DO
+     96 
+     97                   IF(JJB.EQ.JB)THEN   ! IF THIS BRANCH DOESN'T HAVE AERATION SKIP IT
+     98 
+     99                     KTOP=MAX(KTWB(JW),KTOPA(II))
+    100                     KBOT=MIN(KB(IASEG(II)),KBOTA(II))
+    101 
+    102                     NLAYERS=KBOT-KTOP+1
+    103 
+    104                     AERATEO2(II)=.TRUE.
+    105 
+    106                     IF(O2(KPRB(II),IPRB(II)).GT.DOON(II).AND.O2(KPRB(II),IPRB(II)).GT.DOOFF(II))THEN
+    107                       AERATEO2(II)=.FALSE.
+    108                       ACTUAL_MASS(II)=0.0
+    109                     END IF
+    110 
+    111                     IF(AERATEO2(II))THEN
+    112                       ACTUAL_MASS(II)=SMASS(II)  ! SW 12/28/01
+    113                       CUMDOMASS(II)=CUMDOMASS(II)+SMASS(II)*DLT/86400.
+    114                       DO K=KTOP,KBOT
+    115             
+    116                         DZMULT(K,IASEG(II))=DZMULTA(II)   ! THIS MEANS THE INCREASE IN DZ IS LAGGED ONE TIME STEP
+    117                         CSSB(K,IASEG(II),NDO)=CSSB(K,IASEG(II),NDO)+SMASS(II)/(86.4*REAL(NLAYERS))
+    118 ! UNITS OF SMASS ARE IN KG/DAY
+    119 ! TYPICAL UNITS OF CSSB: (MG/L)*(M3/S) TO OONVERT MULTIPLY BY (1KG/10^6MG)*(1000L/1M3)*(86400S/DAY)==86.4
+    120                         
+    121                       END DO          
+    122                     END IF
+    123                   END IF
+    124                 ELSE
+
+Page 4           Source Listing                  AERATE
+2026-03-30 08:48                                 ..\..\..\aerate.f90
+
+    125                 AERATEO2(II)=.FALSE.
+    126                 ACTUAL_MASS(II)=0.0
+    127                 END IF
+    128                 
+    129               END DO
+    130 
+    131 RETURN
+    132 
+    133 ENTRY AERATEOUTPUT     ! FROM W2_MAIN CODE
+    134 
+    135         WRITE(AERATEFN,'(F9.3,<NAER>(1X,E12.3,1X,E12.3,1X,F8.3))')JDAY,(ACTUAL_MASS(II),CUMDOMASS(II),O2(KPRB(II),IPRB(II)),
+    135 II=1,NAER)
+    136 
+    137 RETURN
+    138 ENTRY DEALLOCATE_AERATE
+
+
+ENTRY POINTS
+
+ Address      Type  Name                Address      Type  Name              
+                                                                             
+       AERATE                                 AERATEOUTPUT                   
+       AERATEMASS                             DEALLOCATE_AERATE              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 1013                       Label  47                                                             46                                
+ 106                        Label  67                                                             64                                
+ ACTUAL_MASS                Local  44       R(4)            4     1     1        ALC              44,45,108,112,126,135,139         
+ AERATE                     Subr   16                                                                                               
+ AERATEFN                   Local  25       I(4)            4           scalar                    25,26,33,36,37,38,40,46,50,52,56,5
+                                                                                                  9,61,62,64,66,69,70,71,135,141    
+ AERATEMASS                 Subr   82                                                                                               
+ AERATEO2                   Local  44       L(4)            4     1     1        ALC              44,104,107,111,125,139            
+ AERATEOUTPUT               Subr   133                                                                                              
+ ATIMOFF                    Local  44       R(4)            4     1     1        ALC              44,50,52,87,139                   
+ ATIMON                     Local  44       R(4)            4     1     1        ALC              44,50,52,87,139                   
+ BR_INACTIVE                Local  91       L(4)            4     1     1        ALC              91                                
+ CONAER                     Local  38       CHAR            16          scalar                    38,40,59,69                       
+ CSSB                       Local  117      R(8)            8     3     1        ALC,TGT          117                               
+ CSVFORMAT                  Local  19       L(4)            4           scalar   SAVE             22,29,35,49                       
+ CUMDOMASS                  Local  44       R(4)            4     1     1        ALC              44,45,113,135,139                 
+ DEALLOCATE_AERATE          Subr   138                                                                                              
+ DLT                        Local  113      R(8)            8           scalar                    113                               
+ DOOFF                      Local  44       R(4)            4     1     1        ALC              44,50,52,106,139                  
+ DOON                       Local  44       R(4)            4     1     1        ALC              44,50,52,106,139                  
+ DS                         Local  92       I(4)            4     1     1        ALC              92                                
+ DZMULT                     Local  23       R(4)            4     2     1        ALC              23,24,73,85,116,140               
+ DZMULTA                    Local  44       R(4)            4     1     1        ALC              44,45,50,52,116,139               
+ GLOBAL                     Module 17                                                             17                                
+ HEADER                     Local  26       CHAR            30          scalar                    26,28                             
+ HYPOAERATION               Module 17                                                             17                                
+ I                          Local  48       I(4)            4           scalar                    48,50,52                          
+ IASEG                      Local  44       I(4)            4     1     1        ALC              44,50,52,92,100,116,117,139       
+
+Page 5           Source Listing                  AERATE
+2026-03-30 08:48 Symbol Table                    ..\..\..\aerate.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ II                         Local  86       I(4)            4           scalar                    86,87,92,99,100,104,106,107,108,11
+                                                                                                  1,112,113,116,117,125,126,135     
+ IMX                        Local  23       I(4)            4           scalar                    23                                
+ IPRB                       Local  44       I(4)            4     1     1        ALC              44,50,52,106,135,139              
+ J                          Local  27       I(4)            4           scalar                    27,28                             
+ JB                         Local  97       I(4)            4           scalar                    97                                
+ JDAY                       Local  63       R(8)            8           scalar                    63,87,135                         
+ JDAY1                      Local  60       R(4)            4           scalar                    60,63,64,67                       
+ JJB                        Local  90       I(4)            4           scalar                    90,91,92,97                       
+ JW                         Local  99       I(4)            4           scalar                    99                                
+ K                          Local  114      I(4)            4           scalar                    114,116,117                       
+ KB                         Local  100      I(4)            4     1     1        ALC              100                               
+ KBOT                       Local  100      I(4)            4           scalar                    100,102,114                       
+ KBOTA                      Local  44       I(4)            4     1     1        ALC              44,50,52,100,139                  
+ KINETIC                    Module 17                                                             17                                
+ KMX                        Local  23       I(4)            4           scalar                    23                                
+ KPRB                       Local  44       I(4)            4     1     1        ALC              44,50,52,106,135,139              
+ KTOP                       Local  99       I(4)            4           scalar                    99,102,114                        
+ KTOPA                      Local  44       I(4)            4     1     1        ALC              44,50,52,99,139                   
+ KTWB                       Local  99       I(4)            4     1     1        ALC              99                                
+ LA                         Label  135                                                                                              
+ LB                         Label  135                                                                                              
+ MAIN                       Module 17                                                             17                                
+ MAX                        Func   99                                   scalar                    99                                
+ MIN                        Func   100                                  scalar                    100                               
+ NAER                       Local  38       I(4)            4           scalar                    38,40,43,44,48,70,86,135          
+ NBR                        Local  90       I(4)            4           scalar                    90                                
+ NDO                        Local  117      I(4)            4           scalar                    117                               
+ NLAYERS                    Local  102      I(4)            4           scalar                    102,117                           
+ O2                         Local  106      R(8)            8     2     1        PTR              106,135                           
+ REAL                       Func   117                                  scalar                    117                               
+ RESTART_IN                 Local  58       L(4)            4           scalar                    58                                
+ SCREENC                    Module 17                                                             17                                
+ SMASS                      Local  44       R(4)            4     1     1        ALC              44,50,52,112,113,117,139          
+ TRANS                      Module 17                                                             17                                
+ US                         Local  92       I(4)            4     1     1        ALC              92                                
+
+Page 6           Source Listing                  AERATE
+2026-03-30 08:48                                 ..\..\..\aerate.f90
+
+    139 DEALLOCATE(DZMULTA,IASEG,KTOPA,KBOTA,SMASS,ATIMON,ATIMOFF,DOOFF,DOON,IPRB,KPRB,ACTUAL_MASS,AERATEO2,CUMDOMASS)
+    140 DEALLOCATE(DZMULT)
+    141 CLOSE(AERATEFN)
+    142 RETURN
+    143 END
+
+Page 7           Source Listing                  AERATE
+2026-03-30 08:48 Subprograms/Common Blocks       ..\..\..\aerate.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ AERATE                     Subr   16                                                                                               
+ HYPOAERATION               Module 2                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+
+Page 8           Source Listing                  AERATE
+2026-03-30 08:48                                 ..\..\..\aerate.f90
+
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:aerate.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+
+Page 9           Source Listing                  AERATE
+2026-03-30 08:48                                 ..\..\..\aerate.f90
+
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : aerate.lst
+  /object:aerate.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

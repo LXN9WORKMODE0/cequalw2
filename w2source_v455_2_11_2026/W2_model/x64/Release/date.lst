@@ -1,0 +1,279 @@
+Page 1           Source Listing                  GREGORIAN_DATE
+2026-03-30 08:48                                 C:\Users\NING\AppData\Local\Temp\341801364.i90
+
+      1 # 1 "..\..\..\date.f90"
+      2 
+      3 !***************************************************************************************************************************
+      3 ********
+      4 !**                                     S U B R O U T I N E    G R E G O R I A N   D A T E                                  
+      4       **
+      5 !***************************************************************************************************************************
+      5 ********
+      6 
+      7 SUBROUTINE GREGORIAN_DATE
+      8   USE GDAYC
+      9   IMPLICIT NONE
+     10   INTEGER :: INCR
+     11 
+     12 ! Determine if new year (regular or leap) and increment year
+     13 
+     14   DO WHILE (JDAYG >= 366)
+     15     IF (.NOT. LEAP_YEAR .AND. JDAYG >= 366) THEN
+     16       JDAYG     = JDAYG-365
+     17       YEAR      = YEAR+1
+     18       LEAP_YEAR = MOD(YEAR,4) == 0
+     19     ELSE IF (JDAYG >= 367) THEN
+     20       JDAYG     = JDAYG-366
+     21       YEAR      = YEAR+1
+     22       LEAP_YEAR = MOD(YEAR,4) == 0
+     23     ELSE
+     24       EXIT
+     25     END IF
+     26   END DO
+     27   INCR = 0
+     28   IF (LEAP_YEAR) INCR = 1
+     29 
+     30 ! Determine month and day of year
+     31 
+     32   IF (JDAYG >= 1 .AND. JDAYG < 32) THEN
+     33     GDAY  = JDAYG
+     34     DAYM  = 31.0
+     35     MONTH = '  January'
+     36     IMON  = 1
+     37   ELSE IF (JDAYG >= 32 .AND. JDAYG < 60+INCR) THEN
+     38     GDAY  = JDAYG-31
+     39     DAYM  = 29.0
+     40     MONTH = ' February'
+     41     IMON  = 2
+     42   ELSE IF (JDAYG >= 60 .AND. JDAYG < 91+INCR) THEN
+     43     GDAY  = JDAYG-59-INCR
+     44     DAYM  = 31.0
+     45     MONTH = '    March'
+     46     IMON = 3
+     47   ELSE IF (JDAYG >= 91 .AND. JDAYG < 121+INCR) THEN
+     48     GDAY  = JDAYG-90-INCR
+     49     DAYM  = 30.0
+     50     MONTH = '    April'
+     51     IMON  = 4
+     52   ELSE IF (JDAYG >= 121 .AND. JDAYG < 152+INCR) THEN
+     53     GDAY  = JDAYG-120-INCR
+     54     DAYM  = 31.0
+
+Page 2           Source Listing                  GREGORIAN_DATE
+2026-03-30 08:48                                 ..\..\..\date.f90
+
+     55     MONTH = '      May'
+     56     IMON     = 5
+     57   ELSE IF (JDAYG >= 152 .AND. JDAYG < 182+INCR) THEN
+     58     GDAY  = JDAYG-151-INCR
+     59     DAYM  = 30.0
+     60     MONTH = '     June'
+     61     IMON     = 6
+     62   ELSE IF (JDAYG >= 182 .AND. JDAYG < 213+INCR) THEN
+     63     GDAY  = JDAYG-181-INCR
+     64     DAYM  = 31.0
+     65     MONTH = '     July'
+     66     IMON     = 7
+     67   ELSE IF (JDAYG >= 213 .AND. JDAYG < 244+INCR) THEN
+     68     GDAY  = JDAYG-212-INCR
+     69     DAYM  = 31.0
+     70     MONTH = '   August'
+     71     IMON     = 8
+     72   ELSE IF (JDAYG >= 244 .AND. JDAYG < 274+INCR) THEN
+     73     GDAY  = JDAYG-243-INCR
+     74     DAYM  = 30.0
+     75     MONTH = 'September'
+     76     IMON     = 9
+     77   ELSE IF (JDAYG >= 274 .AND. JDAYG < 305+INCR) THEN
+     78     GDAY  = JDAYG-273-INCR
+     79     DAYM  = 31.0
+     80     MONTH = '  October'
+     81     IMON     = 10
+     82   ELSE IF (JDAYG >= 305 .AND. JDAYG < 335+INCR) THEN
+     83     GDAY  = JDAYG-304-INCR
+     84     DAYM  = 30.0
+     85     MONTH = ' November'
+     86     IMON     = 11
+     87   ELSE IF (JDAYG >= 335 .AND. JDAYG < 366+INCR) THEN
+     88     GDAY  = JDAYG-334-INCR
+     89     DAYM  = 31.0
+     90     MONTH = ' December'
+     91     IMON     = 12
+     92   END IF
+     93 END SUBROUTINE GREGORIAN_DATE
+
+Page 3           Source Listing                  GREGORIAN_DATE
+2026-03-30 08:48 Entry Points                    ..\..\..\date.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name           
+                                   
+       GREGORIAN_DATE              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DAYM                       Local  34       R(4)            4           scalar                    34,39,44,49,54,59,64,69,74,79,84,8
+                                                                                                  9                                 
+ GDAY                       Local  33       I(4)            4           scalar                    33,38,43,48,53,58,63,68,73,78,83,8
+                                                                                                  8                                 
+ GDAYC                      Module 8                                                              8                                 
+ GREGORIAN_DATE             Subr   7                                                                                                
+ IMON                       Local  36       I(4)            4           scalar                    36,41,46,51,56,61,66,71,76,81,86,9
+                                                                                                  1                                 
+ INCR                       Local  10       I(4)            4           scalar                    27,28,37,42,43,47,48,52,53,57,58,6
+                                                                                                  2,63,67,68,72,73,77,78,82,83,87,88
+ JDAYG                      Local  14       I(4)            4           scalar                    14,15,16,19,20,32,33,37,38,42,43,4
+                                                                                                  7,48,52,53,57,58,62,63,67,68,72,73
+                                                                                                  ,77,78,82,83,87,88                
+ LEAP_YEAR                  Local  15       L(4)            4           scalar                    15,18,22,28                       
+ MOD                        Func   18                                   scalar                    18,22                             
+ MONTH                      Local  35       CHAR            9           scalar                    35,40,45,50,55,60,65,70,75,80,85,9
+                                                                                                  0                                 
+ YEAR                       Local  17       I(4)            4           scalar                    17,18,21,22                       
+
+Page 4           Source Listing                  GREGORIAN_DATE
+2026-03-30 08:48 Subprograms/Common Blocks       ..\..\..\date.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ GREGORIAN_DATE             Subr   7                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 5           Source Listing                  GREGORIAN_DATE
+2026-03-30 08:48                                 ..\..\..\date.f90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:date.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 6           Source Listing                  GREGORIAN_DATE
+2026-03-30 08:48                                 ..\..\..\date.f90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : date.lst
+  /object:date.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

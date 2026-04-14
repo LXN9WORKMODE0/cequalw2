@@ -1,0 +1,1065 @@
+Page 1           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180734.i90
+
+      1 # 1 "..\..\..\transport.f90"
+      2 
+      3 !***************************************************************************************************************************
+      3 ********
+      4 !**                                           S U B R O U T I N E   T R A N S P O R T                                       
+      4       **
+      5 !***************************************************************************************************************************
+      5 ********
+      6 
+      7 SUBROUTINE TRANSPORT
+      8   USE GLOBAL; USE GEOMC; USE TVDC; USE TRANS; USE LOGICC; USE STRUCTURES; USE PREC
+      9   IMPLICIT NONE
+     10 
+     11 ! Type declarations
+     12 
+     13   REAL(R8),     SAVE, ALLOCATABLE, DIMENSION(:)     :: RATD,   CURX1,  CURX2,  CURX3
+     14 !  REAL,     SAVE, ALLOCATABLE, DIMENSION(:,:)   :: RATZ,   CURZ1,  CURZ2,  CURZ3
+     15   REAL(R8),     SAVE, ALLOCATABLE, DIMENSION(:,:)   :: SF1X,   SF1Z,ALFA,RATS,CURS1,CURS2,CURS3,ALFAZ,RATSZ,CURS1Z,CURS2Z,CU
+     15 RS3Z
+     16   REAL(R8),     SAVE, ALLOCATABLE, DIMENSION(:,:,:) :: SF12X,  SF13X
+     17   REAL(R8),     SAVE, ALLOCATABLE, DIMENSION(:,:,:) :: SF2X,   SF3X,   SF4X,   SF5X,   SF6X,   SF7X,   SF8X,   SF9X,   SF10X
+     17 ,  SF11X
+     18   REAL(R8),     SAVE, ALLOCATABLE, DIMENSION(:,:,:) :: SF2Z,   SF3Z,   SF4Z,   SF5Z,   SF6Z,   SF7Z,   SF8Z,   SF9Z,   SF10Z
+     19   REAL(R8), SAVE, ALLOCATABLE, DIMENSION(:,:)   :: DX1,    DX2,    DX3
+     20   REAL(R8), SAVE, ALLOCATABLE, DIMENSION(:,:)   :: AD1X,   AD2X,   AD3X,   AD1Z,   AD2Z,   AD3Z
+     21 
+     22   REAL(R8)                                      :: HT,HM,HB,HMIN,C2X,C3X,C1X,COUR,CART,CALF
+     23   REAL(R8)                                      :: FLUX,FTEMP,CREF,CMAX1,CMIN1,C2Z,C1Z,C3Z,RATZI
+     24   REAL(R8)                                      :: DELC,ADELC,ACURZ,RATDI,DLTDLXR
+     25   REAL(R8)                                      :: DLXT,DLXMIN
+     26   INTEGER                                       :: K
+     27 
+     28 ! Allocation declarations
+     29 
+     30   ALLOCATE (RATD(IMX),       CURX1(IMX),      CURX2(IMX),       CURX3(IMX))
+     31   ALLOCATE (SF1X(KMX,IMX),   SF1Z(KMX,NWB))
+     32 !  ALLOCATE (RATZ(KMX,NWB),   CURZ1(KMX,NWB),  CURZ2(KMX,NWB),   CURZ3(KMX,NWB))
+     33   ALLOCATE (DX1(KMX,IMX),    DX2(KMX,IMX),    DX3(KMX,IMX))
+     34   ALLOCATE (AD1X(KMX,IMX),   AD2X(KMX,IMX),   AD3X(KMX,IMX))
+     35   ALLOCATE (AD1Z(KMX,IMX),   AD2Z(KMX,IMX),   AD3Z(KMX,IMX))
+     36   ALLOCATE (RATS(KMX,IMX),   CURS1(KMX,IMX), CURS2(KMX,IMX), CURS3(KMX,IMX), ALFA(KMX,IMX))
+     37   ALLOCATE (RATSZ(KMX,IMX),   CURS1Z(KMX,IMX), CURS2Z(KMX,IMX), CURS3Z(KMX,IMX), ALFAZ(KMX,IMX))
+     38   ALLOCATE (SF2X(KMX,IMX,2), SF3X(KMX,IMX,2), SF4X(KMX,IMX,2),  SF5X(KMX,IMX,2),  SF6X(KMX,IMX,2),  SF7X(KMX,IMX,2))
+     39   ALLOCATE (SF8X(KMX,IMX,2), SF9X(KMX,IMX,2), SF10X(KMX,IMX,2), SF11X(KMX,IMX,2), SF12X(KMX,IMX,2), SF13X(KMX,IMX,2))
+     40   ALLOCATE (SF2Z(KMX,2,NWB), SF3Z(KMX,2,NWB), SF4Z(KMX,2,NWB),  SF5Z(KMX,2,NWB),  SF6Z(KMX,2,NWB),  SF7Z(KMX,2,NWB))
+     41   ALLOCATE (SF8Z(KMX,2,NWB), SF9Z(KMX,2,NWB), SF10Z(KMX,2,NWB))
+     42 
+     43 ! Variable initialization
+     44 
+     45   CT   = 0.0; AT   = 0.0; VT   = 0.0; DT   = 0.0; DX1  = 0.0; DX2  = 0.0; DX3  = 0.0; ADZ  = 0.0; ADX  = 0.0;  AD1X = 0.0
+     46   AD2X = 0.0; AD3X = 0.0; AD1Z = 0.0; AD2Z = 0.0; AD3Z = 0.0
+     47 RETURN
+     48 
+     49 !***************************************************************************************************************************
+     49 ********
+     50 !**                                        I N T E R P O L A T I O N  M U L T I P L I E R S                                 
+     50       **
+
+Page 2           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+     51 !***************************************************************************************************************************
+     51 ********
+     52 
+     53 ENTRY INTERPOLATION_MULTIPLIERS
+     54 
+     55 ! Positive horizontal flows
+     56 
+     57   DO I=2,IMX-1
+     58     DO K=2,KMX-1
+     59       DLXT = DLX(I-1)
+     60       IF (K > KB(I-1) .OR. INTERNAL_WEIR(K,I)) DLXT = DLX(I)
+     61       DLXMIN       =  DMIN1(DLX(I+1),DLX(I))
+     62       SF1X(K,I)    = (DLX(I+1)+DLX(I))*0.5D0
+     63       SF2X(K,I,1)  =  DLX(I)/(DLX(I)+DLX(I+1))
+     64 !SF3X(K,I,1)  =  DLX(I)**2
+     65       SF3X(K,I,1)  =  DLX(I)*DLX(I)          ! SW 4/20/16 SPEED
+     66       SF4X(K,I,1)  =  DLX(I+1)/(DLX(I)+DLX(I+1))
+     67       SF5X(K,I,1)  =  0.25D0*(DLXT+2.0D0*DLX(I)+DLX(I+1))*(DLXT+DLX(I))
+     68       SF6X(K,I,1)  = -0.25D0*(         DLX(I)+DLX(I+1))*(DLXT+DLX(I))
+     69       SF7X(K,I,1)  =  0.25D0*(DLX(I)+DLX(I+1))*(DLXT+2.0D0*DLX(I)+DLX(I+1))
+     70       SF8X(K,I,1)  =  0.50D0*(         DLX(I)-DLX(I+1))*DLXMIN
+     71       SF9X(K,I,1)  =  0.50D0*(DLXT+2.0D0*DLX(I)-DLX(I+1))*DLXMIN
+     72       SF10X(K,I,1) =  0.50D0*(DLXT+3.0D0*DLX(I))         *DLXMIN
+     73 !SF11X(K,I,1) =  SF8X(K,I,1) /SF5X(K,I,1)/SF1X(K,I)
+     74 !SF12X(K,I,1) =  SF9X(K,I,1) /SF6X(K,I,1)/SF1X(K,I)
+     75 !SF13X(K,I,1) =  SF10X(K,I,1)/SF7X(K,I,1)/SF1X(K,I)
+     76       SF11X(K,I,1) =  SF8X(K,I,1) /(SF5X(K,I,1)*SF1X(K,I))             ! SW 4/20/16 SPEED
+     77       SF12X(K,I,1) =  SF9X(K,I,1) /(SF6X(K,I,1)*SF1X(K,I))
+     78       SF13X(K,I,1) =  SF10X(K,I,1)/(SF7X(K,I,1)*SF1X(K,I))
+     79     END DO
+     80   END DO
+     81 
+     82 ! Negative horizontal flows
+     83 
+     84   DO I=2,IMX-2
+     85     DO K=2,KMX-1
+     86       DLXT = DLX(I+2)
+     87       IF (K > KB(I+2)) DLXT = DLX(I+1)
+     88       DLXMIN       =  DMIN1(DLX(I),DLX(I+1))
+     89       SF1X(K,I)    = (DLX(I+1)+DLX(I))*0.5D0
+     90       SF2X(K,I,2)  =  DLX(I+1)/(DLX(I)+DLX(I+1))
+     91 !SF3X(K,I,2)  =  DLX(I+1)**2
+     92       SF3X(K,I,2)  =  DLX(I+1)*DLX(I+1)            ! SW 4/20/16 SPEED
+     93       SF4X(K,I,2)  =  DLX(I)/(DLX(I)+DLX(I+1))
+     94       SF5X(K,I,2)  =  0.25D0*(DLX(I)+2.0D0*DLX(I+1)+DLXT)*(DLX(I)+DLX(I+1))
+     95       SF6X(K,I,2)  = -0.25D0*(           DLX(I+1)+DLXT)*(DLX(I)+DLX(I+1))
+     96       SF7X(K,I,2)  =  0.25D0*(DLX(I)+2.0D0*DLX(I+1)+DLXT)*(DLX(I+1)+DLXT)
+     97       SF8X(K,I,2)  = -0.50D0*(       3.0D0*DLX(I+1)+DLXT)*DLXMIN
+     98       SF9X(K,I,2)  =  0.50D0*(DLX(I)-2.0D0*DLX(I+1)-DLXT)*DLXMIN
+     99       SF10X(K,I,2) =  0.50D0*(DLX(I)-DLX(I+1))*DLXMIN
+    100 !SF11X(K,I,2) =  SF8X(K,I,2) /SF5X(K,I,2)/SF1X(K,I)
+    101 !SF12X(K,I,2) =  SF9X(K,I,2) /SF6X(K,I,2)/SF1X(K,I)
+    102 !SF13X(K,I,2) =  SF10X(K,I,2)/SF7X(K,I,2)/SF1X(K,I)
+    103       SF11X(K,I,2) =  SF8X(K,I,2) /(SF5X(K,I,2)*SF1X(K,I))         ! SW 4/20/16 SPEED
+    104       SF12X(K,I,2) =  SF9X(K,I,2) /(SF6X(K,I,2)*SF1X(K,I))
+    105       SF13X(K,I,2) =  SF10X(K,I,2)/(SF7X(K,I,2)*SF1X(K,I))
+    106     END DO
+
+Page 3           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    107   END DO
+    108 
+    109 ! Ultimate multipliers
+    110 
+    111   IF (ULTIMATE(JW)) THEN
+    112     DO JB=BS(JW),BE(JW)
+    113       DO I=US(JB),DS(JB)    !CONCURRENT(I=US(JB):DS(JB))                                                         !DO I=US(JB
+    113 ),DS(JB)
+    114         RATD(I)  =  DLXR(I-1)/DLXR(I)
+    115 !CURX1(I) =  2.0D0*DLX(I)**2/(DLXR(I)+DLXR(I-1))/DLXR(I-1)   ! code speed improvement SW 4/20/16
+    116 !CURX2(I) = -2.0D0*DLX(I)**2/(DLXR(I)*DLXR(I-1))
+    117 !CURX3(I) =  2.0D0*DLX(I)**2/(DLXR(I)+DLXR(I-1))/DLXR(I)
+    118         CURX1(I) =  2.0D0*DLX(I)*DLX(I)/((DLXR(I)+DLXR(I-1))*DLXR(I-1))
+    119         CURX2(I) = -2.0D0*DLX(I)*DLX(I)/(DLXR(I)*DLXR(I-1))
+    120         CURX3(I) =  2.0D0*DLX(I)*DLX(I)/((DLXR(I)+DLXR(I-1))*DLXR(I))
+    121       END DO
+    122     END DO
+    123   END IF
+    124 
+    125 ! Vertical positive flows
+    126 
+    127   DO K=2,KMX-1
+    128     HT            =  H(K-1,JW)
+    129     HM            =  H(K,JW)
+    130     HB            =  H(K+1,JW)
+    131     HMIN          =  DMIN1(HB,HM)
+    132     SF1Z(K,JW)    = (HB+HM)*0.5D0
+    133 !SF2Z(K,1,JW)  =  HM**2
+    134     SF2Z(K,1,JW)  =  HM*HM       ! SW 4/20/16
+    135     SF3Z(K,1,JW)  =  HM/(HM+HB)
+    136     SF4Z(K,1,JW)  =  HB/(HM+HB)
+    137     SF5Z(K,1,JW)  =  0.25D0*(HT+2.0D0*HM+HB)*(HT+HM)
+    138     SF6Z(K,1,JW)  = -0.25D0*(HM+HB)*(HT+HM)
+    139     SF7Z(K,1,JW)  =  0.25D0*(HM+HB)*(HT+2.0D0*HM+HB)
+    140     SF8Z(K,1,JW)  =  0.50D0*(HM-HB)*HMIN
+    141     SF9Z(K,1,JW)  =  0.50D0*(HT+2.0D0*HM-HB)*HMIN
+    142     SF10Z(K,1,JW) =  0.50D0*(HT+3.0D0*HM)*HMIN
+    143   END DO
+    144 
+    145 ! Vertical negative flows
+    146 
+    147   DO K=2,KMX-2
+    148     HT            =  H(K,JW)
+    149     HM            =  H(K+1,JW)
+    150     HB            =  H(K+2,JW)
+    151     HMIN          =  DMIN1(HT,HM)
+    152     SF1Z(K,JW)    = (HM+HT)*0.5D0
+    153 !SF2Z(K,2,JW)  =  HM**2
+    154     SF2Z(K,2,JW)  =  HM*HM      ! SW 4/20/16
+    155     SF3Z(K,2,JW)  =  HM/(HT+HM)
+    156     SF4Z(K,2,JW)  =  HT/(HT+HM)
+    157     SF5Z(K,2,JW)  =  0.25D0*(HT+2.0D0*HM+HB)*(HT+HM)
+    158     SF6Z(K,2,JW)  = -0.25D0*(HM+HB)*(HT+HM)
+    159     SF7Z(K,2,JW)  =  0.25D0*(HT+2.0D0*HM+HB)*(HM+HB)
+    160     SF8Z(K,2,JW)  = -0.50D0*(3.0D0*HM+HB)*HMIN
+    161     SF9Z(K,2,JW)  =  0.50D0*(HT-2.0D0*HM-HB)*HMIN
+    162     SF10Z(K,2,JW) =  0.50D0*(HT-HM)*HMIN
+
+Page 4           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    163   END DO
+    164 
+    165 ! Ultimate multipliers
+    166 
+    167   IF (ULTIMATE(JW)) THEN    !also called during UPDATE since surface layer properties change
+    168     DO K=2,KMX
+    169       RATZ(K,JW)  =  AVH2(K-1,DS(BE(JW)))/AVH2(K,DS(BE(JW)))                                         ! SW 5/20/05
+    170 !CURZ1(K,JW) =  2.0*H(K,JW)**2/(AVH2(K-1,DS(BE(JW)))+AVH2(K,DS(BE(JW))))/AVH2(K-1,DS(BE(JW)))   ! SW 5/20/05
+    171 !CURZ2(K,JW) = -2.0*H(K,JW)**2/(AVH2(K-1,DS(BE(JW)))*AVH2(K,DS(BE(JW))))                        ! SW 5/20/05
+    172 !CURZ3(K,JW) =  2.0*H(K,JW)**2/(AVH2(K-1,DS(BE(JW)))+AVH2(K,DS(BE(JW))))/AVH2(K,DS(BE(JW)))     ! SW 5/20/05
+    173       CURZ1(K,JW) =  2.0*H(K,JW)*H(K,JW)/((AVH2(K-1,DS(BE(JW)))+AVH2(K,DS(BE(JW))))*AVH2(K-1,DS(BE(JW))))  ! SW 5/20/05   SP
+    173 EED 4/20/16
+    174       CURZ2(K,JW) = -2.0*H(K,JW)*H(K,JW)/(AVH2(K-1,DS(BE(JW)))*AVH2(K,DS(BE(JW))))                         ! SW 5/20/05
+    175       CURZ3(K,JW) =  2.0*H(K,JW)*H(K,JW)/((AVH2(K-1,DS(BE(JW)))+AVH2(K,DS(BE(JW))))*AVH2(K,DS(BE(JW))))    ! SW 5/20/05
+    176     END DO
+    177   END IF
+    178 RETURN
+    179 
+    180 !***************************************************************************************************************************
+    180 ********
+    181 !**                                          H O R I Z O N T A L  M U L T I P L I E R S                                     
+    181       **
+    182 !***************************************************************************************************************************
+    182 ********
+    183 
+    184 ENTRY HORIZONTAL_MULTIPLIERS1
+    185 
+    186 ! Horizontal advection and diffusion multipliers FIRST PASS
+    187 
+    188   IF (UPWIND(JW)) THEN
+    189     DO I=IU,ID-1
+    190       DO K=KT,KB(I)
+    191         IF (U(K,I) >= 0.0) THEN
+    192           DX2(K,I) = -DX(K,I)/SF1X(K,I)
+    193           DX3(K,I) =  DX(K,I)/SF1X(K,I)
+    194         ELSE
+    195           DX1(K,I) = -DX(K,I)/SF1X(K,I)
+    196           DX2(K,I) =  DX(K,I)/SF1X(K,I)
+    197         END IF
+    198       END DO
+    199     END DO
+    200   ELSE
+    201 !!$OMP PARALLEL DO
+    202     DO I=IU,ID-1
+    203       DLTDLXR=DLT/DLXR(I)
+    204       DO K=KT,KB(I)
+    205         COUR = U(K,I)*DLTDLXR
+    206         IF (U(K,I) >= 0.0) THEN
+    207           RATS(K,I)      =  RATD(I)
+    208           CURS1(K,I)     =  CURX1(I)
+    209           CURS2(K,I)     =  CURX2(I)
+    210           CURS3(K,I)     =  CURX3(I)
+    211           DX1(K,I)  =  DX(K,I)*SF11X(K,I,1)
+    212           DX2(K,I)  =  DX(K,I)*SF12X(K,I,1)
+    213           DX3(K,I)  =  DX(K,I)*SF13X(K,I,1)
+    214           ALFA(K,I)      =  2.0D0*(DX(K,I)*DLT/(SF1X(K,I)*SF1X(K,I))-(1.0D0-COUR*COUR)*0.1666667D0)*SF3X(K,I,1)     !/6.0
+    215           AD1X(K,I) = (ALFA(K,I)-COUR*SF8X(K,I,1)*0.5D0)/SF5X(K,I,1)
+
+Page 5           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    216           AD2X(K,I) =  SF4X(K,I,1)+(ALFA(K,I)-COUR*SF9X(K,I,1) *0.5D0)/SF6X(K,I,1)
+    217           AD3X(K,I) =  SF2X(K,I,1)+(ALFA(K,I)-COUR*SF10X(K,I,1)*0.5D0)/SF7X(K,I,1)
+    218         ELSE
+    219           RATS(K,I)      =  RATD(I+1)
+    220           CURS1(K,I)     =  CURX1(I+1)
+    221           CURS2(K,I)     =  CURX2(I+1)
+    222           CURS3(K,I)     =  CURX3(I+1)
+    223           DX1(K,I)  =  DX(K,I)*SF11X(K,I,2)
+    224           DX2(K,I)  =  DX(K,I)*SF12X(K,I,2)
+    225           DX3(K,I)  =  DX(K,I)*SF13X(K,I,2)
+    226           ALFA(K,I)      =  2.0D0*(DX(K,I)*DLT/(SF1X(K,I)*SF1X(K,I))-(1.0D0-COUR*COUR)*0.1666667D0)*SF3X(K,I,2)    !/6.0
+    227           AD1X(K,I) =  SF2X(K,I,2)+(ALFA(K,I)-COUR*SF8X(K,I,2)*0.5D0)/SF5X(K,I,2)
+    228           AD2X(K,I) =  SF4X(K,I,2)+(ALFA(K,I)-COUR*SF9X(K,I,2)*0.5D0)/SF6X(K,I,2)
+    229           AD3X(K,I) = (ALFA(K,I)-COUR*SF10X(K,I,2)*0.5D0)/SF7X(K,I,2)
+    230         END IF
+    231       END DO
+    232     END DO
+    233 !!$OMP END PARALLEL DO
+    234   END IF
+    235 RETURN
+    236 
+    237 ENTRY HORIZONTAL_MULTIPLIERS
+    238 
+    239 ! Horizontal advection and diffusion multipliers
+    240 
+    241   IF (UPWIND(JW)) THEN
+    242     DO I=IU,ID-1
+    243       DO K=KT,KB(I)
+    244         IF (U(K,I) >= 0.0) THEN
+    245           C2X      =  COLD(K,I)
+    246           C3X      =  COLD(K,I+1)
+    247           ADX(K,I) = (DX2(K,I)-U(K,I))*C2X+DX3(K,I)*C3X
+    248         ELSE
+    249           C1X      =  COLD(K,I)
+    250           C2X      =  COLD(K,I+1)
+    251           ADX(K,I) =  DX1(K,I)*C1X+(DX2(K,I)-U(K,I))*C2X
+    252         END IF
+    253       END DO
+    254     END DO
+    255   ELSE
+    256 !!$OMP PARALLEL DO Private(K,COUR,C1X,C2X,C3X,CART,CALF,RATDI,DELC,ADELC,ACURZ,FLUX,FTEMP,CREF,CMAX1,CMIN1,DLTDLXR,IU,ID)
+    257     DO I=IU,ID-1
+    258     DLTDLXR=DLT/DLXR(I)
+    259       DO K=KT,KB(I)
+    260       COUR = U(K,I)*DLTDLXR
+    261         IF (U(K,I) >= 0.0) THEN
+    262           C1X = COLD(K,I-1)
+    263           C2X = COLD(K,I)
+    264           C3X = COLD(K,I+1)
+    265           IF (U(K,I-1) <= 0.0 .OR. K > KB(I-1) .OR. INTERNAL_WEIR(K,I-1)) C1X = COLD(K,I)
+    266           IF (INTERNAL_WEIR(K,I)) C3X = COLD(K,I)
+    267           CART      =  C3X
+    268           CALF      =  C1X
+    269         ELSE
+    270           C1X = COLD(K,I)
+    271           C2X = COLD(K,I+1)
+    272           C3X = COLD(K,I+2)
+
+Page 6           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    273           IF (U(K,I+2) >= 0.0 .OR. K > KB(I+2) .OR. I == ID-1 .OR. INTERNAL_WEIR(K,I+1)) C3X = COLD(K,I+1)
+    274           IF (INTERNAL_WEIR(K,I)) THEN
+    275             C2X = COLD(K,I)
+    276             C3X = COLD(K,I)
+    277           END IF
+    278           CART      =  C1X
+    279           CALF      =  C3X
+    280         END IF
+    281         if( .not. ultimate(jw))then
+    282         ADX(K,I) = (DX1(K,I)-U(K,I)*AD1X(K,I))*C1X+(DX2(K,I)-U(K,I)*AD2X(K,I))*C2X+(DX3(K,I)-U(K,I)*AD3X(K,I))*C3X
+    283 !  IF (ULTIMATE(JW)) THEN    ! SW Code speedup 6/16/13
+    284         else
+    285           RATDI = 1.0/RATS(K,I)
+    286           DELC  = RATS(K,I)*C3X+(RATDI-RATS(K,I))*C2X-RATDI*C1X
+    287           DELC  = DSIGN(1.0,U(K,I))*DELC
+    288           ADELC = DABS(DELC)
+    289           ACURZ = DABS(CURS3(K,I)*C3X+CURS2(K,I)*C2X+CURS1(K,I)*C1X)
+    290           IF (ACURZ <= 0.6*ADELC) THEN
+    291             FLUX = AD1X(K,I)*C1X+AD2X(K,I)*C2X+AD3X(K,I)*C3X
+    292           ELSE IF (ACURZ >= ADELC) THEN
+    293             FLUX = C2X
+    294           ELSE IF (ABS(COUR) > 0.0) THEN
+    295             FTEMP = AD1X(K,I)*C1X+AD2X(K,I)*C2X+AD3X(K,I)*C3X
+    296             CREF  = CALF+(C2X-CALF)/ABS(COUR)
+    297             IF (DELC > 0.0) THEN
+    298               CMAX1 = DMIN1(CREF,CART)
+    299               IF (CREF < C2X) CMAX1 = CART
+    300               FLUX = 0.5D0*(C2X+CMAX1)
+    301               IF (FTEMP <= CMAX1 .AND. FTEMP >= C2X) FLUX = FTEMP
+    302             ELSE
+    303               CMIN1 = DMAX1(CREF,CART)
+    304               IF (CREF > C2X) CMIN1 = CART
+    305               IF (FTEMP >= CMIN1 .AND. FTEMP <= C2X) THEN
+    306                 FLUX = FTEMP
+    307               ELSE IF (FTEMP > 0.0) THEN
+    308                 FLUX = 0.5D0*(C2X+CMIN1)
+    309               ELSE
+    310                 FLUX = 0.0D0
+    311               END IF
+    312             END IF
+    313           ELSE
+    314             FLUX = 0.0D0
+    315           END IF
+    316           ADX(K,I) = (DX1(K,I)*C1X+DX2(K,I)*C2X+DX3(K,I)*C3X)-U(K,I)*FLUX
+    317         END IF
+    318       END DO
+    319     END DO
+    320 !!$OMP END PARALLEL DO
+    321   END IF
+    322 RETURN
+    323 
+    324 !***************************************************************************************************************************
+    324 ********
+    325 !**                                            V E R T I C A L  M U L T I P L I E R S                                       
+    325       **
+    326 !***************************************************************************************************************************
+    326 ********
+
+Page 7           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    327 
+    328 ENTRY VERTICAL_MULTIPLIERS1    ! FIRST PASS
+    329 
+    330 ! Vertical advection multipliers
+    331 
+    332   IF (.NOT.UPWIND(JW)) THEN
+    333 !!$OMP PARALLEL DO
+    334     DO I=IU,ID
+    335       DO K=KT,KB(I)-1
+    336         IF (W(K,I) >= 0.0) THEN
+    337           RATSZ(K,I)  = RATZ(K,JW)
+    338           CURS1Z(K,I) = CURZ1(K,JW)
+    339           CURS2Z(K,I) = CURZ2(K,JW)
+    340           CURS3Z(K,I) = CURZ3(K,JW)
+    341           IF (K <= KT+1) THEN
+    342             HT    =  H1(KT,I)
+    343             HM    =  H1(K,I)
+    344             HB    =  H1(K+1,I)
+    345             RATSZ(K,I)  =  AVH1(KT,I)/AVH1(K,I)
+    346 !CURS1Z(K,I) =  2.0D0*HM*HM/(AVH1(KT,I)+AVH1(K,I))/AVH1(KT,I)
+    347             CURS1Z(K,I) =  2.0D0*HM*HM/((AVH1(KT,I)+AVH1(K,I))*AVH1(KT,I))      ! SW 4/20/16 SPEED
+    348             CURS2Z(K,I) = -2.0D0*HM*HM/(AVH1(KT,I)*AVH1(K,I))
+    349 !CURS3Z(K,I) =  2.0D0*HM*HM/(AVH1(KT,I)+AVH1(K,I))/AVH1(K,I)
+    350             CURS3Z(K,I) =  2.0D0*HM*HM/((AVH1(KT,I)+AVH1(K,I))*AVH1(K,I))       ! SW 4/20/16 SPEED
+    351             IF (K == KT) THEN
+    352               HM    =  H1(KT,I)
+    353               RATSZ(K,I)  =  1.0D0
+    354               CURS3Z(K,I) =  1.0D0
+    355               CURS2Z(K,I) = -2.0D0
+    356               CURS1Z(K,I) =  1.0D0
+    357             END IF
+    358             HMIN          =  DMIN1(HB,HM)
+    359             SF1Z(K,JW)    = (HB+HM)*0.5D0
+    360 !SF2Z(K,1,JW)  =  HM**2
+    361             SF2Z(K,1,JW)  =  HM*HM        ! SW 4/20/16
+    362             SF3Z(K,1,JW)  =  HM/(HM+HB)
+    363             SF4Z(K,1,JW)  =  HB/(HM+HB)
+    364             SF5Z(K,1,JW)  =  0.25D0*(HT+2.0D0*HM+HB)*(HT+HM)
+    365             SF6Z(K,1,JW)  = -0.25D0*(HM+HB)*(HT+HM)
+    366             SF7Z(K,1,JW)  =  0.25D0*(HM+HB)*(HT+2.0D0*HM+HB)
+    367             SF8Z(K,1,JW)  =  0.5D0*(HM-HB)*HMIN
+    368             SF9Z(K,1,JW)  =  0.5D0*(HT+2.0D0*HM-HB)*HMIN
+    369             SF10Z(K,1,JW) =  0.5D0*(HT+3.0D0*HM)*HMIN
+    370           END IF
+    371           COUR      =  W(K,I)*DLT/SF1Z(K,JW)
+    372           ALFAZ(K,I) =  2.0D0*(DZQ(K,I)*DLT/(SF1Z(K,JW)*SF1Z(K,JW))-(1.0D0-COUR*COUR)*0.16666667D0)*SF2Z(K,1,JW)     !/6.0
+    373           AD1Z(K,I) = (ALFAZ(K,I)-COUR*SF8Z(K,1,JW)*0.5D0)/SF5Z(K,1,JW)
+    374           AD2Z(K,I) =  SF4Z(K,1,JW)+(ALFAZ(K,I)-COUR*SF9Z(K,1,JW) *0.5D0)/SF6Z(K,1,JW)
+    375           AD3Z(K,I) =  SF3Z(K,1,JW)+(ALFAZ(K,I)-COUR*SF10Z(K,1,JW)*0.5D0)/SF7Z(K,1,JW)
+    376         ELSE
+    377           CURS3Z(K,I) = CURZ3(K+1,JW)
+    378           CURS2Z(K,I) = CURZ2(K+1,JW)
+    379           CURS1Z(K,I) = CURZ1(K+1,JW)
+    380           RATSZ(K,I)  = AVH1(K,I)/AVH1(K+1,I)
+    381           IF (K == KT) THEN
+    382             HT            =  H1(KT,I)
+    383             HM            =  H1(KT+1,I)
+
+Page 8           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    384             HB            =  H1(KT+2,I)
+    385             HMIN          =  DMIN1(HT,HM)
+    386             RATSZ(K,I)          =  AVH1(KT,I)/AVH1(K,I)
+    387 !CURS1Z(K,I)         =  2.0D0*HM*HM/(AVH1(KT,I)+AVH1(K,I))/AVH1(KT,I)        ! SW 4/20/16 SPEED
+    388             CURS1Z(K,I)         =  2.0D0*HM*HM/((AVH1(KT,I)+AVH1(K,I))*AVH1(KT,I))       
+    389             CURS2Z(K,I)         = -2.0D0*HM*HM/(AVH1(KT,I)*AVH1(K,I))
+    390 !CURS3Z(K,I)         =  2.0D0*HM*HM/(AVH1(KT,I)+AVH1(K,I))/AVH1(K,I)          ! SW 4/20/16 SPEED
+    391             CURS3Z(K,I)         =  2.0D0*HM*HM/((AVH1(KT,I)+AVH1(K,I))*AVH1(K,I))   
+    392             SF1Z(K,JW)    = (HM+HT)*0.5D0
+    393 !SF2Z(K,2,JW)  =  HM**2
+    394             SF2Z(K,2,JW)  =  HM*HM      ! SW 4/20/16
+    395             SF3Z(K,2,JW)  =  HM/(HT+HM)
+    396             SF4Z(K,2,JW)  =  HT/(HT+HM)
+    397             SF5Z(K,2,JW)  =  0.25D0*(HT+2.0D0*HM+HB)*(HT+HM)
+    398             SF6Z(K,2,JW)  = -0.25D0*(HM+HB)*(HT+HM)
+    399             SF7Z(K,2,JW)  =  0.25D0*(HT+2.0D0*HM+HB)*(HM+HB)
+    400             SF8Z(K,2,JW)  = -0.5D0*(3.0D0*HM+HB)*HMIN
+    401             SF9Z(K,2,JW)  =  0.5D0*(HT-2.0D0*HM-HB)*HMIN
+    402             SF10Z(K,2,JW) =  0.5D0*(HT-HM)*HMIN
+    403           END IF
+    404           COUR      =  W(K,I)*DLT/SF1Z(K,JW)
+    405           ALFAZ(K,I) =  2.0D0*(DZQ(K,I)*DLT/(SF1Z(K,JW)*SF1Z(K,JW))-(1.0D0-COUR*COUR)*0.16666667D0)*SF2Z(K,2,JW)    !/6.0
+    406           AD1Z(K,I) =  SF3Z(K,2,JW)+(ALFAZ(K,I)-COUR*SF8Z(K,2,JW)*0.5D0)/SF5Z(K,2,JW)
+    407           AD2Z(K,I) =  SF4Z(K,2,JW)+(ALFAZ(K,I)-COUR*SF9Z(K,2,JW)*0.5D0)/SF6Z(K,2,JW)
+    408           AD3Z(K,I) = (ALFAZ(K,I)-COUR*SF10Z(K,2,JW)*0.5D0)/SF7Z(K,2,JW)
+    409         END IF
+    410       END DO
+    411     END DO
+    412 !$END PARALLEL DO
+    413   END IF
+    414 RETURN
+    415 
+    416 ENTRY VERTICAL_MULTIPLIERS
+    417 
+    418 ! Vertical advection multipliers
+    419 
+    420   IF (UPWIND(JW)) THEN
+    421     DO I=IU,ID
+    422       DO K=KT,KB(I)-1
+    423         C2Z = COLD(K+1,I)
+    424         IF (W(K,I) >= 0.0) C2Z = COLD(K,I)
+    425         ADZ(K,I) = -W(K,I)*C2Z
+    426       END DO
+    427     END DO
+    428   ELSE
+    429 !!$OMP PARALLEL DO
+    430     DO I=IU,ID
+    431       DO K=KT,KB(I)-1
+    432         IF (W(K,I) >= 0.0) THEN
+    433           C1Z   = COLD(K-1,I)
+    434           C2Z   = COLD(K,I)
+    435           C3Z   = COLD(K+1,I)
+    436           CART  = C3Z
+    437           CALF  = C1Z
+    438           IF (K <= KT+1) THEN
+    439             C1Z   =  COLD(KT,I)
+    440             CALF  =  C1Z
+
+Page 9           Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    441           END IF
+    442         ELSE
+    443           C1Z = COLD(K,I)
+    444           C2Z = COLD(K+1,I)
+    445           C3Z = COLD(K+2,I)
+    446           IF (K == KB(I)-1) C3Z = COLD(K+1,I)
+    447           CART  = C1Z
+    448           CALF  = C3Z
+    449         END IF
+    450         if(.not.ultimate(jw))then
+    451         ADZ(K,I) = -W(K,I)*(AD1Z(K,I)*C1Z+AD2Z(K,I)*C2Z+AD3Z(K,I)*C3Z)
+    452         else
+    453 !    IF (ULTIMATE(JW)) THEN    ! SW code speedup 6/16/13
+    454           COUR  =  W(K,I)*DLT/SF1Z(K,JW)
+    455           RATZI = 1.0D0/RATSZ(K,I)
+    456           DELC  = RATSZ(K,I)*C3Z+(RATZI-RATSZ(K,I))*C2Z-RATZI*C1Z
+    457           DELC  = DSIGN(1.0,W(K,I))*DELC
+    458           ADELC = DABS(DELC)
+    459           ACURZ = DABS(CURS3Z(K,I)*C3Z+CURS2Z(K,I)*C2Z+CURS1Z(K,I)*C1Z)
+    460           IF (ACURZ <= 0.6*ADELC) THEN
+    461             FLUX = AD1Z(K,I)*C1Z+AD2Z(K,I)*C2Z+AD3Z(K,I)*C3Z
+    462           ELSE IF (ACURZ >= ADELC) THEN
+    463             FLUX = C2Z
+    464           ELSE IF (DABS(COUR) > 0.0) THEN
+    465             FTEMP = AD1Z(K,I)*C1Z+AD2Z(K,I)*C2Z+AD3Z(K,I)*C3Z
+    466             CREF  = CALF+(C2Z-CALF)/DABS(COUR)
+    467             IF (DELC > 0.0) THEN
+    468               CMAX1 = CART
+    469               IF (CREF >= C2Z) CMAX1 = DMIN1(CREF,CART)
+    470               FLUX = 0.5*(C2Z+CMAX1)
+    471               IF (FTEMP <= CMAX1 .AND. FTEMP >= C2Z) FLUX = FTEMP
+    472             ELSE
+    473               CMIN1 = DMAX1(CREF,CART)
+    474               IF (CREF > C2Z) CMIN1 = CART
+    475               IF (FTEMP >= CMIN1 .AND. FTEMP <= C2Z) THEN
+    476                 FLUX = FTEMP
+    477               ELSE IF (FTEMP > 0.0) THEN
+    478                 FLUX = 0.5D0*(C2Z+CMIN1)
+    479               ELSE
+    480                 FLUX = 0.0D0
+    481               END IF
+    482             END IF
+    483           ELSE
+    484             FLUX = 0.0D0
+    485           END IF
+    486           ADZ(K,I) = -W(K,I)*FLUX
+    487         END IF
+    488       END DO
+    489     END DO
+    490 !$END PARALLEL DO
+    491   END IF
+    492 RETURN
+    493 
+    494 !***************************************************************************************************************************
+    494 ********
+    495 !**                                           H O R I Z O N T A L  T R A N S P O R T                                        
+    495       **not used since incorporated in Temp and WQ routines directly
+
+Page 10          Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    496 !***************************************************************************************************************************
+    496 ********
+    497 !
+    498 !ENTRY HORIZONTAL_TRANSPORT
+    499 !  IF (CONSTITUENTS) THEN
+    500 !    DO I=IU,ID
+    501 !      DO K=KT,KB(I)     !CONCURRENT(K=KT:KB(I))                                                           !DO K=KT,KB(I)
+    502 !        CNEW(K,I) = (COLD(K,I)*BH2(K,I)/DLT+(ADX(K,I)*BHR1(K,I)-ADX(K,I-1)*BHR1(K,I-1))/DLX(I)+(1.0D0-THETA(JW))           
+    502           &
+    503 !                    *(ADZ(K,I)*BB(K,I)-ADZ(K-1,I)*BB(K-1,I))+SSB(K,I)/DLX(I))*DLT/BH1(K,I)+SSK(K,I)*DLT
+    504 !      END DO
+    505 !    END DO
+    506 !  ELSE
+    507 !    DO I=IU,ID
+    508 !      DO K=KT,KB(I)     !CONCURRENT(K=KT:KB(I))                                               !DO K=KT,KB(I)
+    509 !        CNEW(K,I) = (COLD(K,I)*BH2(K,I)/DLT+(ADX(K,I)*BHR1(K,I)-ADX(K,I-1)*BHR1(K,I-1))/DLX(I)+(1.0D0-THETA(JW))           
+    509           &
+    510 !                    *(ADZ(K,I)*BB(K,I)-ADZ(K-1,I)*BB(K-1,I))+SSB(K,I)/DLX(I))*DLT/BH1(K,I)
+    511 !      END DO
+    512 !    END DO
+    513 !  END IF
+    514 !RETURN
+    515 ENTRY DEALLOCATE_TRANSPORT
+
+
+ENTRY POINTS
+
+ Address      Type  Name                        Address      Type  Name                      
+                                                                                             
+       DEALLOCATE_TRANSPORT                           TRANSPORT                              
+       HORIZONTAL_MULTIPLIERS                         VERTICAL_MULTIPLIERS                   
+       HORIZONTAL_MULTIPLIERS1                        VERTICAL_MULTIPLIERS1                  
+       INTERPOLATION_MULTIPLIERS                                                             
+
+Page 11          Source Listing                  TRANSPORT
+2026-03-30 08:47 Symbol Table                    ..\..\..\transport.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ABS                        Func   294                                  scalar                    294,296                           
+ ACURZ                      Local  24       R(8)            8           scalar                    289,290,292,459,460,462           
+ AD1X                       Local  20       R(8)            8     2     1        ALC,SAVE         34,45,215,227,282,291,295,517     
+ AD1Z                       Local  20       R(8)            8     2     1        ALC,SAVE         35,46,373,406,451,461,465,517     
+ AD2X                       Local  20       R(8)            8     2     1        ALC,SAVE         34,46,216,228,282,291,295,517     
+ AD2Z                       Local  20       R(8)            8     2     1        ALC,SAVE         35,46,374,407,451,461,465,517     
+ AD3X                       Local  20       R(8)            8     2     1        ALC,SAVE         34,46,217,229,282,291,295,517     
+ AD3Z                       Local  20       R(8)            8     2     1        ALC,SAVE         35,46,375,408,451,461,465,517     
+ ADELC                      Local  24       R(8)            8           scalar                    288,290,292,458,460,462           
+ ADX                        Local  45       R(8)            8     2     1        ALC              45,247,251,282,316                
+ ADZ                        Local  45       R(8)            8     2     1        ALC              45,425,451,486                    
+ ALFA                       Local  15       R(8)            8     2     1        ALC,SAVE         36,214,215,216,217,226,227,228,229
+                                                                                                  ,516                              
+ ALFAZ                      Local  15       R(8)            8     2     1        ALC,SAVE         37,372,373,374,375,405,406,407,408
+                                                                                                  ,518                              
+ AT                         Local  45       R(8)            8     2     1        ALC              45,516                            
+ AVH1                       Local  345      R(8)            8     2     1        ALC              345,347,348,350,380,386,388,389,39
+                                                                                                  1                                 
+ AVH2                       Local  169      R(8)            8     2     1        ALC              169,173,174,175                   
+ BE                         Local  112      I(4)            4     1     1        ALC              112,169,173,174,175               
+ BS                         Local  112      I(4)            4     1     1        ALC              112                               
+ C1X                        Local  22       R(8)            8           scalar                    249,251,262,265,268,270,278,282,28
+                                                                                                  6,289,291,295,316                 
+ C1Z                        Local  23       R(8)            8           scalar                    433,437,439,440,443,447,451,456,45
+                                                                                                  9,461,465                         
+ C2X                        Local  22       R(8)            8           scalar                    245,247,250,251,263,271,275,282,28
+                                                                                                  6,289,291,293,295,296,299,300,301,
+                                                                                                  304,305,308,316                   
+ C2Z                        Local  23       R(8)            8           scalar                    423,424,425,434,444,451,456,459,46
+                                                                                                  1,463,465,466,469,470,471,474,475,
+                                                                                                  478                               
+ C3X                        Local  22       R(8)            8           scalar                    246,247,264,266,267,272,273,276,27
+                                                                                                  9,282,286,289,291,295,316         
+ C3Z                        Local  23       R(8)            8           scalar                    435,436,445,446,448,451,456,459,46
+                                                                                                  1,465                             
+ CALF                       Local  22       R(8)            8           scalar                    268,279,296,437,440,448,466       
+ CART                       Local  22       R(8)            8           scalar                    267,278,298,299,303,304,436,447,46
+                                                                                                  8,469,473,474                     
+ CMAX1                      Local  23       R(8)            8           scalar                    298,299,300,301,468,469,470,471   
+ CMIN1                      Local  23       R(8)            8           scalar                    303,304,305,308,473,474,475,478   
+ COLD                       Local  245      R(8)            8     2     1        PTR              245,246,249,250,262,263,264,265,26
+                                                                                                  6,270,271,272,273,275,276,423,424,
+                                                                                                  433,434,435,439,443,444,445,446   
+ COUR                       Local  22       R(8)            8           scalar                    205,214,215,216,217,226,227,228,22
+                                                                                                  9,260,294,296,371,372,373,374,375,
+                                                                                                  404,405,406,407,408,454,464,466   
+ CREF                       Local  23       R(8)            8           scalar                    296,298,299,303,304,466,469,473,47
+                                                                                                  4                                 
+ CT                         Local  45       R(8)            8     2     1        ALC              45,516                            
+ CURS1                      Local  15       R(8)            8     2     1        ALC,SAVE         36,208,220,289,516                
+ CURS1Z                     Local  15       R(8)            8     2     1        ALC,SAVE         37,338,347,356,379,388,459,518    
+
+Page 12          Source Listing                  TRANSPORT
+2026-03-30 08:47 Symbol Table                    ..\..\..\transport.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ CURS2                      Local  15       R(8)            8     2     1        ALC,SAVE         36,209,221,289,516                
+ CURS2Z                     Local  15       R(8)            8     2     1        ALC,SAVE         37,339,348,355,378,389,459,518    
+ CURS3                      Local  15       R(8)            8     2     1        ALC,SAVE         36,210,222,289,516                
+ CURS3Z                     Local  15       R(8)            8     2     1        ALC,SAVE         37,340,350,354,377,391,459,518    
+ CURX1                      Local  13       R(8)            8     1     1        ALC,SAVE         30,118,208,220,516                
+ CURX2                      Local  13       R(8)            8     1     1        ALC,SAVE         30,119,209,221,516                
+ CURX3                      Local  13       R(8)            8     1     1        ALC,SAVE         30,120,210,222,516                
+ CURZ1                      Local  173      R(8)            8     2     1        ALC,SAVE         173,338,379,516                   
+ CURZ2                      Local  174      R(8)            8     2     1        ALC,SAVE         174,339,378,516                   
+ CURZ3                      Local  175      R(8)            8     2     1        ALC,SAVE         175,340,377,516                   
+ DABS                       Func   288                                  scalar                    288,289,458,459,464,466           
+ DEALLOCATE_TRANSPORT       Subr   515                                                                                              
+ DELC                       Local  24       R(8)            8           scalar                    286,287,288,297,456,457,458,467   
+ DLT                        Local  203      R(8)            8           scalar                    203,214,226,258,371,372,404,405,45
+                                                                                                  4                                 
+ DLTDLXR                    Local  24       R(8)            8           scalar                    203,205,258,260                   
+ DLX                        Local  59       R(8)            8     1     1        ALC              59,60,61,62,63,65,66,67,68,69,70,7
+                                                                                                  1,72,86,87,88,89,90,92,93,94,95,96
+                                                                                                  ,97,98,99,118,119,120             
+ DLXMIN                     Local  25       R(8)            8           scalar                    61,70,71,72,88,97,98,99           
+ DLXR                       Local  114      R(8)            8     1     1        ALC              114,118,119,120,203,258           
+ DLXT                       Local  25       R(8)            8           scalar                    59,60,67,68,69,71,72,86,87,94,95,9
+                                                                                                  6,97,98                           
+ DMAX1                      Func   303                                  scalar                    303,473                           
+ DMIN1                      Func   61                                   scalar                    61,88,131,151,298,358,385,469     
+ DS                         Local  113      I(4)            4     1     1        ALC              113,169,173,174,175               
+ DSIGN                      Func   287                                  scalar                    287,457                           
+ DT                         Local  45       R(8)            8     2     1        ALC              45,516                            
+ DX                         Local  192      R(8)            8     2     1        ALC              192,193,195,196,211,212,213,214,22
+                                                                                                  3,224,225,226                     
+ DX1                        Local  19       R(8)            8     2     1        ALC,SAVE         33,45,195,211,223,251,282,316,517 
+ DX2                        Local  19       R(8)            8     2     1        ALC,SAVE         33,45,192,196,212,224,247,251,282,
+                                                                                                  316,517                           
+ DX3                        Local  19       R(8)            8     2     1        ALC,SAVE         33,45,193,213,225,247,282,316,517 
+ DZQ                        Local  372      R(8)            8     2     1        ALC              372,405                           
+ FLUX                       Local  23       R(8)            8           scalar                    291,293,300,301,306,308,310,314,31
+                                                                                                  6,461,463,470,471,476,478,480,484,
+                                                                                                  486                               
+ FTEMP                      Local  23       R(8)            8           scalar                    295,301,305,306,307,465,471,475,47
+                                                                                                  6,477                             
+ GEOMC                      Module 8                                                              8                                 
+ GLOBAL                     Module 8                                                              8                                 
+ H                          Local  128      R(8)            8     2     1        ALC              128,129,130,148,149,150,173,174,17
+                                                                                                  5                                 
+ H1                         Local  342      R(8)            8     2     1        ALC              342,343,344,352,382,383,384       
+ HB                         Local  22       R(8)            8           scalar                    130,131,132,135,136,137,138,139,14
+                                                                                                  0,141,150,157,158,159,160,161,344,
+                                                                                                  358,359,362,363,364,365,366,367,36
+                                                                                                  8,384,397,398,399,400,401         
+ HM                         Local  22       R(8)            8           scalar                    129,131,132,134,135,136,137,138,13
+                                                                                                  9,140,141,142,149,151,152,154,155,
+                                                                                                  156,157,158,159,160,161,162,343,34
+                                                                                                  7,348,350,352,358,359,361,362,363,
+                                                                                                  364,365,366,367,368,369,383,385,38
+                                                                                                  8,389,391,392,394,395,396,397,398,
+
+Page 13          Source Listing                  TRANSPORT
+2026-03-30 08:47 Symbol Table                    ..\..\..\transport.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  399,400,401,402                   
+ HMIN                       Local  22       R(8)            8           scalar                    131,140,141,142,151,160,161,162,35
+                                                                                                  8,367,368,369,385,400,401,402     
+ HORIZONTAL_MULTIPLIERS     Subr   237                                                                                              
+ HORIZONTAL_MULTIPLIERS1    Subr   184                                                                                              
+ HT                         Local  22       R(8)            8           scalar                    128,137,138,139,141,142,148,151,15
+                                                                                                  2,155,156,157,158,159,161,162,342,
+                                                                                                  364,365,366,368,369,382,385,392,39
+                                                                                                  5,396,397,398,399,401,402         
+ I                          Local  57       I(4)            4           scalar                    57,59,60,61,62,63,65,66,67,68,69,7
+                                                                                                  0,71,72,76,77,78,84,86,87,88,89,90
+                                                                                                  ,92,93,94,95,96,97,98,99,103,104,1
+                                                                                                  05,113,114,118,119,120,189,190,191
+                                                                                                  ,192,193,195,196,202,203,204,205,2
+                                                                                                  06,207,208,209,210,211,212,213,214
+                                                                                                  ,215,216,217,219,220,221,222,223,2
+                                                                                                  24,225,226,227,228,229,242,243,244
+                                                                                                  ,245,246,247,249,250,251,257,258,2
+                                                                                                  59,260,261,262,263,264,265,266,270
+                                                                                                  ,271,272,273,274,275,276,282,285,2
+                                                                                                  86,287,289,291,295,316,334,335,336
+                                                                                                  ,337,338,339,340,342,343,344,345,3
+                                                                                                  47,348,350,352,353,354,355,356,371
+                                                                                                  ,372,373,374,375,377,378,379,380,3
+                                                                                                  82,383,384,386,388,389,391,404,405
+                                                                                                  ,406,407,408,421,422,423,424,425,4
+                                                                                                  30,431,432,433,434,435,439,443,444
+                                                                                                  ,445,446,451,454,455,456,457,459,4
+                                                                                                  61,465,486                        
+ ID                         Local  189      I(4)            4           scalar                    189,202,242,257,273,334,421,430   
+ IMX                        Local  30       I(4)            4           scalar                    30,31,33,34,35,36,37,38,39,57,84  
+ INTERNAL_WEIR              Local  60       L(4)            4     2     1        ALC              60,265,266,273,274                
+ INTERPOLATION_MULTIPLIERS  Subr   53                                                                                               
+ IU                         Local  189      I(4)            4           scalar                    189,202,242,257,334,421,430       
+ JB                         Local  112      I(4)            4           scalar                    112,113                           
+ JW                         Local  111      I(4)            4           scalar                    111,112,128,129,130,132,134,135,13
+                                                                                                  6,137,138,139,140,141,142,148,149,
+                                                                                                  150,152,154,155,156,157,158,159,16
+                                                                                                  0,161,162,167,169,173,174,175,188,
+                                                                                                  241,281,332,337,338,339,340,359,36
+                                                                                                  1,362,363,364,365,366,367,368,369,
+                                                                                                  371,372,373,374,375,377,378,379,39
+                                                                                                  2,394,395,396,397,398,399,400,401,
+                                                                                                  402,404,405,406,407,408,420,450,45
+                                                                                                  4                                 
+ K                          Local  26       I(4)            4           scalar                    58,60,62,63,65,66,67,68,69,70,71,7
+                                                                                                  2,76,77,78,85,87,89,90,92,93,94,95
+                                                                                                  ,96,97,98,99,103,104,105,127,128,1
+                                                                                                  29,130,132,134,135,136,137,138,139
+                                                                                                  ,140,141,142,147,148,149,150,152,1
+                                                                                                  54,155,156,157,158,159,160,161,162
+                                                                                                  ,168,169,173,174,175,190,191,192,1
+                                                                                                  93,195,196,204,205,206,207,208,209
+                                                                                                  ,210,211,212,213,214,215,216,217,2
+                                                                                                  19,220,221,222,223,224,225,226,227
+
+Page 14          Source Listing                  TRANSPORT
+2026-03-30 08:47 Symbol Table                    ..\..\..\transport.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  ,228,229,243,244,245,246,247,249,2
+                                                                                                  50,251,259,260,261,262,263,264,265
+                                                                                                  ,266,270,271,272,273,274,275,276,2
+                                                                                                  82,285,286,287,289,291,295,316,335
+                                                                                                  ,336,337,338,339,340,341,343,344,3
+                                                                                                  45,347,348,350,351,353,354,355,356
+                                                                                                  ,359,361,362,363,364,365,366,367,3
+                                                                                                  68,369,371,372,373,374,375,377,378
+                                                                                                  ,379,380,381,386,388,389,391,392,3
+                                                                                                  94,395,396,397,398,399,400,401,402
+                                                                                                  ,404,405,406,407,408,422,423,424,4
+                                                                                                  25,431,432,433,434,435,438,443,444
+                                                                                                  ,445,446,451,454,455,456,457,459,4
+                                                                                                  61,465,486                        
+ KB                         Local  60       I(4)            4     1     1        ALC              60,87,190,204,243,259,265,273,335,
+                                                                                                  422,431,446                       
+ KMX                        Local  31       I(4)            4           scalar                    31,33,34,35,36,37,38,39,40,41,58,8
+                                                                                                  5,127,147,168                     
+ KT                         Local  190      I(4)            4           scalar                    190,204,243,259,335,341,342,345,34
+                                                                                                  7,348,350,351,352,381,382,383,384,
+                                                                                                  386,388,389,391,422,431,438,439   
+ LOGICC                     Module 8                                                              8                                 
+ NWB                        Local  31       I(4)            4           scalar                    31,40,41                          
+ PREC                       Module 8                                                              8                                 
+ R8                         Param  13       I(4)            4           scalar                    13,15,16,17,18,19,20,22,23,24,25  
+ RATD                       Local  13       R(8)            8     1     1        ALC,SAVE         30,114,207,219,516                
+ RATDI                      Local  24       R(8)            8           scalar                    285,286                           
+ RATS                       Local  15       R(8)            8     2     1        ALC,SAVE         36,207,219,285,286,516            
+ RATSZ                      Local  15       R(8)            8     2     1        ALC,SAVE         37,337,345,353,380,386,455,456,518
+ RATZ                       Local  169      R(8)            8     2     1        ALC,SAVE         169,337,516                       
+ RATZI                      Local  23       R(8)            8           scalar                    455,456                           
+ SF10X                      Local  17       R(8)            8     3     1        ALC,SAVE         39,72,78,99,105,217,229,519       
+ SF10Z                      Local  18       R(8)            8     3     1        ALC,SAVE         41,142,162,369,375,402,408,519    
+ SF11X                      Local  17       R(8)            8     3     1        ALC,SAVE         39,76,103,211,223,519             
+ SF12X                      Local  16       R(8)            8     3     1        ALC,SAVE         39,77,104,212,224,519             
+ SF13X                      Local  16       R(8)            8     3     1        ALC,SAVE         39,78,105,213,225,519             
+ SF1X                       Local  15       R(8)            8     2     1        ALC,SAVE         31,62,76,77,78,89,103,104,105,192,
+                                                                                                  193,195,196,214,226,516           
+ SF1Z                       Local  15       R(8)            8     2     1        ALC,SAVE         31,132,152,359,371,372,392,404,405
+                                                                                                  ,454,516                          
+ SF2X                       Local  17       R(8)            8     3     1        ALC,SAVE         38,63,90,217,227,517              
+ SF2Z                       Local  18       R(8)            8     3     1        ALC,SAVE         40,134,154,361,372,394,405,519    
+ SF3X                       Local  17       R(8)            8     3     1        ALC,SAVE         38,65,92,214,226,517              
+ SF3Z                       Local  18       R(8)            8     3     1        ALC,SAVE         40,135,155,362,375,395,406,519    
+ SF4X                       Local  17       R(8)            8     3     1        ALC,SAVE         38,66,93,216,228,517              
+ SF4Z                       Local  18       R(8)            8     3     1        ALC,SAVE         40,136,156,363,374,396,407,519    
+ SF5X                       Local  17       R(8)            8     3     1        ALC,SAVE         38,67,76,94,103,215,227,517       
+ SF5Z                       Local  18       R(8)            8     3     1        ALC,SAVE         40,137,157,364,373,397,406,519    
+ SF6X                       Local  17       R(8)            8     3     1        ALC,SAVE         38,68,77,95,104,216,228,517       
+ SF6Z                       Local  18       R(8)            8     3     1        ALC,SAVE         40,138,158,365,374,398,407,519    
+ SF7X                       Local  17       R(8)            8     3     1        ALC,SAVE         38,69,78,96,105,217,229,517       
+ SF7Z                       Local  18       R(8)            8     3     1        ALC,SAVE         40,139,159,366,375,399,408,519    
+ SF8X                       Local  17       R(8)            8     3     1        ALC,SAVE         39,70,76,97,103,215,227,519       
+ SF8Z                       Local  18       R(8)            8     3     1        ALC,SAVE         41,140,160,367,373,400,406,519    
+ SF9X                       Local  17       R(8)            8     3     1        ALC,SAVE         39,71,77,98,104,216,228,519       
+
+Page 15          Source Listing                  TRANSPORT
+2026-03-30 08:47 Symbol Table                    ..\..\..\transport.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ SF9Z                       Local  18       R(8)            8     3     1        ALC,SAVE         41,141,161,368,374,401,407,519    
+ STRUCTURES                 Module 8                                                              8                                 
+ TRANS                      Module 8                                                              8                                 
+ TRANSPORT                  Subr   7                                                                                                
+ TVDC                       Module 8                                                              8                                 
+ U                          Local  191      R(8)            8     2     1        PTR              191,205,206,244,247,251,260,261,26
+                                                                                                  5,273,282,287,316                 
+ ULTIMATE                   Local  111      L(4)            4     1     1        ALC              111,167,281,450                   
+ UPWIND                     Local  188      L(4)            4     1     1        ALC              188,241,332,420                   
+ US                         Local  113      I(4)            4     1     1        ALC              113                               
+ VERTICAL_MULTIPLIERS       Subr   416                                                                                              
+ VERTICAL_MULTIPLIERS1      Subr   328                                                                                              
+ VT                         Local  45       R(8)            8     2     1        ALC              45,516                            
+ W                          Local  336      R(8)            8     2     1        PTR              336,371,404,424,425,432,451,454,45
+                                                                                                  7,486                             
+
+Page 16          Source Listing                  TRANSPORT
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+    516   DEALLOCATE (RATD, CURX1, CURX2, CURX3, SF1X,  SF1Z, RATZ, CURZ1, CURZ2, CURZ3, CT,   AT,   VT, DT,RATS,CURS1,CURS2,CURS3,A
+    516 LFA)
+    517   DEALLOCATE (DX1,  DX2,   DX3,   AD1X,  AD2X,  AD3X,  AD1Z, AD2Z, AD3Z,  SF2X,  SF3X, SF4X, SF5X, SF6X, SF7X)
+    518   DEALLOCATE (RATSZ,CURS1Z,CURS2Z,CURS3Z,ALFAZ)
+    519   DEALLOCATE (SF8X, SF9X,  SF10X, SF11X, SF12X, SF13X, SF2Z, SF3Z, SF4Z,  SF5Z,  SF6Z, SF7Z, SF8Z, SF9Z, SF10Z)
+    520 RETURN
+    521 END SUBROUTINE TRANSPORT
+    522 
+    523 !***************************************************************************************************************************
+    523 ********
+    524 !*                                              S U B R O U T I N E    T R I D I A G                                        
+    524       **
+    525 !***************************************************************************************************************************
+    525 ********
+    526 
+    527 SUBROUTINE TRIDIAG(A,V,C,D,S,E,N,U)
+    528   USE TRIDIAG_V
+    529   INTEGER,                             INTENT(IN)  :: S, E, N
+    530   REAL(R8),              DIMENSION(:), INTENT(IN)  :: A(E),V(E),C(E),D(E)
+    531   REAL(R8),              DIMENSION(:), INTENT(OUT) :: U(N)
+    532 ! REAL(R8), ALLOCATABLE, DIMENSION(:)              :: BTA, GMA
+    533 ! REAL(R8), DIMENSION(1000)              :: BTA, GMA
+    534   INTEGER                                          :: I
+    535 !  ALLOCATE (BTA(N),GMA(N))
+    536 
+    537   BTA1(S) = V(S)
+    538   GMA1(S) = D(S)
+    539   DO I=S+1,E
+    540     BTA1(I) = V(I)-A(I)/BTA1(I-1)*C(I-1)
+    541     GMA1(I) = D(I)-A(I)/BTA1(I-1)*GMA1(I-1)
+    542   END DO
+    543   U(E) = GMA1(E)/BTA1(E)
+    544   DO I=E-1,S,-1
+    545     U(I) = (GMA1(I)-C(I)*U(I+1))/BTA1(I)
+    546   END DO
+    547 !  DEALLOCATE (BTA, GMA)                                                                                             ! SW 10
+    547 /17/05
+    548 END SUBROUTINE TRIDIAG
+
+Page 17          Source Listing                  TRIDIAG
+2026-03-30 08:47 Entry Points                    ..\..\..\transport.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name    
+                            
+       TRIDIAG              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ A                          Dummy  530      R(8)            8     1     0        ARG,IN           540,541                           
+ BTA1                       Local  537      R(8)            8     1     1        ALC              537,540,541,543,545               
+ C                          Dummy  530      R(8)            8     1     0        ARG,IN           540,545                           
+ D                          Dummy  530      R(8)            8     1     0        ARG,IN           538,541                           
+ E                          Dummy  529      I(4)            4           scalar   ARG,IN           530,539,543,544                   
+ GMA1                       Local  538      R(8)            8     1     1        ALC              538,541,543,545                   
+ I                          Local  534      I(4)            4           scalar                    539,540,541,544,545               
+ N                          Dummy  529      I(4)            4           scalar   ARG,IN           531                               
+ R8                         Param  530      I(4)            4           scalar                    530,531                           
+ S                          Dummy  529      I(4)            4           scalar   ARG,IN           537,538,539,544                   
+ TRIDIAG                    Subr   527                                                                                              
+ TRIDIAG_V                  Module 528                                                            528                               
+ U                          Dummy  531      R(8)            8     1     0        ARG,OUT          543,545                           
+ V                          Dummy  530      R(8)            8     1     0        ARG,IN           537,540                           
+
+Page 18          Source Listing                  TRIDIAG
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\transport.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ TRANSPORT                  Subr   7                                                                                                
+ TRIDIAG                    Subr   527                                                                                              
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+
+Page 19          Source Listing                  TRIDIAG
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:transport.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+
+Page 20          Source Listing                  TRIDIAG
+2026-03-30 08:47                                 ..\..\..\transport.f90
+
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : transport.lst
+  /object:transport.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

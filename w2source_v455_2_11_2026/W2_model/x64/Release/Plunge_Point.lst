@@ -1,0 +1,250 @@
+Page 1           Source Listing                  PLUNGE_POINT
+2026-03-30 08:48                                 C:\Users\NING\AppData\Local\Temp\341801454.i90
+
+      1 # 1 "..\..\..\Plunge_Point.f90"
+      2 Subroutine Plunge_Point
+      3 ! SW 5/2024 Estimate of plunge point in a reservoir
+      4   USE MAIN
+      5   USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINETIC; USE SHADEC; USE EDDY
+      6   USE STRUCTURES; USE TRANS;  USE TVDC;   USE SELWC;  USE GDAYC; USE SCREENC; USE TDGAS;   USE RSTART
+      7   
+      8   IMPLICIT NONE
+      9   REAL :: FRDN
+     10   
+     11   IF(NIT==0)THEN
+     12       OPEN(2020,FILE='Plunge_Point_Estimate.csv',STATUS='unknown')
+     13       write(2020,'(A)')'JDAY,I,JB,KT,RHO(KT I),RHO(KT I+1),T2(KT I),T2(KT I+1),W(KT I),U(KT I),U(KT I+1), Froude#'
+     14   ENDIF
+     15   
+     16 !IF(JDAY>96.0)THEN
+     17 !    PAUSE
+     18 !ENDIF
+     19   
+     20   
+     21   DO JW=1,NWB
+     22       KT=KTWB(JW)
+     23   DO JB=BS(JW),BE(JW)
+     24       IF(BR_INACTIVE(JB))CYCLE
+     25       DO I=CUS(JB),DS(JB)-1
+     26           IF(T2(KT,I) <= 10.0)CYCLE
+     27           
+     28           IF(I==CUS(JB))THEN
+     29                 IF(RHO(KT,I) > RHO(KT,I+1) .AND.  U(KT,I) < U(KT-1,I) .AND. U(KB(I),I) > 0.0 .AND. T2(KT,I) < T2(KT,I+1) .an
+     29 d. u(kt,i) > 0.0)THEN                      !W(KT,I) > 0.0 .AND.
+     30                               FRDN=u(kt,i)/(sqrt(((rho(kt,i)-rho(kt,i+1))/rho(kt,i))*g*depthm(kt,i)))
+     31                     WRITE(2020,'(F10.3,",",I4,",",I4,",",I4,",",8(F12.4,","))')JDAY,I,JB,KT,RHO(KT,I),RHO(KT,I+1),T2(KT,I),T
+     31 2(KT,I+1),W(KT,I),U(KT,I),U(KT,I+1),frdn
+     32                 ENDIF
+     33           CYCLE    
+     34           ENDIF
+     35           IF(RHO(KT,I) > RHO(KT,I+1) .AND.  U(KT,I) > 0.0 .AND. U(KT,I+1)< 0.0 .AND. T2(KT,I) < T2(KT,I+1) .and. u(kt,i) > 0
+     35 .0)THEN                      !W(KT,I) > 0.0 .AND.
+     36                         FRDN=u(kt,i)/(sqrt((rho(kt,i)-rho(kt,i+1))/rho(kt,i))*g*depthm(kt,i))
+     37               WRITE(2020,'(F10.3,",",I4,",",I4,",",I4,",",8(F12.4,","))')JDAY,I,JB,KT,RHO(KT,I),RHO(KT,I+1),T2(KT,I),T2(KT,I
+     37 +1),W(KT,I),U(KT,I),U(KT,I+1),frdn
+     38           ENDIF
+     39       ENDDO
+     40   ENDDO
+     41   ENDDO
+     42   
+     43   RETURN
+     44   END SUBROUTINE Plunge_Point
+
+Page 2           Source Listing                  PLUNGE_POINT
+2026-03-30 08:48 Entry Points                    ..\..\..\Plunge_Point.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name         
+                                 
+       PLUNGE_POINT              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ BE                         Local  23       I(4)            4     1     1        ALC              23                                
+ BR_INACTIVE                Local  24       L(4)            4     1     1        ALC              24                                
+ BS                         Local  23       I(4)            4     1     1        ALC              23                                
+ CUS                        Local  25       I(4)            4     1     1        ALC              25,28                             
+ DEPTHM                     Local  30       R(8)            8     2     1        ALC              30,36                             
+ DS                         Local  25       I(4)            4     1     1        ALC              25                                
+ EDDY                       Module 5                                                              5                                 
+ FRDN                       Local  9        R(4)            4           scalar                    30,31,36,37                       
+ G                          Local  30       R(8)            8           scalar                    30,36                             
+ GDAYC                      Module 6                                                              6                                 
+ GEOMC                      Module 5                                                              5                                 
+ GLOBAL                     Module 5                                                              5                                 
+ I                          Local  25       I(4)            4           scalar                    25,26,28,29,30,31,35,36,37        
+ JB                         Local  23       I(4)            4           scalar                    23,24,25,28,31,37                 
+ JDAY                       Local  31       R(8)            8           scalar                    31,37                             
+ JW                         Local  21       I(4)            4           scalar                    21,22,23                          
+ KB                         Local  29       I(4)            4     1     1        ALC              29                                
+ KINETIC                    Module 5                                                              5                                 
+ KT                         Local  22       I(4)            4           scalar                    22,26,29,30,31,35,36,37           
+ KTWB                       Local  22       I(4)            4     1     1        ALC              22                                
+ LOGICC                     Module 5                                                              5                                 
+ MAIN                       Module 4                                                              4                                 
+ NAMESC                     Module 5                                                              5                                 
+ NIT                        Local  11       I(4)            4           scalar                    11                                
+ NWB                        Local  21       I(4)            4           scalar                    21                                
+ PLUNGE_POINT               Subr   2                                                                                                
+ PREC                       Module 5                                                              5                                 
+ RHO                        Local  29       R(8)            8     2     1        PTR              29,30,31,35,36,37                 
+ RSTART                     Module 6                                                              6                                 
+ SCREENC                    Module 6                                                              6                                 
+ SELWC                      Module 6                                                              6                                 
+ SHADEC                     Module 5                                                              5                                 
+ SQRT                       Func   30                                   scalar                    30,36                             
+ STRUCTURES                 Module 6                                                              6                                 
+ SURFHE                     Module 5                                                              5                                 
+ T2                         Local  26       R(8)            8     2     1        PTR              26,29,31,35,37                    
+ TDGAS                      Module 6                                                              6                                 
+ TRANS                      Module 6                                                              6                                 
+ TVDC                       Module 6                                                              6                                 
+ U                          Local  29       R(8)            8     2     1        PTR              29,30,31,35,36,37                 
+ W                          Local  31       R(8)            8     2     1        PTR              31,37                             
+
+Page 3           Source Listing                  PLUNGE_POINT
+2026-03-30 08:48 Subprograms/Common Blocks       ..\..\..\Plunge_Point.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ PLUNGE_POINT               Subr   2                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 4           Source Listing                  PLUNGE_POINT
+2026-03-30 08:48                                 ..\..\..\Plunge_Point.f90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:Plunge_Point.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 5           Source Listing                  PLUNGE_POINT
+2026-03-30 08:48                                 ..\..\..\Plunge_Point.f90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : Plunge_Point.lst
+  /object:Plunge_Point.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

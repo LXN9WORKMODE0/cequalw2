@@ -1,0 +1,938 @@
+Page 1           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180614.i90
+
+      1 # 1 "..\..\..\init-u-elws.f90"
+      2 !***************************************************************************************************************************
+      2 ********
+      3 !**    S U B R O U T I N E    I N I T I A L    W A T E R    L E V E L                                                       
+      3      **
+      4 !***************************************************************************************************************************
+      4 *******
+      5 
+      6 subroutine initial_water_level
+      7 
+      8 USE MAIN
+      9 USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINETIC; USE SHADEC; USE EDDY
+     10   USE STRUCTURES; USE TRANS;  USE TVDC;   USE SELWC;  USE GDAYC; USE SCREENC; USE TDGAS;   USE RSTART
+     11   USE INITIALVELOCITY
+     12 ! MACROPHYTEC, POROSITYC, ZOOPLANKTONC removed - water quality related
+     13   IMPLICIT NONE
+     14   EXTERNAL RESTART_OUTPUT
+     15   INTEGER :: JBU,JBD, JJW
+     16   REAL :: QGATE,WSUP,BRLEN,WLSLOPE,DIST, WLDIFF
+     17   
+     18   LOOP_BRANCH=.FALSE.
+     19     
+     20 ! estimating initial flows in each segment
+     21      QSSI=0.0
+     22             
+     23 ! first considering specified flows: upstream inflows, tributaries, distributed tribs, structural withdrawals and withdrawal
+     23 s
+     24     DO JW=1,NWB
+     25       KT = KTWB(JW)
+     26       DO JB=BS(JW),BE(JW)
+     27         IU = CUS(JB)
+     28         ID = DS(JB)
+     29         DO I=IU,ID
+     30           IF(I == IU .AND. UP_FLOW(JB))THEN
+     31              QSSI(I)=QIN(JB)+QSSI(I)
+     32           END IF
+     33 ! if downstream of structure
+     34 !IF (i == iu .and. UHS(JB) < 0) then
+     35           IF (I == IU .AND. DAM_INFLOW(JB)) THEN    ! CB 4/27/2011
+     36             DO JJW=1,NWB
+     37               DO JJB=BS(JJW),BE(JJW)
+     38                 IF(DS(JJB) == ABS(UHS(JB)))THEN
+     39                   DO JS=1,NSTR(JJB)              
+     40                     QSSI(I)=QSSI(I)+QSTR(JS,JJB)
+     41                   END DO
+     42                 END IF
+     43               END DO
+     44             END DO
+     45           END IF
+     46 
+     47           IF (TRIBUTARIES) THEN
+     48             DO JT=1,NTR
+     49               IF(ITR(JT) == I)QSSI(I)=QSSI(I)+QTR(JT)
+     50             END DO
+     51           END IF
+     52           IF (DIST_TRIBS(JB)) THEN
+     53             QSSI(I)=QSSI(I)+QDTR(JB)/REAL(ID-IU+1)    ! SINCE INITIAL WL UNKNOWN, DISTRIBUTING FLOW EVENLY BTW. SEGS.
+
+Page 2           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+     54           END IF
+     55           IF (WITHDRAWALS) THEN
+     56             DO JWD=1,NWD
+     57               IF(IWD(JWD) == I)QSSI(I)=QSSI(I)-QWD(JWD)            
+     58             END DO
+     59           END IF
+     60           IF(I == ID)THEN
+     61             DO JS=1,NSTR(JB)              
+     62               QSSI(I)=QSSI(I)-QSTR(JS,JB)
+     63             END DO
+     64           END IF
+     65         END DO
+     66       END DO
+     67     END DO
+     68     
+     69 ! INCLUDING FLOWS WITHIN BRANCH UPSTEAM OF SEGMENT
+     70     DO JW=1,NWB
+     71       KT = KTWB(JW)
+     72       DO JB=BS(JW),BE(JW)
+     73         IU = CUS(JB)
+     74         ID = DS(JB)
+     75         DO I=IU+1,ID
+     76           QSSI(I)=QSSI(I)+QSSI(I-1)
+     77         END DO
+     78       END DO
+     79     END DO
+     80 
+     81     DO JW=1,NWB
+     82       KT = KTWB(JW)
+     83       DO JB=BS(JW),BE(JW)
+     84         IU = CUS(JB)
+     85         ID = DS(JB)
+     86         DO I=IU,ID          
+     87 ! DETERMINING IF SEGMENT IS DOWNSTREAM INTERNAL HEAD BOUNDARY OF ANOTHER *UPSTREAM* BRANCH, AND ADDING FLOW TO SEGMENT AND S
+     87 EGMENTS DOWNSTREAM
+     88           DO JJW=1,NWB
+     89             DO JJB=BS(JJW),BE(JJW)
+     90               IF(DHS(JJB) == I)THEN
+     91                 DO II=I,ID
+     92                   QSSI(II)=QSSI(II)+QSSI(DS(JJB))
+     93                 END DO
+     94               END IF
+     95             END DO
+     96           END DO                    
+     97 ! DETERMINING IF SEGMENT IS DOWNSTREAM OF SPILLWAY BELOW ANOTHER BRANCH
+     98           DO JS=1,NSP
+     99             IF(ESP(JS) < EL(2,I))THEN  ! DISREGARDING IF CREST ABOVE GRID
+    100               IF(I == IDSP(JS))THEN
+    101                 DO II=I,ID
+    102                   QSSI(II)=QSSI(II)+QSSI(IUSP(JS))
+    103                 END DO
+    104               END IF
+    105             END IF
+    106           END DO
+    107 ! DETERMINING IF SEGMENT IS DOWNSTREAM OF GATE BELOW ANOTHER BRANCH
+    108           DO JG=1,NGT
+    109             IF(EGT(JG) < EL(2,I))THEN  ! DISREGARDING IF CREST ABOVE GRID
+
+Page 3           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    110               IF(I == IDGT(JG))THEN
+    111                 IF(DYNGTC(JG) == '    FLOW')THEN
+    112                   QGATE = BGT(JG)
+    113                   DO II=I,ID
+    114                     QSSI(II)=QSSI(II)+QGATE
+    115                   END DO
+    116                 ELSE
+    117                   DO II=I,ID
+    118                     QSSI(II)=QSSI(II)+QSSI(IUGT(JG))
+    119                   END DO
+    120                 END IF
+    121               END IF
+    122             END IF
+    123           END DO                    
+    124         END DO
+    125       END DO
+    126     END DO
+    127 
+    128 ! DETERMINING IF BRANCH IS A SECONDARY BRANCH THAT LOOPS AROUND AN ISLAND WITH INTERNAL HEAD BOUNDARIES AT UPSTREAM AND DOWN
+    128 STREAM BC
+    129 ! ATTACHED TO A SINGLE BRANCH
+    130     DO JW=1,NWB
+    131       KT = KTWB(JW)
+    132       DO JB=BS(JW),BE(JW)
+    133         IF(UH_INTERNAL(JB) .AND. DH_INTERNAL(JB))THEN
+    134           DO JJW=1,NWB
+    135               DO JJB=BS(JJW),BE(JJW)
+    136                 IF(UHS(JB) > US(JJB) .AND. UHS(JB) < DS(JJB))THEN
+    137                   JBU=JJB
+    138                 END IF
+    139               END DO
+    140           END DO
+    141           DO JJW=1,NWB
+    142               DO JJB=BS(JJW),BE(JJW)
+    143                 IF(DHS(JB) > US(JJB) .AND. DHS(JB) < DS(JJB))THEN       ! WW 8/19/2013
+    144                   JBD=JJB
+    145                 END IF
+    146               END DO
+    147           END DO
+    148           LOOP_BRANCH(JB) = JBU == JBD
+    149         END IF
+    150       END DO
+    151     END DO
+    152               
+    153               
+    154 ! GIVEN ESTIMATED FLOWS FOR EACH SEGMENT, ESTIMATING WL WITH NORMAL DEPTH EQUATION
+    155     DO JW=1,NWB
+    156       KT = KTWB(JW)
+    157       DO JB=BS(JW),BE(JW)
+    158 ! ONLY CONSIDERING BRANCHES WITH SLOPES > 0
+    159         IF (SLOPE(JB) > 0.0 .AND. .NOT. LOOP_BRANCH(JB))THEN
+    160           IU = CUS(JB)
+    161           ID = DS(JB)    
+    162           DO I=IU,ID
+    163             CALL NORMAL_DEPTH(QSSI(I))
+    164           END DO
+    165         END IF
+
+Page 4           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    166       END DO
+    167     END DO
+    168     
+    169 ! SMOOTHING WATER SURFACE ELEVATIONS, FIRST WITHIN BRANCHES
+    170     DO JW=1,NWB
+    171       KT = KTWB(JW)
+    172       DO JB=BS(JW),BE(JW)
+    173         IF (SLOPE(JB) > 0.0 .AND. .NOT. LOOP_BRANCH(JB))THEN
+    174           IU = CUS(JB)
+    175           ID = DS(JB)
+    176           DO I=ID-1,IU,-1
+    177             IF(ELWS(I+1) > ELWS(I))THEN
+    178               ELWS(I) = ELWS(I+1)
+    179             END IF          
+    180           END DO
+    181         END IF
+    182       END DO
+    183     END DO
+    184 
+    185 ! SMOOTHING WATER SURFACE ELEVATIONS AT INTERNAL HEAD BOUNDARIES
+    186     DO JW=1,NWB
+    187       KT = KTWB(JW)
+    188       DO JB=BS(JW),BE(JW)
+    189         IF (SLOPE(JB) > 0.0 .AND. .NOT. LOOP_BRANCH(JB) .AND. DH_INTERNAL(JB))THEN
+    190           IU = CUS(JB)
+    191           ID = DS(JB)
+    192           IF(ELWS(DHS(JB)) > ELWS(ID))THEN
+    193             ELWS(ID)=ELWS(DHS(JB))
+    194             DO I=ID-1,IU,-1
+    195               IF(ELWS(I+1) > ELWS(I))THEN
+    196                 ELWS(I) = ELWS(I+1)
+    197               END IF   
+    198             END DO
+    199           END IF
+    200         END IF
+    201       END DO
+    202     END DO
+    203 
+    204 ! IF SPILLWAY OR GATE AT DOWNSTREAM END OF BRANCH, MAKING SURE WATER LEVEL IS ABOVE CREST ELEVATION
+    205     DO JW=1,NWB
+    206       KT = KTWB(JW)
+    207       DO JB=BS(JW),BE(JW)
+    208         IF (SLOPE(JB) > 0.0 .AND. .NOT. LOOP_BRANCH(JB) .AND. NSTR(JB) == 0)THEN
+    209           IU = CUS(JB)
+    210           ID = DS(JB)
+    211 ! SPILLWAYS
+    212           DO JS=1,NSP
+    213             IF(ESP(JS) < EL(2,I))THEN  ! DISREGARDING IF CREST ABOVE GRID
+    214               IF(ID == IUSP(JS))THEN
+    215                  WSUP=ESP(JS)+(QSSI(ID)/A1SP(JS))**(1.0/B1SP(JS))  ! ESTIMATING UPSTREAM WS ELEV
+    216                  IF(ELWS(ID) < WSUP)THEN
+    217                    IF(IDSP(JS) .NE. 0)THEN    ! CB 8/10/10
+    218                    IF(ELWS(IDSP(JS)) > WSUP) WSUP = ELWS(IDSP(JS))   ! CHECKING TO SEE IF DOWNSTREAM WS ELEVATION ISN'T ALRE
+    218 ADY 'HIGH'
+    219                    ELWS(ID)=WSUP
+    220                    END IF                     ! CB 8/10/10
+    221                    DO I=ID-1,IU,-1
+
+Page 5           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    222                      IF(ELWS(I+1) > ELWS(I))THEN
+    223                        ELWS(I) = ELWS(I+1)
+    224                      END IF   
+    225                    END DO
+    226                  END IF
+    227                END IF
+    228             END IF
+    229           END DO
+    230 ! GATES
+    231           DO JG=1,NGT
+    232             IF(EGT(JG) < EL(2,I) .AND. DYNGTC(JG) .NE. '    FLOW')THEN  ! DISREGARDING IF CREST ABOVE GRID
+    233               IF(ID == IUGT(JG))THEN
+    234                 IF(DYNGTC(JG) == '       B')THEN
+    235                   WSUP=EGT(JG)+(QSSI(ID)/(A1GT(JG)*BGT(JG)**G1GT(JG)))**(1.0/B1GT(JG))
+    236                 END IF
+    237                 IF(DYNGTC(JG) == '     ZGT')THEN
+    238                   WSUP=EGT(JG)+(QSSI(ID)/A1GT(JG))**(1.0/B1GT(JG))
+    239                 END IF
+    240                 IF(ELWS(ID) < WSUP)THEN
+    241                    IF(ELWS(IDGT(JG)) > WSUP) WSUP = ELWS(IDGT(JG))   ! CHECKING TO SEE IF DOWNSTREAM WS ELEVATION ISN'T ALRE
+    241 ADY 'HIGH'  WX 8/21/13
+    242                    ELWS(ID)=WSUP
+    243                    DO I=ID-1,IU,-1
+    244                      IF(ELWS(I+1) > ELWS(I))THEN
+    245                        ELWS(I) = ELWS(I+1)
+    246                      END IF   
+    247                    END DO
+    248                 END IF
+    249               END IF
+    250             END IF
+    251           END DO
+    252         END IF
+    253       END DO
+    254     END DO
+    255 
+    256 ! SMOOTHING WATER LEVEL AROUND LOOP BRANCHES
+    257     DO JW=1,NWB
+    258       KT = KTWB(JW)
+    259       DO JB=BS(JW),BE(JW)
+    260         IU = CUS(JB)
+    261         ID = DS(JB)
+    262         IF (LOOP_BRANCH(JB))THEN
+    263           WLDIFF=ELWS(UHS(JB))-ELWS(UHS(JB))          
+    264           BRLEN=0.0
+    265           DO I=IU,ID
+    266             BRLEN=BRLEN+DLX(I)
+    267           END DO
+    268           WLSLOPE=WLDIFF/BRLEN
+    269           DIST=DLX(IU)/2.0
+    270           ELWS(IU)=ELWS(UHS(JB))-WLSLOPE*DIST
+    271           DO I=IU+1,ID
+    272             DIST=DIST+(DLX(I-1)+DLX(I))/2.0
+    273             ELWS(IU)=ELWS(UHS(JB))-WLSLOPE*DIST
+    274           END DO
+    275         END IF
+    276       END DO
+    277     END DO
+
+Page 6           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    278 
+    279     RETURN
+    280     END SUBROUTINE INITIAL_WATER_LEVEL
+
+
+ENTRY POINTS
+
+ Address      Type  Name                
+                                        
+       INITIAL_WATER_LEVEL              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ A1GT                       Local  235      R(8)            8     1     1        ALC              235,238                           
+ A1SP                       Local  215      R(8)            8     1     1        ALC              215                               
+ ABS                        Func   38                                   scalar                    38                                
+ B1GT                       Local  235      R(8)            8     1     1        ALC              235,238                           
+ B1SP                       Local  215      R(8)            8     1     1        ALC              215                               
+ BE                         Local  26       I(4)            4     1     1        ALC              26,37,72,83,89,132,135,142,157,172
+                                                                                                  ,188,207,259                      
+ BGT                        Local  112      R(8)            8     1     1        ALC              112,235                           
+ BRLEN                      Local  16       R(4)            4           scalar                    264,266,268                       
+ BS                         Local  26       I(4)            4     1     1        ALC              26,37,72,83,89,132,135,142,157,172
+                                                                                                  ,188,207,259                      
+ CUS                        Local  27       I(4)            4     1     1        ALC              27,73,84,160,174,190,209,260      
+ DAM_INFLOW                 Local  35       L(4)            4     1     1        ALC              35                                
+ DHS                        Local  90       I(4)            4     1     1        ALC              90,143,192,193                    
+ DH_INTERNAL                Local  133      L(4)            4     1     1        ALC              133,189                           
+ DIST                       Local  16       R(4)            4           scalar                    269,270,272,273                   
+ DIST_TRIBS                 Local  52       L(4)            4     1     1        ALC              52                                
+ DLX                        Local  266      R(8)            8     1     1        ALC              266,269,272                       
+ DS                         Local  28       I(4)            4     1     1        ALC              28,38,74,85,92,136,143,161,175,191
+                                                                                                  ,210,261                          
+ DYNGTC                     Local  111      CHAR            8     1     1        ALC              111,232,234,237                   
+ EDDY                       Module 9                                                              9                                 
+ EGT                        Local  109      R(8)            8     1     1        ALC              109,232,235,238                   
+ EL                         Local  99       R(8)            8     2     1        ALC              99,109,213,232                    
+ ELWS                       Local  177      R(8)            8     1     1        ALC              177,178,192,193,195,196,216,218,21
+                                                                                                  9,222,223,240,241,242,244,245,263,
+                                                                                                  270,273                           
+ ESP                        Local  99       R(8)            8     1     1        ALC              99,213,215                        
+ G1GT                       Local  235      R(8)            8     1     1        ALC              235                               
+ GDAYC                      Module 10                                                             10                                
+ GEOMC                      Module 9                                                              9                                 
+ GLOBAL                     Module 9                                                              9                                 
+ I                          Local  29       I(4)            4           scalar                    29,30,31,35,40,49,53,57,60,62,75,7
+                                                                                                  6,86,90,91,99,100,101,109,110,113,
+                                                                                                  117,162,163,176,177,178,194,195,19
+                                                                                                  6,213,221,222,223,232,243,244,245,
+                                                                                                  265,266,271,272                   
+ ID                         Local  28       I(4)            4           scalar                    28,29,53,60,74,75,85,86,91,101,113
+                                                                                                  ,117,161,162,175,176,191,192,193,1
+                                                                                                  94,210,214,215,216,219,221,233,235
+                                                                                                  ,238,240,242,243,261,265,271      
+
+Page 7           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47 Symbol Table                    ..\..\..\init-u-elws.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ IDGT                       Local  110      I(4)            4     1     1        ALC              110,241                           
+ IDSP                       Local  100      I(4)            4     1     1        ALC              100,217,218                       
+ II                         Local  91       I(4)            4           scalar                    91,92,101,102,113,114,117,118     
+ INITIALVELOCITY            Module 11                                                             11                                
+ INITIAL_WATER_LEVEL        Subr   6                                                                                                
+ ITR                        Local  49       I(4)            4     1     1        ALC              49                                
+ IU                         Local  27       I(4)            4           scalar                    27,29,30,35,53,73,75,84,86,160,162
+                                                                                                  ,174,176,190,194,209,221,243,260,2
+                                                                                                  65,269,270,271,273                
+ IUGT                       Local  118      I(4)            4     1     1        ALC              118,233                           
+ IUSP                       Local  102      I(4)            4     1     1        ALC              102,214                           
+ IWD                        Local  57       I(4)            4     1     1        ALC              57                                
+ JB                         Local  26       I(4)            4           scalar                    26,27,28,30,31,35,38,52,53,61,62,7
+                                                                                                  2,73,74,83,84,85,132,133,136,143,1
+                                                                                                  48,157,159,160,161,172,173,174,175
+                                                                                                  ,188,189,190,191,192,193,207,208,2
+                                                                                                  09,210,259,260,261,262,263,270,273
+ JBD                        Local  15       I(4)            4           scalar                    144,148                           
+ JBU                        Local  15       I(4)            4           scalar                    137,148                           
+ JG                         Local  108      I(4)            4           scalar                    108,109,110,111,112,118,231,232,23
+                                                                                                  3,234,235,237,238,241             
+ JJB                        Local  37       I(4)            4           scalar                    37,38,39,40,89,90,92,135,136,137,1
+                                                                                                  42,143,144                        
+ JJW                        Local  15       I(4)            4           scalar                    36,37,88,89,134,135,141,142       
+ JS                         Local  39       I(4)            4           scalar                    39,40,61,62,98,99,100,102,212,213,
+                                                                                                  214,215,217,218                   
+ JT                         Local  48       I(4)            4           scalar                    48,49                             
+ JW                         Local  24       I(4)            4           scalar                    24,25,26,70,71,72,81,82,83,130,131
+                                                                                                  ,132,155,156,157,170,171,172,186,1
+                                                                                                  87,188,205,206,207,257,258,259    
+ JWD                        Local  56       I(4)            4           scalar                    56,57                             
+ KINETIC                    Module 9                                                              9                                 
+ KT                         Local  25       I(4)            4           scalar                    25,71,82,131,156,171,187,206,258  
+ KTWB                       Local  25       I(4)            4     1     1        ALC              25,71,82,131,156,171,187,206,258  
+ LOGICC                     Module 9                                                              9                                 
+ LOOP_BRANCH                Local  18       L(4)            4     1     1        ALC              18,148,159,173,189,208,262        
+ MAIN                       Module 8                                                              8                                 
+ NAMESC                     Module 9                                                              9                                 
+ NGT                        Local  108      I(4)            4           scalar                    108,231                           
+ NORMAL_DEPTH               Subr   163                                                            163                               
+ NSP                        Local  98       I(4)            4           scalar                    98,212                            
+ NSTR                       Local  39       I(4)            4     1     1        ALC              39,61,208                         
+ NTR                        Local  48       I(4)            4           scalar                    48                                
+ NWB                        Local  24       I(4)            4           scalar                    24,36,70,81,88,130,134,141,155,170
+                                                                                                  ,186,205,257                      
+ NWD                        Local  56       I(4)            4           scalar                    56                                
+ PREC                       Module 9                                                              9                                 
+ QDTR                       Local  53       R(8)            8     1     1        ALC              53                                
+ QGATE                      Local  16       R(4)            4           scalar                    112,114                           
+ QIN                        Local  31       R(8)            8     1     1        ALC              31                                
+ QSSI                       Local  21       R(8)            8     1     1        ALC              21,31,40,49,53,57,62,76,92,102,114
+                                                                                                  ,118,163,215,235,238              
+ QSTR                       Local  40       R(8)            8     2     1        ALC              40,62                             
+ QTR                        Local  49       R(8)            8     1     1        ALC              49                                
+ QWD                        Local  57       R(8)            8     1     1        ALC              57                                
+
+Page 8           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47 Symbol Table                    ..\..\..\init-u-elws.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ REAL                       Func   53                                   scalar                    53                                
+ RESTART_OUTPUT             Subr   14                                   scalar                                                      
+ RSTART                     Module 10                                                             10                                
+ SCREENC                    Module 10                                                             10                                
+ SELWC                      Module 10                                                             10                                
+ SHADEC                     Module 9                                                              9                                 
+ SLOPE                      Local  159      R(8)            8     1     1        ALC              159,173,189,208                   
+ STRUCTURES                 Module 10                                                             10                                
+ SURFHE                     Module 9                                                              9                                 
+ TDGAS                      Module 10                                                             10                                
+ TRANS                      Module 10                                                             10                                
+ TRIBUTARIES                Local  47       L(4)            4           scalar                    47                                
+ TVDC                       Module 10                                                             10                                
+ UHS                        Local  38       I(4)            4     1     1        ALC              38,136,263,270,273                
+ UH_INTERNAL                Local  133      L(4)            4     1     1        ALC              133                               
+ UP_FLOW                    Local  30       L(4)            4     1     1        ALC              30                                
+ US                         Local  136      I(4)            4     1     1        ALC              136,143                           
+ WITHDRAWALS                Local  55       L(4)            4           scalar                    55                                
+ WLDIFF                     Local  16       R(4)            4           scalar                    263,268                           
+ WLSLOPE                    Local  16       R(4)            4           scalar                    268,270,273                       
+ WSUP                       Local  16       R(4)            4           scalar                    215,216,218,219,235,238,240,241,24
+                                                                                                  2                                 
+
+Page 9           Source Listing                  INITIAL_WATER_LEVEL
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    281 
+    282 !***************************************************************************************************************************
+    282 ********
+    283 !**        S U B R O U T I N E    N O R M A L    D E P T H                                                                  
+    283       **
+    284 !***************************************************************************************************************************
+    284 ********
+    285 
+    286       SUBROUTINE NORMAL_DEPTH(FLOW)
+    287       
+    288       USE GLOBAL; USE GEOMC
+    289                   
+    290       INTEGER, PARAMETER ::JMAX=40    
+    291       REAL(R8)   :: FLOW
+    292       REAL :: X1, X2, FUNCVAL1, FUNCVAL2, XACC, FMID, FUNC1, RTBIS, DX, XMID     
+    293       INTEGER :: JJ,J  
+    294                   
+    295 ! FIRST, BRACKETING ROOT
+    296       X1=0.001
+    297       X2=1.0
+    298       CALL MANNINGS_EQN(FLOW,X1,FUNCVAL1)
+    299       CALL MANNINGS_EQN(FLOW,X2,FUNCVAL2)
+    300                   
+    301       DO JJ=1,JMAX
+    302         IF(FUNCVAL1*FUNCVAL2 > 0.0)THEN
+    303           IF(ABS(FUNCVAL1)  < ABS(FUNCVAL2))THEN
+    304             X1=X1/2.0
+    305             CALL MANNINGS_EQN(FLOW,X1,FUNCVAL1)            
+    306           ELSE
+    307             X2=X2+1.5*(X2-X1)
+    308             CALL MANNINGS_EQN(FLOW,X2,FUNCVAL2)
+    309           END IF                                          
+    310         ELSE
+    311           EXIT
+    312         END IF      
+    313       END DO                 
+    314       
+    315 ! FINDING ROOT BY BISECTION
+    316       XACC=0.01
+    317       CALL MANNINGS_EQN(FLOW,X2,FMID)
+    318       CALL MANNINGS_EQN(FLOW,X1,FUNC1)      
+    319 !    IF(FUNC1*FMID.GE.0.) PAUSE 'ROOT MUST BE BRACKETED IN RTBIS'
+    320       IF(FUNC1.LT.0.)THEN
+    321         RTBIS=X1
+    322         DX=X2-X1
+    323       ELSE
+    324         RTBIS=X2
+    325         DX=X1-X2
+    326       ENDIF
+    327       DO J=1,JMAX
+    328         DX=DX*.5
+    329         XMID=RTBIS+DX
+    330         CALL MANNINGS_EQN(FLOW,XMID,FMID)        
+    331         IF(FMID.LE.0.)RTBIS=XMID
+    332         IF(ABS(DX).LT.XACC .OR. FMID.EQ.0.)THEN          
+    333           ELWS(I)=RTBIS+EL(KB(I)+1,I)                                      ! SW 4/5/13
+    334           RETURN
+
+Page 10          Source Listing                  NORMAL_DEPTH
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    335         END IF
+    336       END DO
+    337 !    PAUSE 'TOO MANY BISECTIONS IN RTBIS'
+    338       END SUBROUTINE NORMAL_DEPTH
+
+
+ENTRY POINTS
+
+ Address      Type  Name         
+                                 
+       NORMAL_DEPTH              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ABS                        Func   303                                  scalar                    303,332                           
+ DX                         Local  292      R(4)            4           scalar                    322,325,328,329,332               
+ EL                         Local  333      R(8)            8     2     1        ALC              333                               
+ ELWS                       Local  333      R(8)            8     1     1        ALC              333                               
+ FLOW                       Dummy  291      R(8)            8           scalar   ARG,INOUT        298,299,305,308,317,318,330       
+ FMID                       Local  292      R(4)            4           scalar                    317,330,331,332                   
+ FUNC1                      Local  292      R(4)            4           scalar                    318,320                           
+ FUNCVAL1                   Local  292      R(4)            4           scalar                    298,302,303,305                   
+ FUNCVAL2                   Local  292      R(4)            4           scalar                    299,302,303,308                   
+ GEOMC                      Module 288                                                            288                               
+ GLOBAL                     Module 288                                                            288                               
+ I                          Local  333      I(4)            4           scalar                    333                               
+ J                          Local  293      I(4)            4           scalar                    327                               
+ JJ                         Local  293      I(4)            4           scalar                    301                               
+ JMAX                       Param  290      I(4)            4           scalar                    301,327                           
+ KB                         Local  333      I(4)            4     1     1        ALC              333                               
+ MANNINGS_EQN               Subr   298                                                            298,299,305,308,317,318,330       
+ NORMAL_DEPTH               Subr   286                                                                                              
+ R8                         Param  291      I(4)            4           scalar                    291                               
+ RTBIS                      Local  292      R(4)            4           scalar                    321,324,329,331,333               
+ X1                         Local  292      R(4)            4           scalar                    296,298,304,305,307,318,321,322,32
+                                                                                                  5                                 
+ X2                         Local  292      R(4)            4           scalar                    297,299,307,308,317,322,324,325   
+ XACC                       Local  292      R(4)            4           scalar                    316,332                           
+ XMID                       Local  292      R(4)            4           scalar                    329,330,331                       
+
+Page 11          Source Listing                  NORMAL_DEPTH
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    339 
+    340       
+    341 !***************************************************************************************************************************
+    341 ********
+    342 !**        S U B R O U T I N E    M A N N I N G S    E Q U A T I O N                                                        
+    342       **
+    343 !***************************************************************************************************************************
+    343 ********
+    344 
+    345       SUBROUTINE MANNINGS_EQN(FLOW,DEPTH,FUNCVALUE)
+    346       
+    347       USE GLOBAL; USE GEOMC; USE EDDY; USE LOGICC
+    348       
+    349       REAL(R8) :: FLOW
+    350       REAL     :: WSURF, DEPTH, XAREA, WPER, HRAD,FMANN, FUNCVALUE
+    351 
+    352 !     WSURF=EL(KB(I)-1,I)+DEPTH
+    353       WSURF=EL(KB(I)+1,I)+DEPTH   ! CB 7/7/10
+    354       CALL XSECTIONAL_AREA(WSURF,XAREA)
+    355       WPER=B(KTI(I),I)+2.0*DEPTH
+    356       HRAD=XAREA/WPER
+    357       IF(MANNINGS_N(JW))THEN
+    358         FMANN=FRIC(I)
+    359       ELSE
+    360         FMANN=HRAD**0.166666667/FRIC(I)
+    361       END IF
+    362       FUNCVALUE=FLOW-XAREA*HRAD**0.6667*SLOPEC(JB)**0.5/FMANN            ! SW 4/5/2013
+    363       
+    364       RETURN
+    365       END SUBROUTINE MANNINGS_EQN
+
+Page 12          Source Listing                  MANNINGS_EQN
+2026-03-30 08:47 Entry Points                    ..\..\..\init-u-elws.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name         
+                                 
+       MANNINGS_EQN              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ B                          Local  355      R(8)            8     2     1        ALC              355                               
+ DEPTH                      Dummy  350      R(4)            4           scalar   ARG,INOUT        353,355                           
+ EDDY                       Module 347                                                            347                               
+ EL                         Local  353      R(8)            8     2     1        ALC              353                               
+ FLOW                       Dummy  349      R(8)            8           scalar   ARG,INOUT        362                               
+ FMANN                      Local  350      R(4)            4           scalar                    358,360,362                       
+ FRIC                       Local  358      R(8)            8     1     1        ALC              358,360                           
+ FUNCVALUE                  Dummy  350      R(4)            4           scalar   ARG,INOUT        362                               
+ GEOMC                      Module 347                                                            347                               
+ GLOBAL                     Module 347                                                            347                               
+ HRAD                       Local  350      R(4)            4           scalar                    356,360,362                       
+ I                          Local  353      I(4)            4           scalar                    353,355,358,360                   
+ JB                         Local  362      I(4)            4           scalar                    362                               
+ JW                         Local  357      I(4)            4           scalar                    357                               
+ KB                         Local  353      I(4)            4     1     1        ALC              353                               
+ KTI                        Local  355      I(4)            4     1     1        ALC              355                               
+ LOGICC                     Module 347                                                            347                               
+ MANNINGS_EQN               Subr   345                                                                                              
+ MANNINGS_N                 Local  357      L(4)            4     1     1        ALC              357                               
+ R8                         Param  349      I(4)            4           scalar                    349                               
+ SLOPEC                     Local  362      R(8)            8     1     1        ALC              362                               
+ WPER                       Local  350      R(4)            4           scalar                    355,356                           
+ WSURF                      Local  350      R(4)            4           scalar                    353,354                           
+ XAREA                      Local  350      R(4)            4           scalar                    354,356,362                       
+ XSECTIONAL_AREA            Subr   354                                                            354                               
+
+Page 13          Source Listing                  MANNINGS_EQN
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    366       
+    367 !***************************************************************************************************************************
+    367 ********
+    368 !**        S U B R O U T I N E    C R O S S    S E C T I O N A L    A R E A                                                 
+    368       **
+    369 !***************************************************************************************************************************
+    369 ********
+    370 
+    371       SUBROUTINE XSECTIONAL_AREA(WSURF,XAREA)
+    372       
+    373       USE GLOBAL; USE GEOMC; USE MAIN; USE INITIALVELOCITY
+    374       
+    375       REAL :: XAREA, WSURF     ! 4/5/13 SW
+    376       INTEGER :: KTTOP         ! 4/5/13 SW
+    377 
+    378 !     KTTOP = 2
+    379       DO K=2,KMX-1
+    380         IF(EL(K,I) < WSURF)THEN
+    381           KTTOP=K-1
+    382           EXIT
+    383         END IF
+    384         KTTOP=K     ! CB 8/10/10
+    385       END DO
+    386 !     DO WHILE (EL(KTTOP,I) > WSURF)
+    387 !        KTTOP = KTTOP+1
+    388 !     END DO
+    389       XAREA=(WSURF-EL(KTTOP+1,I)) * BSAVE(KTTOP,I)
+    390       DO K=KTTOP+1,KBI(I)
+    391          XAREA = XAREA+BSAVE(K,I)*H(K,JW)
+    392       END DO      
+    393       
+    394       RETURN
+    395       END  SUBROUTINE XSECTIONAL_AREA
+
+Page 14          Source Listing                  XSECTIONAL_AREA
+2026-03-30 08:47 Entry Points                    ..\..\..\init-u-elws.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name            
+                                    
+       XSECTIONAL_AREA              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ BSAVE                      Local  389      R(8)            8     2     1        ALC              389,391                           
+ EL                         Local  380      R(8)            8     2     1        ALC              380,389                           
+ GEOMC                      Module 373                                                            373                               
+ GLOBAL                     Module 373                                                            373                               
+ H                          Local  391      R(8)            8     2     1        ALC              391                               
+ I                          Local  380      I(4)            4           scalar                    380,389,390,391                   
+ INITIALVELOCITY            Module 373                                                            373                               
+ JW                         Local  391      I(4)            4           scalar                    391                               
+ K                          Local  379      I(4)            4           scalar                    379,380,381,384,390,391           
+ KBI                        Local  390      I(4)            4     1     1        ALC              390                               
+ KMX                        Local  379      I(4)            4           scalar                    379                               
+ KTTOP                      Local  376      I(4)            4           scalar                    381,384,389,390                   
+ MAIN                       Module 373                                                            373                               
+ WSURF                      Dummy  375      R(4)            4           scalar   ARG,INOUT        380,389                           
+ XAREA                      Dummy  375      R(4)            4           scalar   ARG,INOUT        389,391                           
+ XSECTIONAL_AREA            Subr   371                                                                                              
+
+Page 15          Source Listing                  XSECTIONAL_AREA
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+    396       
+    397       
+    398 !***************************************************************************************************************************
+    398 ********
+    399 !**        S U B R O U T I N E    I N I T I A L    H O R I Z O N T A L    V E L O C I T Y                                   
+    399       **
+    400 !***************************************************************************************************************************
+    400 ********
+    401 
+    402       SUBROUTINE INITIAL_U_VELOCITY
+    403       
+    404       USE GLOBAL; USE GEOMC
+    405       USE INITIALVELOCITY
+    406       
+    407       REAL :: XAREA, WSURF
+    408       INTEGER :: K
+    409 
+    410       DO JW=1,NWB
+    411         KT = KTWB(JW)
+    412         
+    413         DO JB=BS(JW),BE(JW)
+    414           IF (SLOPE(JB) > 0.0 .AND. .NOT. LOOP_BRANCH(JB)) THEN
+    415             IU = CUS(JB)
+    416             ID = DS(JB)
+    417             DO I=IU,ID
+    418               WSURF=ELWS(I)              
+    419               CALL XSECTIONAL_AREA(WSURF,XAREA)
+    420               UAVG(I)=QSSI(I)/XAREA
+    421               DO K=KT,KB(I)
+    422                 U(K,I)=UAVG(I)
+    423               END DO
+    424             END DO
+    425           END IF
+    426         END DO
+    427       END DO
+    428                 
+    429       RETURN
+    430       END SUBROUTINE INITIAL_U_VELOCITY
+
+Page 16          Source Listing                  INITIAL_U_VELOCITY
+2026-03-30 08:47 Entry Points                    ..\..\..\init-u-elws.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name               
+                                       
+       INITIAL_U_VELOCITY              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ BE                         Local  413      I(4)            4     1     1        ALC              413                               
+ BS                         Local  413      I(4)            4     1     1        ALC              413                               
+ CUS                        Local  415      I(4)            4     1     1        ALC              415                               
+ DS                         Local  416      I(4)            4     1     1        ALC              416                               
+ ELWS                       Local  418      R(8)            8     1     1        ALC              418                               
+ GEOMC                      Module 404                                                            404                               
+ GLOBAL                     Module 404                                                            404                               
+ I                          Local  417      I(4)            4           scalar                    417,418,420,421,422               
+ ID                         Local  416      I(4)            4           scalar                    416,417                           
+ INITIALVELOCITY            Module 405                                                            405                               
+ INITIAL_U_VELOCITY         Subr   402                                                                                              
+ IU                         Local  415      I(4)            4           scalar                    415,417                           
+ JB                         Local  413      I(4)            4           scalar                    413,414,415,416                   
+ JW                         Local  410      I(4)            4           scalar                    410,411,413                       
+ K                          Local  408      I(4)            4           scalar                    421,422                           
+ KB                         Local  421      I(4)            4     1     1        ALC              421                               
+ KT                         Local  411      I(4)            4           scalar                    411,421                           
+ KTWB                       Local  411      I(4)            4     1     1        ALC              411                               
+ LOOP_BRANCH                Local  414      L(4)            4     1     1        ALC              414                               
+ NWB                        Local  410      I(4)            4           scalar                    410                               
+ QSSI                       Local  420      R(8)            8     1     1        ALC              420                               
+ SLOPE                      Local  414      R(8)            8     1     1        ALC              414                               
+ U                          Local  422      R(8)            8     2     1        PTR              422                               
+ UAVG                       Local  420      R(8)            8     1     1        ALC              420,422                           
+ WSURF                      Local  407      R(4)            4           scalar                    418,419                           
+ XAREA                      Local  407      R(4)            4           scalar                    419,420                           
+ XSECTIONAL_AREA            Subr   419                                                            419                               
+
+Page 17          Source Listing                  INITIAL_U_VELOCITY
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\init-u-elws.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ INITIAL_U_VELOCITY         Subr   402                                                                                              
+ INITIAL_WATER_LEVEL        Subr   6                                                                                                
+ MANNINGS_EQN               Subr   345                                                                                              
+ NORMAL_DEPTH               Subr   286                                                                                              
+ XSECTIONAL_AREA            Subr   371                                                                                              
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+
+Page 18          Source Listing                  INITIAL_U_VELOCITY
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:init-u-elws.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+
+Page 19          Source Listing                  INITIAL_U_VELOCITY
+2026-03-30 08:47                                 ..\..\..\init-u-elws.f90
+
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : init-u-elws.lst
+  /object:init-u-elws.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

@@ -1,0 +1,555 @@
+Page 1           Source Listing                  UPDATE
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\341801154.i90
+
+      1 # 1 "..\..\..\update.F90"
+      2 SUBROUTINE UPDATE
+      3 
+      4 USE MAIN
+      5 USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINETIC; USE SHADEC; USE EDDY
+      6   USE STRUCTURES; USE TRANS;  USE TVDC;   USE SELWC;  USE GDAYC; USE SCREENC; USE TDGAS;   USE RSTART
+      7 ! MACROPHYTEC, POROSITYC, ZOOPLANKTONC removed - water quality related (MACROPHYTE_CALC references are commented out)
+      8   IMPLICIT NONE
+      9   EXTERNAL RESTART_OUTPUT
+     10 
+     11 !***************************************************************************************************************************
+     11 ********
+     12 !*                                       Task 2.7: Variable updates for next timestep                                       
+     12       **
+     13 !***************************************************************************************************************************
+     13 ********
+     14     
+     15     SZ     = Z
+     16     SELWS  = ELWS
+     17     SKTI   = KTI
+     18     SBKT   = BKT
+     19     VOLUH2 = QUH1  *DLT
+     20     VOLDH2 = QDH1  *DLT
+     21     TSSUH2 = TSSUH1*DLT
+     22     TSSDH2 = TSSDH1*DLT
+     23     DO JW=1,NWB
+     24      KT = KTWB(JW)
+     25       ELKT(JW) = ELWS(DS(BS(JW)))     !EL(KT,DS(BS(JW)))-Z(DS(BS(JW)))*COSA(BS(JW))
+     26       DO JB=BS(JW),BE(JW)
+     27           
+     28 !** Horizontal diffusivities   ! SW 8/2/2017
+     29       IF(DXI(JW) < 0.0)THEN
+     30       DO I=CUS(JB),DS(JB)-1
+     31         DO K=KT,KBMIN(I)
+     32           DX(K,I) = ABS(U(K,I))*ABS(DXI(JW))
+     33           IF (INTERNAL_WEIR(K,I)) DX(K,I) = 0.0
+     34         END DO
+     35       END DO
+     36       ENDIF
+     37           
+     38 ! CODE MOVED to after wse computation       ELWS(CUS(JB):DS(JB)+1) = EL(KT,CUS(JB):DS(JB)+1)-Z(CUS(JB):DS(JB)+1)*COSA(JB)
+     39 !DO I=US(JB)-1,DS(JB)
+     40 !  AVHR(KT,I) = H1(KT,I)+(H1(KT,I+1)-H1(KT,I))/(0.5D0*(DLX(I)+DLX(I+1)))*0.5D0*DLX(I)                               !SW 07/2
+     40 9/04
+     41 !END DO
+     42 !AVHR(KT,DS(JB)+1)=H1(KT,DS(JB)+1)                                                                              !SW 03/08/05
+     43         DO I=CUS(JB)-1,DS(JB)+1
+     44           DO K=KT,KB(I)     !DO CONCURRENT(K=KT:KB(I))             !DO K=KTWB(JW),KB(I)
+     45             QSS(K,I)   = 0.0D0
+     46             TSS(K,I)   = 0.0D0
+     47             SU(K,I)    = U(K,I)
+     48             SW(K,I)    = W(K,I)
+     49             T2(K,I)    = T1(K,I)
+     50             SAZ(K,I)   = AZ(K,I)
+     51             H2(K,I)    = H1(K,I)
+     52             BHRATIO(K,I) = BH2(K,I)/BH1(K,I)   ! USED FOR TKE COMPUTATION
+     53             BH2(K,I)   = BH1(K,I)
+
+Page 2           Source Listing                  UPDATE
+2026-03-30 08:47                                 ..\..\..\update.F90
+
+     54             BHR2(K,I)  = BHR1(K,I)
+     55             AVH2(K,I)  = AVH1(K,I)
+     56             SAVH2(K,I) = AVH2(K,I)
+     57             SAVHR(K,I) = AVHR(K,I)
+     58           END DO                     
+     59         END DO
+     60       END DO
+     61     END DO
+     62     IF (CONSTITUENTS) THEN
+     63       DO JW=1,NWB
+     64         KT = KTWB(JW)
+     65         DO JB=BS(JW),BE(JW)
+     66           DO JC=1,NAC
+     67               DO K=KT,MAX(KB(DS(JB)),KB(US(JB)))
+     68                   CSSUH2(K,CN(JC),JB) = CSSUH1(K,CN(JC),JB)*DLT            ! SW CODE SPEEDUP 6/15/13
+     69                   CSSDH2(K,CN(JC),JB) = CSSDH1(K,CN(JC),JB)*DLT
+     70               ENDDO
+     71           ENDDO
+     72         ENDDO
+     73       ENDDO
+     74       DO JW=1,NWB
+     75         KT = KTWB(JW)
+     76         DO JB=BS(JW),BE(JW)
+     77           DO JC=1,NAC
+     78             DO I=US(JB)-1,DS(JB)+1
+     79               DO K=KT,KB(I)
+     80                 DO JE=1,NEP
+     81                   IF (EPIPHYTON_CALC(JW,JE)) EPD(K,I,JE) = DMAX1(EPD(K,I,JE),0.0D0)
+     82                 END DO
+     83 
+     84                 IF (SEDIMENT_CALC(JW))THEN
+     85                   SED(K,I) = MAX(SED(K,I),0.0)
+     86                   SEDP(K,I) = DMAX1(SEDP(K,I),0.0D0)
+     87                   SEDN(K,I) = DMAX1(SEDN(K,I),0.0D0)
+     88                   SEDC(K,I) = DMAX1(SEDC(K,I),0.0D0)
+     89                 END IF
+     90 
+     91                 CSSB(K,I,CN(JC)) = 0.0D0
+     92                 C1S(K,I,CN(JC))  = C1(K,I,CN(JC))
+     93                 C2(K,I,CN(JC))   = DMAX1(C1(K,I,CN(JC)),0.0D0)
+     94               END DO
+     95             END DO
+     96           END DO
+     97         END DO
+     98       END DO
+     99     END IF
+    100 
+    101 !DO JW = 1,NWB
+    102 !  KT = KTWB(JW)
+    103 !  DO M=1,NMC
+    104 !    IF (MACROPHYTE_CALC(JW,M)) THEN
+    105 !      DO JB=BS(JW),BE(JW)
+    106 !        DO I=US(JB),DS(JB)
+    107 !          DO K=KT,KB(I)
+    108 !            SMAC(K,I,M)=MAC(K,I,M)
+    109 !            DO J=1,KMX
+    110 !              SMACRC(J,K,I,M)=MACRC(J,K,I,M)
+
+Page 3           Source Listing                  UPDATE
+2026-03-30 08:47                                 ..\..\..\update.F90
+
+    111 !              SMACRM(J,K,I,M)=MACRM(J,K,I,M)
+    112 !            END DO
+    113 !          END DO
+    114 !        END DO
+    115 !      END DO
+    116 !    END IF
+    117 !  END DO
+    118 !END DO
+    119 
+    120   DO JW = 1,NWB 
+    121     IF (ULTIMATE(JW)) THEN   ! SR 5/15/06
+    122       IF(LAYERCHANGE(JW) == .TRUE.)THEN
+    123       DO K=KTWB(JW),KMX    ! only need to update this for KT - if layer change then update for all variables to be safe esp 
+    123 for seg additions                       !DO K=2,KMX   KTWB(JW),KMX
+    124       RATZ(K,JW)  =  AVH2(K-1,DS(BE(JW)))/AVH2(K,DS(BE(JW)))                                         ! SW 5/20/05
+    125       CURZ1(K,JW) =  2.0D0*H(K,JW)*H(K,JW)/((AVH2(K-1,DS(BE(JW)))+AVH2(K,DS(BE(JW))))*AVH2(K-1,DS(BE(JW))))   ! SW 5/20/05  
+    125  4/20/16 SPEED
+    126       CURZ2(K,JW) = -2.0D0*H(K,JW)*H(K,JW)/(AVH2(K-1,DS(BE(JW)))*AVH2(K,DS(BE(JW))))                          ! SW 5/20/05
+    127       CURZ3(K,JW) =  2.0D0*H(K,JW)*H(K,JW)/((AVH2(K-1,DS(BE(JW)))+AVH2(K,DS(BE(JW))))*AVH2(K,DS(BE(JW))))     ! SW 5/20/05
+    128       END DO
+    129       ELSE
+    130       DO K=KTWB(JW),KTWB(JW)+1
+    131       RATZ(K,JW)  =  AVH2(K-1,DS(BE(JW)))/AVH2(K,DS(BE(JW)))                                         ! SW 5/20/05
+    132       CURZ1(K,JW) =  2.0D0*H(K,JW)*H(K,JW)/((AVH2(K-1,DS(BE(JW)))+AVH2(K,DS(BE(JW))))*AVH2(K-1,DS(BE(JW))))   ! SW 5/20/05  
+    132 4/20/16 SPEED
+    133       CURZ2(K,JW) = -2.0D0*H(K,JW)*H(K,JW)/(AVH2(K-1,DS(BE(JW)))*AVH2(K,DS(BE(JW))))                        ! SW 5/20/05
+    134       CURZ3(K,JW) =  2.0D0*H(K,JW)*H(K,JW)/((AVH2(K-1,DS(BE(JW)))+AVH2(K,DS(BE(JW))))*AVH2(K,DS(BE(JW))))     ! SW 5/20/05
+    135       END DO
+    136       ENDIF
+    137     END IF
+    138     END DO
+    139     NIT     =  NIT+1
+    140     ELTM    =  ELTM+DLT
+    141     ELTMS   =  ELTMS+DLT
+    142     ELTMF   =  ELTMF+DLT
+    143     JDAY    =  ELTM/DAY
+    144     ELTMJD  =  JDAY-TMSTRT
+    145     END_RUN =  JDAY >= TMEND
+    146     DLT     =  DMAX1(DLTMIN,DLTFF*CURMAX)    ! SW 7/13/2010
+    147     DLT     =  DMIN1(DLT,1.1*DLTS)
+    148     DLTAV   = (ELTM-TMSTRT*DAY)/NIT
+    149     IF (DLT <  MINDLT) THEN
+    150       MINDLT = DLTS
+    151       JDMIN  = JDAY
+    152     END IF
+    153         IF (JDAY >= DLTD(DLTDP+1))THEN
+    154         DLTDP = DLTDP+1
+    155         DLTMAXX=DLTMAX(DLTDP)
+    156         DLTFF=  DLTF(DLTDP)
+    157         ENDIF
+    158      IF(DLTDP < NDLT .AND. DLTINTER == '      ON')THEN              ! SW 7/13/2010
+    159      DLTMAXX=DLTMAX(DLTDP)+((DLTMAX(DLTDP+1)-DLTMAX(DLTDP))/(DLTD(DLTDP+1)-DLTD(DLTDP)))*(JDAY-DLTD(DLTDP))
+    160      DLTFF=DLTF(DLTDP)+((DLTF(DLTDP+1)-DLTF(DLTDP))/(DLTD(DLTDP+1)-DLTD(DLTDP)))*(JDAY-DLTD(DLTDP))
+    161      ENDIF
+    162 
+    163     IF (DLT  >  DLTMAXX)DLT=DLTMAXX
+    164     CURMAX = DLTMAXX/DLTFF           ! SW 7/13/2010
+
+Page 4           Source Listing                  UPDATE
+2026-03-30 08:47                                 ..\..\..\update.F90
+
+    165     
+    166     IF (INT(JDAY) == JDAYNX) THEN
+    167       JDAYG  = JDAYG+1
+    168       JDAYNX = JDAYNX+1
+    169     END IF
+    170     WRITE (GDCH,'(I3)') GDAY
+    171     CALL GREGORIAN_DATE
+    172     IF(CONSTITUENTS.AND.YEAR/=YEAROLD.AND.CO2YEARLYPPM=='      ON')THEN   ! UPDATE PCO2 FOR PH/TIC IF YEAR CHANGES STEP CHAN
+    172 GES
+    173             IF(YEAR<1980)THEN
+    174 !PCO2 = (0.000041392*REAL(YEAR*YEAR*YEAR) - 0.231409975*REAL(YEAR*YEAR) + 430.804190829*REAL(YEAR) - 266735.857433224)*PALT(
+    174 DS(BE(1)))*1.0E-6      ! PPM CO2 AND ALTITUDE CORRECTION
+    175              PCO2 = (0.000041392*REAL(YEAR)*real(YEAR)*real(YEAR) - 0.231409975*REAL(YEAR)*real(YEAR) + 430.804190829*REAL(Y
+    175 EAR) - 266735.857433224)*PALT(DS(BE(1)))*1.0E-6  
+    176             ELSE
+    177 !PCO2  = (0.015903*YEAR*YEAR - 61.799598*YEAR + 60357.055057)*PALT(DS(BE(1)))*1.0E-6
+    178               PCO2  = (0.015903*real(YEAR)*real(year) - 61.799598*real(YEAR) + 60357.055057)*PALT(DS(BE(1)))*1.0E-6         
+    178    ! SW 2/29/2024
+    179             ENDIF
+    180         YEAROLD=YEAR
+    181     ENDIF
+    182     
+    183     UPDATE_KINETICS = .FALSE.
+    184     IF ((CUF > 0 .AND. MOD(NIT,INT(CUF)) == 0) .OR. (CUF <= 0 .AND. JDAY >= NXTMUK)) THEN      !SR 07/03/2023
+    185         UPDATE_KINETICS = .TRUE.
+    186         IF (CUF <= 0) NXTMUK = JDAY + ABS(CUF)                  !SR 07/03/2023
+    187     ENDIF
+    188 
+    189     
+    190     RETURN
+    191     END SUBROUTINE UPDATE
+
+Page 5           Source Listing                  UPDATE
+2026-03-30 08:47 Entry Points                    ..\..\..\update.F90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name   
+                           
+       UPDATE              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ABS                        Func   32                                   scalar                    32,186                            
+ AVH1                       Local  55       R(8)            8     2     1        ALC              55                                
+ AVH2                       Local  55       R(8)            8     2     1        ALC              55,56,124,125,126,127,131,132,133,
+                                                                                                  134                               
+ AVHR                       Local  57       R(8)            8     2     1        ALC              57                                
+ AZ                         Local  50       R(8)            8     2     1        PTR              50                                
+ BE                         Local  26       I(4)            4     1     1        ALC              26,65,76,124,125,126,127,131,132,1
+                                                                                                  33,134,175,178                    
+ BH1                        Local  52       R(8)            8     2     1        ALC              52,53                             
+ BH2                        Local  52       R(8)            8     2     1        ALC              52,53                             
+ BHR1                       Local  54       R(8)            8     2     1        ALC              54                                
+ BHR2                       Local  54       R(8)            8     2     1        ALC              54                                
+ BHRATIO                    Local  52       R(8)            8     2     1        ALC              52                                
+ BKT                        Local  18       R(8)            8     1     1        ALC              18                                
+ BS                         Local  25       I(4)            4     1     1        ALC              25,26,65,76                       
+ C1                         Local  92       R(8)            8     3     1        ALC,TGT          92,93                             
+ C1S                        Local  92       R(8)            8     3     1        ALC,TGT          92                                
+ C2                         Local  93       R(8)            8     3     1        ALC,TGT          93                                
+ CN                         Local  68       I(4)            4     1     1        ALC              68,69,91,92,93                    
+ CO2YEARLYPPM               Local  172      CHAR            8           scalar                    172                               
+ CONSTITUENTS               Local  62       L(4)            4           scalar                    62,172                            
+ CSSB                       Local  91       R(8)            8     3     1        ALC,TGT          91                                
+ CSSDH1                     Local  69       R(8)            8     3     1        ALC              69                                
+ CSSDH2                     Local  69       R(8)            8     3     1        ALC              69                                
+ CSSUH1                     Local  68       R(8)            8     3     1        ALC              68                                
+ CSSUH2                     Local  68       R(8)            8     3     1        ALC              68                                
+ CUF                        Local  184      R(4)            4           scalar                    184,186                           
+ CURMAX                     Local  146      R(8)            8           scalar                    146,164                           
+ CURZ1                      Local  125      R(8)            8     2     1        ALC,SAVE         125,132                           
+ CURZ2                      Local  126      R(8)            8     2     1        ALC,SAVE         126,133                           
+ CURZ3                      Local  127      R(8)            8     2     1        ALC,SAVE         127,134                           
+ CUS                        Local  30       I(4)            4     1     1        ALC              30,43                             
+ DAY                        Param  143      R(8)            8           scalar                    143,148                           
+ DLT                        Local  19       R(8)            8           scalar                    19,20,21,22,68,69,140,141,142,146,
+                                                                                                  147,149,163                       
+ DLTAV                      Local  148      R(8)            8           scalar                    148                               
+ DLTD                       Local  153      R(4)            4     1     1        ALC              153,159,160                       
+ DLTDP                      Local  153      I(4)            4           scalar                    153,154,155,156,158,159,160       
+ DLTF                       Local  156      R(4)            4     1     1        ALC              156,160                           
+ DLTFF                      Local  146      R(8)            8           scalar                    146,156,160,164                   
+ DLTINTER                   Local  158      CHAR            8           scalar                    158                               
+ DLTMAX                     Local  155      R(4)            4     1     1        ALC              155,159                           
+ DLTMAXX                    Local  155      R(8)            8           scalar                    155,159,163,164                   
+ DLTMIN                     Local  146      R(8)            8           scalar                    146                               
+
+Page 6           Source Listing                  UPDATE
+2026-03-30 08:47 Symbol Table                    ..\..\..\update.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DLTS                       Local  147      R(8)            8           scalar                    147,150                           
+ DMAX1                      Func   81                                   scalar                    81,86,87,88,93,146                
+ DMIN1                      Func   147                                  scalar                    147                               
+ DS                         Local  25       I(4)            4     1     1        ALC              25,30,43,67,78,124,125,126,127,131
+                                                                                                  ,132,133,134,175,178              
+ DX                         Local  32       R(8)            8     2     1        ALC              32,33                             
+ DXI                        Local  29       R(8)            8     1     1        ALC              29,32                             
+ EDDY                       Module 5                                                              5                                 
+ ELKT                       Local  25       R(8)            8     1     1        ALC              25                                
+ ELTM                       Local  140      R(8)            8           scalar                    140,143,148                       
+ ELTMF                      Local  142      R(8)            8     1     1        ALC              142                               
+ ELTMJD                     Local  144      R(8)            8           scalar                    144                               
+ ELTMS                      Local  141      R(8)            8           scalar                    141                               
+ ELWS                       Local  16       R(8)            8     1     1        ALC              16,25                             
+ END_RUN                    Local  145      L(4)            4           scalar                    145                               
+ EPD                        Local  81       R(4)            4     3     1        ALC              81                                
+ EPIPHYTON_CALC             Local  81       L(4)            4     2     1        ALC              81                                
+ GDAY                       Local  170      I(4)            4           scalar                    170                               
+ GDAYC                      Module 6                                                              6                                 
+ GDCH                       Local  170      CHAR            3           scalar                    170                               
+ GEOMC                      Module 5                                                              5                                 
+ GLOBAL                     Module 5                                                              5                                 
+ GREGORIAN_DATE             Subr   171                                                            171                               
+ H                          Local  125      R(8)            8     2     1        ALC              125,126,127,132,133,134           
+ H1                         Local  51       R(8)            8     2     1        ALC              51                                
+ H2                         Local  51       R(8)            8     2     1        ALC              51                                
+ I                          Local  30       I(4)            4           scalar                    30,31,32,33,43,44,45,46,47,48,49,5
+                                                                                                  0,51,52,53,54,55,56,57,78,79,81,85
+                                                                                                  ,86,87,88,91,92,93                
+ INT                        Func   166                                  scalar                    166,184                           
+ INTERNAL_WEIR              Local  33       L(4)            4     2     1        ALC              33                                
+ JB                         Local  26       I(4)            4           scalar                    26,30,43,65,67,68,69,76,78        
+ JC                         Local  66       I(4)            4           scalar                    66,68,69,77,91,92,93              
+ JDAY                       Local  143      R(8)            8           scalar                    143,144,145,151,153,159,160,166,18
+                                                                                                  4,186                             
+ JDAYG                      Local  167      I(4)            4           scalar                    167                               
+ JDAYNX                     Local  166      I(4)            4           scalar                    166,168                           
+ JDMIN                      Local  151      R(8)            8           scalar                    151                               
+ JE                         Local  80       I(4)            4           scalar                    80,81                             
+ JW                         Local  23       I(4)            4           scalar                    23,24,25,26,29,32,63,64,65,74,75,7
+                                                                                                  6,81,84,120,121,122,123,124,125,12
+                                                                                                  6,127,130,131,132,133,134         
+ K                          Local  31       I(4)            4           scalar                    31,32,33,44,45,46,47,48,49,50,51,5
+                                                                                                  2,53,54,55,56,57,67,68,69,79,81,85
+                                                                                                  ,86,87,88,91,92,93,123,124,125,126
+                                                                                                  ,127,130,131,132,133,134          
+ KB                         Local  44       I(4)            4     1     1        ALC              44,67,79                          
+ KBMIN                      Local  31       I(4)            4     1     1        ALC              31                                
+ KINETIC                    Module 5                                                              5                                 
+ KMX                        Local  123      I(4)            4           scalar                    123                               
+ KT                         Local  24       I(4)            4           scalar                    24,31,44,64,67,75,79              
+ KTI                        Local  17       I(4)            4     1     1        ALC              17                                
+ KTWB                       Local  24       I(4)            4     1     1        ALC              24,64,75,123,130                  
+ LAYERCHANGE                Local  122      L(4)            4     1     1        ALC              122                               
+ LOGICC                     Module 5                                                              5                                 
+
+Page 7           Source Listing                  UPDATE
+2026-03-30 08:47 Symbol Table                    ..\..\..\update.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ MAIN                       Module 4                                                              4                                 
+ MAX                        Func   67                                   scalar                    67,85                             
+ MINDLT                     Local  149      R(8)            8           scalar                    149,150                           
+ MOD                        Func   184                                  scalar                    184                               
+ NAC                        Local  66       I(4)            4           scalar                    66,77                             
+ NAMESC                     Module 5                                                              5                                 
+ NDLT                       Local  158      I(4)            4           scalar                    158                               
+ NEP                        Local  80       I(4)            4           scalar                    80                                
+ NIT                        Local  139      I(4)            4           scalar                    139,148,184                       
+ NWB                        Local  23       I(4)            4           scalar                    23,63,74,120                      
+ NXTMUK                     Local  184      R(8)            8           scalar                    184,186                           
+ PALT                       Local  175      R(8)            8     1     1        ALC              175,178                           
+ PCO2                       Local  175      R(4)            4           scalar                    175,178                           
+ PREC                       Module 5                                                              5                                 
+ QDH1                       Local  20       R(8)            8     2     1        ALC              20                                
+ QSS                        Local  45       R(8)            8     2     1        ALC              45                                
+ QUH1                       Local  19       R(8)            8     2     1        ALC              19                                
+ RATZ                       Local  124      R(8)            8     2     1        ALC,SAVE         124,131                           
+ REAL                       Func   175                                  scalar                    175,178                           
+ RESTART_OUTPUT             Subr   9                                    scalar                                                      
+ RSTART                     Module 6                                                              6                                 
+ SAVH2                      Local  56       R(8)            8     2     1        ALC              56                                
+ SAVHR                      Local  57       R(8)            8     2     1        ALC              57                                
+ SAZ                        Local  50       R(8)            8     2     1        ALC              50                                
+ SBKT                       Local  18       R(8)            8     1     1        ALC              18                                
+ SCREENC                    Module 6                                                              6                                 
+ SED                        Local  85       R(4)            4     2     1        ALC              85                                
+ SEDC                       Local  88       R(4)            4     2     1        ALC              88                                
+ SEDIMENT_CALC              Local  84       L(4)            4     1     1        ALC              84                                
+ SEDN                       Local  87       R(4)            4     2     1        ALC              87                                
+ SEDP                       Local  86       R(4)            4     2     1        ALC              86                                
+ SELWC                      Module 6                                                              6                                 
+ SELWS                      Local  16       R(8)            8     1     1        ALC              16                                
+ SHADEC                     Module 5                                                              5                                 
+ SKTI                       Local  17       I(4)            4     1     1        ALC              17                                
+ STRUCTURES                 Module 6                                                              6                                 
+ SU                         Local  47       R(8)            8     2     1        ALC              47                                
+ SURFHE                     Module 5                                                              5                                 
+ SW                         Local  48       R(8)            8     2     1        ALC              48                                
+ SZ                         Local  15       R(8)            8     1     1        ALC              15                                
+ T1                         Local  49       R(8)            8     2     1        ALC,TGT          49                                
+ T2                         Local  49       R(8)            8     2     1        PTR              49                                
+ TDGAS                      Module 6                                                              6                                 
+ TMEND                      Local  145      R(4)            4           scalar                    145                               
+ TMSTRT                     Local  144      R(4)            4           scalar                    144,148                           
+ TRANS                      Module 6                                                              6                                 
+ TSS                        Local  46       R(8)            8     2     1        ALC,TGT          46                                
+ TSSDH1                     Local  22       R(8)            8     2     1        ALC              22                                
+ TSSDH2                     Local  22       R(8)            8     2     1        ALC              22                                
+ TSSUH1                     Local  21       R(8)            8     2     1        ALC              21                                
+ TSSUH2                     Local  21       R(8)            8     2     1        ALC              21                                
+ TVDC                       Module 6                                                              6                                 
+ U                          Local  32       R(8)            8     2     1        PTR              32,47                             
+ ULTIMATE                   Local  121      L(4)            4     1     1        ALC              121                               
+ UPDATE                     Subr   2                                                                                                
+
+Page 8           Source Listing                  UPDATE
+2026-03-30 08:47 Symbol Table                    ..\..\..\update.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ UPDATE_KINETICS            Local  183      L(4)            4           scalar                    183,185                           
+ US                         Local  67       I(4)            4     1     1        ALC              67,78                             
+ VOLDH2                     Local  20       R(8)            8     2     1        ALC              20                                
+ VOLUH2                     Local  19       R(8)            8     2     1        ALC              19                                
+ W                          Local  48       R(8)            8     2     1        PTR              48                                
+ YEAR                       Local  172      I(4)            4           scalar                    172,173,175,178,180               
+ YEAROLD                    Local  172      I(4)            4           scalar                    172,180                           
+ Z                          Local  15       R(8)            8     1     1        ALC              15                                
+
+Page 9           Source Listing                  UPDATE
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\update.F90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ UPDATE                     Subr   2                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 10          Source Listing                  UPDATE
+2026-03-30 08:47                                 ..\..\..\update.F90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:update.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 11          Source Listing                  UPDATE
+2026-03-30 08:47                                 ..\..\..\update.F90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : update.lst
+  /object:update.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

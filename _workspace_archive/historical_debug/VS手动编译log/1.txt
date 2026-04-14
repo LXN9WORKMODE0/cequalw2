@@ -1,0 +1,35 @@
+严重性	代码	说明	项目	文件	行	禁止显示状态
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+错误		Compilation Aborted (code 1)		C:\Users\NING\Desktop\v455\w2source_v455_2_11_2026\hydroinout.F90	1	
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		
+警告		command line warning #10287: the previously set diagnostic file output option is being overridden by '/Qdiag-file:Debug\w2_ivf64.diag'		ifort		

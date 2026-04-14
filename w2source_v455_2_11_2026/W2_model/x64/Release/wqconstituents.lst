@@ -1,0 +1,1255 @@
+Page 1           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180914.i90
+
+      1 # 1 "..\..\..\wqconstituents.F90"
+      2 SUBROUTINE WQCONSTITUENTS
+      3 
+      4 USE MAIN
+      5 USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINETIC; USE SHADEC; USE EDDY
+      6   USE STRUCTURES; USE TRANS;  USE TVDC;   USE SELWC;  USE GDAYC; USE SCREENC; USE TDGAS;   USE RSTART
+      7   USE MACROPHYTEC; USE POROSITYC; USE ZOOPLANKTONC;USE TRIDIAG_V
+      8   USE ALGAE_TOXINS
+      9   USE AlgaeReduceGasTransfer
+     10   
+     11   IMPLICIT NONE
+     12   EXTERNAL RESTART_OUTPUT
+     13   REAL :: TPALG,TNALG,TPZ,TNZ,TPBOD,TNBOD
+     14 
+     15 
+     16       IF(MACROPHYTE_ON.AND.UPDATE_KINETICS)CALL POROSITY 
+     17       IF(UPDATE_KINETICS)IMM=IMM+1   ! FOR OUTPUT OF REDUCE GAS TRANSFER FROM ALGAE ACCUMULATION IN SURFACE LAYER
+     18       DO JW=1,NWB
+     19         KT = KTWB(JW)
+     20         DO JB=BS(JW),BE(JW)
+     21         IF(BR_INACTIVE(JB))CYCLE    ! SW 6/12/2017
+     22           IU = CUS(JB)
+     23           ID = DS(JB)
+     24 
+     25 !******** Kinetic sources/sinks
+     26 
+     27           IF (SEDIMENT_CALC(JW))then
+     28             CALL SEDIMENT
+     29             CALL SEDIMENTP
+     30             CALL SEDIMENTN
+     31             CALL SEDIMENTC
+     32             IF(DYNSEDK(JW) == '      ON')CALL SEDIMENT_DECAY_RATE
+     33           END IF
+     34 ! Standing biomass decay
+     35         IF(STANDING_BIOMASS_DECAY)THEN  ! SW 5/26/15
+     36           IF (SEDIMENT_CALC1(JW))then
+     37             CALL SEDIMENT1            
+     38           end if
+     39           IF (SEDIMENT_CALC2(JW))then
+     40             CALL SEDIMENT2            
+     41           end if
+     42         ENDIF
+     43 
+     44         IF(MACROPHYTE_ON)THEN
+     45 !C  IF DEPTH IN KTI LAYER BECOMES GREATER THAN THRESHOLD, SETTING
+     46 !C      MACROPHYTE CONC. IN KTI COLUMN TO INITIAL CONC.
+     47           DO I=IU,ID
+     48 !            IF (EL(KT,I)-Z(I)*COSA(JB) > EL(KTI(I),I)) THEN
+     49 !!C  KEEPING TRACK IF COLUMN KTI HAS MACROPHYTES
+     50 !                  IF(KTI(I).GT.2)KTICOL(I)=.FALSE.
+     51 !            ELSE
+     52 !                  KTICOL(I)=.TRUE.
+     53 !            ENDIF
+     54               
+     55             DEPKTI=ELWS(I)-EL(KTI(I)+1,I)
+     56 
+     57 !******* MACROPHYTES, SETTING CONC. OF MACROPHYTES IN NEW COLUMNS TO
+
+Page 2           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+     58 !********* INITIAL CONCENTRATION IF COLUMN DEPTH IS GREATER THAN 'THRKTI'
+     59             IF(.NOT.KTICOL(I).AND.DEPKTI.GE.THRKTI)THEN
+     60               KTICOL(I)=.TRUE.
+     61               JT=KTI(I)
+     62               MACT(JT,KT,I)=0.0
+     63               DO M=1,NMC
+     64 !MACRC(JT,KT,I,M)=MACWBCI(JW,M)
+     65                 IF (ISO_macrophyte(JW,m))  macrc(jt,kt,I,m) = macwbci(JW,m)     ! cb 3/7/16
+     66                 IF (VERT_macrophyte(JW,m)) macrc(jt,kt,I,m) = 0.1
+     67                 IF (long_macrophyte(JW,m)) macrc(jt,kt,I,m) = 0.1
+     68                 COLB=EL(KTI(I)+1,I)
+     69                 COLDEP=ELWS(I)-COLB
+     70 !MACRM(JT,KT,I,M)=MACWBCI(JW,M)*COLDEP*CW(JT,I)*DLX(I)
+     71                 MACRM(JT,KT,I,M)=macrc(jt,kt,I,m)*COLDEP*CW(JT,I)*DLX(I)         ! cb 3/17/16
+     72                 MACT(JT,KT,I)=MACT(JT,KT,I)+MACWBCI(JW,M)
+     73                 MACMBRT(JB,M) = MACMBRT(JB,M)+MACRM(JT,KT,I,M)
+     74               END DO
+     75             END IF
+     76 
+     77 !****** MACROPHYTES, WHEN COLUMN DEPTH IS LESS THAN 'THRKTI', ZEROING OUT CONC.
+     78             IF(KTICOL(I).AND.DEPKTI.LT.THRKTI)THEN
+     79               KTICOL(I)=.FALSE.
+     80               JT=KTI(I)
+     81               MACT(JT,KT,I)=0.0
+     82               DO M=1,NMC
+     83                 MACMBRT(JB,M) = MACMBRT(JB,M)-MACRM(JT,KT,I,M)
+     84                 MACRC(JT,KT,I,M)=0.0
+     85                 MACRM(JT,KT,I,M)=0.0
+     86               END DO
+     87             END IF
+     88           END DO
+     89 
+     90           DO M=1,NMC
+     91             IF (MACROPHYTE_CALC(JW,M))THEN
+     92               CALL MACROPHYTE(M)
+     93             END IF
+     94           END DO
+     95         END IF
+     96 
+     97           IF (UPDATE_KINETICS) THEN
+     98             IF (UPDATE_RATES) THEN
+     99               CALL TEMPERATURE_RATES
+    100               CALL KINETIC_RATES
+    101             END IF
+    102             DO JAC=1,NAC
+    103               JC = CN(JAC)
+    104               IF (JC == NPO4)                    CALL PHOSPHORUS
+    105               IF (JC == NWAGE)                   CALL WATER_AGE
+    106               IF (JC == NBACT)                   CALL BACTERIA
+    107               IF (JC == NDGP)                    CALL DISSOLVED_GAS
+    108               IF (JC == NN2)                     CALL DISSOLVED_N2
+    109               IF (JC == NH2S)                    CALL SULFIDE
+    110               IF (JC == NCH4)                    CALL METHANE
+    111               IF (JC == NSO4)                    CALL SULFATE
+    112               IF (JC == NFEII)                   CALL FERROUS
+    113               IF (JC == NFEOOH)                  CALL OXIDIZEDFE
+    114               IF (JC == NMNII)                   CALL BIVALENTMN
+
+Page 3           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    115               IF (JC == NMNO2)                   CALL OXIDIZEDMN
+    116               
+    117               IF (JC == NNH4)                    CALL AMMONIUM
+    118               IF (JC == NNO3)                    CALL NITRATE
+    119               IF (JC == NDSI)                    CALL DISSOLVED_SILICA
+    120               IF (JC == NPSI)                    CALL PARTICULATE_SILICA
+    121 !
+    122               IF(ORGC_CALC)THEN
+    123                 IF (JC == NLDOMC)                CALL LABILE_DOM_C
+    124                 IF (JC == NRDOMC)                CALL REFRACTORY_DOM_C
+    125                 IF (JC == NLPOMC)                CALL LABILE_POM_C
+    126                 IF (JC == NRPOMC)                CALL REFRACTORY_POM_C
+    127               ELSE
+    128               IF (JC == NLDOM)                   CALL LABILE_DOM
+    129               IF (JC == NRDOM)                   CALL REFRACTORY_DOM
+    130               IF (JC == NLPOM)                   CALL LABILE_POM
+    131               IF (JC == NRPOM)                   CALL REFRACTORY_POM
+    132               END IF
+    133               IF (JC == NDO)                     CALL DISSOLVED_OXYGEN              
+    134               IF (JC >= NGCS  .AND. JC <= NGCE)  CALL GENERIC_CONST(JC-NGCS+1)              
+    135               IF (JC >= NSSS  .AND. JC <= NSSE)  CALL SUSPENDED_SOLIDS(JC-NSSS+1)
+    136               IF (JC >= NAS   .AND. JC <= NAE)THEN
+    137                 IF(ALG_CALC(JC-NAS+1))CALL ALGAE(JC-NAS+1)
+    138               ENDIF
+    139               IF (JC >= NBODS .AND. JC <= NBODE)THEN
+    140                 DO JCB=1,NBOD       ! VARIABLE STOICHIOMETRY FOR CBOD, CB 6/6/10
+    141                   IF(BOD_CALC(JCB))THEN
+    142                     IF(JC == NBODC(JCB))CALL BIOCHEMICAL_O2_DEMAND(JCB)
+    143                     IF(JC == NBODP(JCB) .AND. BOD_CALCP(JCB))CALL BIOCHEMICAL_O2_DEMAND_P(JCB)         ! CB 5/19/2011
+    144                     IF(JC == NBODN(JCB) .AND. BOD_CALCN(JCB))CALL BIOCHEMICAL_O2_DEMAND_N(JCB)         ! CB 5/19/2011
+    145                   END IF
+    146                 END DO       
+    147               ENDIF
+    148               IF (JC >= NZOOS  .AND. JC <= NZOOE .AND.ZOOPLANKTON_CALC)CALL ZOOPLANKTON  		
+    149               IF (JC == NLDOMP)                CALL LABILE_DOM_P
+    150               IF (JC == NRDOMP)                CALL REFRACTORY_DOM_P
+    151               IF (JC == NLPOMP)                CALL LABILE_POM_P
+    152               IF (JC == NRPOMP)                CALL REFRACTORY_POM_P
+    153               IF (JC == NLDOMN)                CALL LABILE_DOM_N
+    154               IF (JC == NRDOMN)                CALL REFRACTORY_DOM_N
+    155               IF (JC == NLPOMN)                CALL LABILE_POM_N
+    156               IF (JC == NRPOMN)                CALL REFRACTORY_POM_N
+    157 !IF (JC == NALK .and. NONCON_ALKALINITY)                  CALL alkalinity
+    158               IF (JC == NALK)                  CALL alkalinity    ! NW 2/11/16
+    159               IF (JC >= NATS    .AND. JC <= NATE .AND. ALGAE_TOXIN)THEN
+    160                   CALL INTRACELLULAR_TOXIN(JC-NATS+1)
+    161                   CALL EXTRACELLULAR_TOXIN(JC-NATS+1)
+    162               ENDIF
+    163               
+    164             END DO
+    165             IF (PH_CALC(JW)) CALL INORGANIC_CARBON
+    166             IF (PH_CALC(JW)) THEN
+    167               if(ph_buffering)then  ! enhanced pH buffering
+    168                 call pH_CO2_new
+    169               else
+    170                 CALL PH_CO2
+    171               end if
+
+Page 4           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    172             END IF
+    173 
+    174           END IF          
+    175           DO JE=1,NEP   ! sw 5/16/06
+    176             IF (EPIPHYTON_CALC(JW,JE)) CALL EPIPHYTON(JE)
+    177           END DO
+    178 
+    179 !******** External sources/sinks
+    180 
+    181             IF(AERATEC == "      ON")CALL AERATEMASS
+    182             IF(EVAPORATION(JW) .AND. WATER_AGE_ACTIVE)THEN    ! CORRECT WATER AGE FOR EVAPORATION SR 7/27/2017
+    183                 DO I=IU,ID
+    184 !JC=NGCS+JG_AGE-1
+    185                     CSSB(KT,I,NWAGE)=CSSB(KT,I,NWAGE)-EV(I)*WAGE(KT,I)   ! SW 10/17/2019 CG(KT,I,JC)
+    186                 ENDDO
+    187             ENDIF
+    188 
+    189           DO JAC=1,NAC
+    190             JC = CN(JAC)
+    191             IF (TRIBUTARIES) THEN
+    192               DO JT=1,JTT
+    193                 IF (JB == JBTR(JT)) THEN
+    194                   I = ITR(JT)
+    195                   IF (I < CUS(JB)) I = CUS(JB)
+    196                   DO K=KTTR(JT),KBTR(JT)
+    197                     IF (QTR(JT) < 0.0) THEN
+    198                       CSSB(K,I,JC) = CSSB(K,I,JC)+C1(K,I,JC)*QTR(JT)*QTRF(K,JT)
+    199                     ELSE
+    200                       CSSB(K,I,JC) = CSSB(K,I,JC)+CTR(JC,JT)*QTR(JT)*QTRF(K,JT)
+    201                     END IF
+    202                   END DO
+    203                 END IF
+    204               END DO
+    205             END IF
+    206             IF (DIST_TRIBS(JB)) THEN
+    207               DO I=IU,ID
+    208                 IF (QDT(I) < 0.0) THEN
+    209                   CSSB(KT,I,JC) = CSSB(KT,I,JC)+C1(KT,I,JC)*QDT(I)
+    210                 ELSE
+    211                   CSSB(KT,I,JC) = CSSB(KT,I,JC)+CDTR(JC,JB)*QDT(I)
+    212                 END IF
+    213               END DO
+    214             END IF
+    215             IF (WITHDRAWALS) THEN
+    216               DO JWD=1,JWW
+    217                 IF (QWD(JWD) /= 0.0) THEN
+    218                   IF (JB == JBWD(JWD)) THEN
+    219                     I = MAX(CUS(JBWD(JWD)),IWD(JWD))
+    220                     DO K=KTW(JWD),KBW(JWD)      !CONCURRENT(K=KTW(JWD):KBW(JWD))
+    221                       CSSB(K,I,JC) = CSSB(K,I,JC)-C1S(K,I,JC)*QSW(K,JWD)
+    222                     END DO
+    223                   END IF
+    224                 END IF
+    225               END DO
+    226             END IF
+    227             IF (PRECIPITATION(JW)) THEN
+    228               DO I=IU,ID    !CONCURRENT (I=IU:ID)
+
+Page 5           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    229                 CSSB(KT,I,JC) = CSSB(KT,I,JC)+CPR(JC,JB)*QPR(I)
+    230               END DO
+    231             END IF
+    232             IF (UP_FLOW(JB)) THEN
+    233               DO K=KT,KB(IU)
+    234                 IF (.NOT. HEAD_FLOW(JB)) THEN
+    235                   CSSB(K,IU,JC) = CSSB(K,IU,JC)+QINF(K,JB)*QIN(JB)*CIN(JC,JB)
+    236                 ELSE
+    237                   IF (U(K,IU-1) >= 0.0) THEN
+    238                     CSSB(K,IU,JC) = CSSB(K,IU,JC)+U(K,IU-1)*BHR1(K,IU-1)*C1S(K,IU-1,JC)
+    239                   ELSE
+    240                     CSSB(K,IU,JC) = CSSB(K,IU,JC)+U(K,IU-1)*BHR1(K,IU-1)*C1S(K,IU,JC)
+    241                   END IF
+    242                 END IF
+    243               END DO
+    244             END IF
+    245             IF (DN_FLOW(JB)) CSSB(KT:KB(ID),ID,JC) = CSSB(KT:KB(ID),ID,JC)-QOUT(KT:KB(ID),JB)*C1S(KT:KB(ID),ID,JC)
+    246             IF (UP_HEAD(JB)) THEN
+    247                 DO K=KT,KB(IU)
+    248                 IUT = IU
+    249                 IF (QUH1(K,JB) >= 0.0) IUT = IU-1
+    250                 CSSUH1(K,JC,JB) = C1S(K,IUT,JC)*QUH1(K,JB)
+    251                 CSSB(K,IU,JC)   = CSSB(K,IU,JC)+CSSUH1(K,JC,JB)
+    252               END DO
+    253               IF (UH_INTERNAL(JB)) THEN
+    254                 IF (UHS(JB) /= DS(JBUH(JB)) .OR. DHS(JBUH(JB)) /= US(JB)) THEN
+    255                   IF (JBUH(JB) >= BS(JW) .AND. JBUH(JB) <= BE(JW)) THEN
+    256                     I = UHS(JB)
+    257 !dir$ ivdep
+    258                     DO K=KT,KB(IU)
+    259                       CSSB(K,I,JC) = CSSB(K,I,JC)-CSSUH2(K,JC,JB)/DLT
+    260                     END DO
+    261                   ELSE
+    262                     CALL UPSTREAM_CONSTITUENT(C2(:,:,JC),CSSB(:,:,JC))
+    263                   END IF
+    264                 END IF
+    265               END IF
+    266             END IF
+    267             IF (DN_HEAD(JB)) THEN
+    268               DO K=KT,KB(ID+1)
+    269                 IDT = ID+1
+    270                 IF (QDH1(K,JB) >= 0.0) IDT = ID
+    271                 CSSDH1(K,JC,JB) = C1S(K,IDT,JC)*QDH1(K,JB)
+    272                 CSSB(K,ID,JC)   = CSSB(K,ID,JC)-CSSDH1(K,JC,JB)
+    273               END DO
+    274               IF (DH_INTERNAL(JB)) THEN
+    275                 IF (DHS(JB) /= US(JBDH(JB)) .OR. UHS(JBDH(JB)) /= DS(JB)) THEN
+    276                   IF (JBDH(JB) >= BS(JW) .AND. JBDH(JB) <= BE(JW)) THEN
+    277                     I = DHS(JB)
+    278                     DO K=KT,KB(ID+1)
+    279                       CSSB(K,I,JC) = CSSB(K,I,JC)+CSSDH2(K,JC,JB)/DLT
+    280                     END DO
+    281                   ELSE
+    282                     CALL DOWNSTREAM_CONSTITUENT(C2(:,:,JC),CSSB(:,:,JC))
+    283                   END IF
+    284                 END IF
+    285               END IF
+
+Page 6           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    286             END IF
+    287           END DO
+    288           
+    289         IF (NPBALC=='      ON') THEN           !IF(MASS_BALANCE(JW).AND.CONTOUR(JW).AND.DERIVED_CALC)THEN     ! TO COMPUTE T
+    289 P AND TN INFLOWS AND OUTFLOWS FOR MASSBAL.OPT FILE
+    290             IF (TRIBUTARIES) THEN
+    291               DO JT=1,JTT
+    292                 IF (JB == JBTR(JT)) THEN
+    293                   I = ITR(JT)
+    294                   IF (I < CUS(JB)) I = CUS(JB)
+    295                   DO K=KTTR(JT),KBTR(JT)
+    296                       TPALG=0.0;TNALG=0.0;TPZ=0.0;TNZ=0.0;TPBOD=0.0;TNBOD=0.0
+    297                     IF (QTR(JT) < 0.0) THEN
+    298                         DO JA=1,NAL
+    299                             TPALG=TPALG+ALG(K,I,JA)*AP(JA)
+    300                             TNALG=TNALG+ALG(K,I,JA)*AN(JA)
+    301                         ENDDO
+    302                         DO JCB=1,NBOD
+    303                             TPBOD=TPBOD+CBODP(K,I,JCB)
+    304                             TNBOD=TNBOD+CBODN(K,I,JCB)
+    305                         ENDDO
+    306                         DO JZ = 1,NZP
+    307                             TPZ=TPZ+ZOO(K,I,JZ)*ZP(JZ)
+    308                             TNZ=TNZ+ZOO(K,I,JZ)*ZN(JZ)
+    309                         ENDDO
+    310                       TPOUT = TPOUT-(TPALG+TPBOD+TPZ+PO4(K,I)+LDOMP(K,I)+LPOMP(K,I)+RDOMP(K,I)+RPOMP(K,I))*QTR(JT)*QTRF(K,JT
+    310 )*DLT/1000.
+    311                       TNOUT = TNOUT-(TNALG+TNBOD+TNZ+NO3(K,I)+NH4(K,I)+LDOMN(K,I)+LPOMN(K,I)+RDOMN(K,I)+RPOMN(K,I))*QTR(JT)*
+    311 QTRF(K,JT)*DLT/1000.
+    312                     ELSE
+    313                         DO JC=NAS,NAE
+    314                             TPALG=TPALG+CTR(JC,JT)*AP(JC-NAS+1)
+    315                             TNALG=TNALG+CTR(JC,JT)*AN(JC-NAS+1)
+    316                         ENDDO
+    317                         DO JC=NBODS,NBODE,3
+    318                             TPBOD=TPBOD+CTR(JC+1,JT)
+    319                             TNBOD=TNBOD+CTR(JC+2,JT)
+    320                         ENDDO
+    321                         DO JC=NZOOS,NZOOE
+    322                             TPZ=TPZ+CTR(JC,JT)*ZP(JC-NZOOS+1)
+    323                             TNZ=TNZ+CTR(JC,JT)*ZN(JC-NZOOS+1)
+    324                         ENDDO
+    325                       TPTRIB(JW) = TPTRIB(JW)+ (TPALG+TPBOD+TPZ+CTR(NPO4,JT)+CTR(NLDOMP,JT)+CTR(NRDOMP,JT)+CTR(NLPOMP,JT)+CT
+    325 R(NRPOMP,JT))*QTR(JT)*QTRF(K,JT)*DLT/1000.
+    326                       TNTRIB(JW) = TNTRIB(JW)+ (TNALG+TNBOD+TNZ+CTR(NNH4,JT)+CTR(NNO3,JT)+CTR(NLDOMN,JT)+CTR(NRDOMN,JT)+CTR(
+    326 NLPOMN,JT)+CTR(NRPOMN,JT))*QTR(JT)*QTRF(K,JT)*DLT/1000.
+    327                     END IF
+    328                   END DO
+    329                 END IF
+    330               END DO
+    331             END IF
+    332             IF (DIST_TRIBS(JB)) THEN
+    333               DO I=IU,ID
+    334                 TPALG=0.0;TNALG=0.0;TPZ=0.0;TNZ=0.0;TPBOD=0.0;TNBOD=0.0
+    335                 IF (QDT(I) < 0.0) THEN
+    336                         DO JA=1,NAL
+    337                             TPALG=TPALG+ALG(KT,I,JA)*AP(JA)
+
+Page 7           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    338                             TNALG=TNALG+ALG(KT,I,JA)*AN(JA)
+    339                         ENDDO
+    340                         DO JCB=1,NBOD
+    341                             TPBOD=TPBOD+CBODP(KT,I,JCB)
+    342                             TNBOD=TNBOD+CBODN(KT,I,JCB)
+    343                         ENDDO
+    344                         DO JZ = 1,NZP
+    345                             TPZ=TPZ+ZOO(KT,I,JZ)*ZP(JZ)
+    346                             TNZ=TNZ+ZOO(KT,I,JZ)*ZN(JZ)
+    347                         ENDDO
+    348                       TPOUT = TPOUT-(TPALG+TPBOD+TPZ+PO4(KT,I)+LDOMP(KT,I)+LPOMP(KT,I)+RDOMP(KT,I)+RPOMP(KT,I))*QDT(I)*DLT/1
+    348 000.
+    349                       TNOUT = TNOUT-(TNALG+TNBOD+TNZ+NO3(KT,I)+NH4(KT,I)+LDOMN(KT,I)+LPOMN(KT,I)+RDOMN(KT,I)+RPOMN(KT,I))*QD
+    349 T(I)*DLT/1000.
+    350                 ELSE
+    351                         DO JC=NAS,NAE
+    352                             TPALG=TPALG+CDTR(JC,JB)*AP(JC-NAS+1)
+    353                             TNALG=TNALG+CDTR(JC,JB)*AN(JC-NAS+1)
+    354                         ENDDO
+    355                         DO JC=NBODS,NBODE,3
+    356                             TPBOD=TPBOD+CDTR(JC+1,JB)
+    357                             TNBOD=TNBOD+CDTR(JC+2,JB)
+    358                         ENDDO
+    359                         DO JC=NZOOS,NZOOE
+    360                             TPZ=TPZ+CDTR(JC,JB)*ZP(JC-NZOOS+1)
+    361                             TNZ=TNZ+CDTR(JC,JB)*ZN(JC-NZOOS+1)
+    362                         ENDDO
+    363                       TPDTRIB(JW) = TPDTRIB(JW)+ (TPALG+TPBOD+TPZ+CDTR(NPO4,JB)+CDTR(NLDOMP,JB)+CDTR(NRDOMP,JB)+CDTR(NLPOMP,
+    363 JB)+CDTR(NRPOMP,JB))*QDT(I)*DLT/1000.
+    364                       TNDTRIB(JW) = TNDTRIB(JW)+ (TNALG+TNBOD+TNZ+CDTR(NNH4,JB)+CDTR(NNO3,JB)+CDTR(NLDOMN,JB)+CDTR(NRDOMN,JB
+    364 )+CDTR(NLPOMN,JB)+CDTR(NRPOMN,JB))*QDT(I)*DLT/1000.
+    365                 END IF
+    366               END DO
+    367             END IF
+    368             IF (WITHDRAWALS) THEN
+    369               DO JWD=1,JWW
+    370                 IF (QWD(JWD) /= 0.0) THEN
+    371                   IF (JB == JBWD(JWD)) THEN
+    372                     I = MAX(CUS(JBWD(JWD)),IWD(JWD))
+    373                     DO K=KTW(JWD),KBW(JWD)      !CONCURRENT(K=KTW(JWD):KBW(JWD))
+    374                          TPALG=0.0;TNALG=0.0;TPZ=0.0;TNZ=0.0;TPBOD=0.0;TNBOD=0.0
+    375                         DO JC=NAS,NAE
+    376                             TPALG=TPALG+C1S(K,I,JC)*AP(JC-NAS+1)
+    377                             TNALG=TNALG+C1S(K,I,JC)*AN(JC-NAS+1)
+    378                         ENDDO
+    379                         DO JC=NBODS,NBODE,3
+    380                             TPBOD=TPBOD+C1S(K,I,JC)
+    381                             TNBOD=TNBOD+C1S(K,I,JC)
+    382                         ENDDO
+    383                         DO JC=NZOOS,NZOOE
+    384                             TPZ=TPZ+C1S(K,I,JC)*ZP(JC-NZOOS+1)
+    385                             TNZ=TNZ+C1S(K,I,JC)*ZN(JC-NZOOS+1)
+    386                         ENDDO
+    387                       TPWD(JW) = TPWD(JW) + (TPALG+TPBOD+TPZ+C1S(K,I,NPO4)+C1S(K,I,NLDOMP)+C1S(K,I,NRDOMP)+C1S(K,I,NLPOMP)+C
+    387 1S(K,I,NRPOMP))*QSW(K,JWD)*DLT/1000.
+    388                       TNWD(JW) = TNWD(JW) + (TNALG+TNBOD+TNZ+C1S(K,I,NNH4)+C1S(K,I,NNO3)+C1S(K,I,NLDOMN)+C1S(K,I,NRDOMN)+C1S
+    388 (K,I,NLPOMN)+C1S(K,I,NRPOMN))*QSW(K,JWD)*DLT/1000.
+
+Page 8           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    389                     END DO
+    390                   END IF
+    391                 END IF
+    392               END DO
+    393             END IF
+    394             IF (PRECIPITATION(JW)) THEN
+    395               DO I=IU,ID    !CONCURRENT (I=IU:ID)
+    396                 TPALG=0.0;TNALG=0.0;TPZ=0.0;TNZ=0.0;TPBOD=0.0;TNBOD=0.0
+    397                         DO JC=NAS,NAE
+    398                             TPALG=TPALG+CPR(JC,JB)*AP(JC-NAS+1)
+    399                             TNALG=TNALG+CPR(JC,JB)*AN(JC-NAS+1)
+    400                         ENDDO
+    401                         DO JC=NBODS,NBODE,3
+    402                             TPBOD=TPBOD+CPR(JC,JB)
+    403                             TNBOD=TNBOD+CPR(JC,JB)
+    404                         ENDDO
+    405                         DO JC=NZOOS,NZOOE
+    406                             TPZ=TPZ+CPR(JC,JB)*ZP(JC-NZOOS+1)
+    407                             TNZ=TNZ+CPR(JC,JB)*ZN(JC-NZOOS+1)
+    408                         ENDDO
+    409                       TPPR(JW) = TPPR(JW) + (TPALG+TPBOD+TPZ+CPR(NPO4,JB)+CPR(NLDOMP,JB)+CPR(NRDOMP,JB)+CPR(NLPOMP,JB)+CPR(N
+    409 RPOMP,JB))*QPR(I)*DLT/1000.
+    410                       TNPR(JW) = TNPR(JW) + (TNALG+TNBOD+TNZ+CPR(NNH4,JB)+CPR(NNO3,JB)+CPR(NLDOMN,JB)+CPR(NRDOMN,JB)+CPR(NLP
+    410 OMN,JB)+CPR(NRPOMN,JB))*QPR(I)*DLT/1000.
+    411               END DO
+    412             END IF
+    413             IF (UP_FLOW(JB)) THEN
+    414               DO K=KT,KB(IU)
+    415               TPALG=0.0;TNALG=0.0;TPZ=0.0;TNZ=0.0;TPBOD=0.0;TNBOD=0.0
+    416                 IF (.NOT. HEAD_FLOW(JB)) THEN
+    417                         DO JC=NAS,NAE
+    418                             TPALG=TPALG+CIN(JC,JB)*AP(JC-NAS+1)
+    419                             TNALG=TNALG+CIN(JC,JB)*AN(JC-NAS+1)
+    420                         ENDDO
+    421                         DO JC=NBODS,NBODE,3
+    422                             TPBOD=TPBOD+CIN(JC,JB)
+    423                             TNBOD=TNBOD+CIN(JC,JB)
+    424                         ENDDO
+    425                         DO JC=NZOOS,NZOOE
+    426                             TPZ=TPZ+CIN(JC,JB)*ZP(JC-NZOOS+1)
+    427                             TNZ=TNZ+CIN(JC,JB)*ZN(JC-NZOOS+1)
+    428                         ENDDO
+    429                       TPIN(JW) = TPIN(JW) + (TPALG+TPBOD+TPZ+CIN(NPO4,JB)+CIN(NLDOMP,JB)+CIN(NRDOMP,JB)+CIN(NLPOMP,JB)+CIN(N
+    429 RPOMP,JB))*QINF(K,JB)*QIN(JB)*DLT/1000.
+    430                       TNIN(JW) = TNIN(JW) + (TNALG+TNBOD+TNZ+CIN(NNH4,JB)+CIN(NNO3,JB)+CIN(NLDOMN,JB)+CIN(NRDOMN,JB)+CIN(NLP
+    430 OMN,JB)+CIN(NRPOMN,JB))*QINF(K,JB)*QIN(JB)*DLT/1000.
+    431                 END IF
+    432               END DO
+    433             END IF
+    434             IF (DN_FLOW(JB)) THEN
+    435                 DO K=KT,KB(ID)
+    436                         TPALG=0.0;TNALG=0.0;TPZ=0.0;TNZ=0.0;TPBOD=0.0;TNBOD=0.0
+    437                         DO JC=NAS,NAE
+    438                             TPALG=TPALG+C1S(K,ID,JC)*AP(JC-NAS+1)
+    439                             TNALG=TNALG+C1S(K,ID,JC)*AN(JC-NAS+1)
+    440                         ENDDO
+    441                         DO JC=NBODS,NBODE,3
+
+Page 9           Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    442                             TPBOD=TPBOD+C1S(K,ID,JC)
+    443                             TNBOD=TNBOD+C1S(K,ID,JC)
+    444                         ENDDO
+    445                         DO JC=NZOOS,NZOOE
+    446                             TPZ=TPZ+C1S(K,ID,JC)*ZP(JC-NZOOS+1)
+    447                             TNZ=TNZ+C1S(K,ID,JC)*ZN(JC-NZOOS+1)
+    448                         ENDDO
+    449                       TPOUT(JW) = TPOUT(JW) + (TPALG+TPBOD+TPZ+C1S(K,ID,NPO4)+C1S(K,ID,NLDOMP)+C1S(K,ID,NRDOMP)+C1S(K,ID,NLP
+    449 OMP)+C1S(K,ID,NRPOMP))*QOUT(K,JB)*DLT/1000.   ! C1S(KT:KB(ID),ID,JC)
+    450                       TNOUT(JW) = TNOUT(JW) + (TNALG+TNBOD+TNZ+C1S(K,ID,NNH4)+C1S(K,ID,NNO3)+C1S(K,ID,NLDOMN)+C1S(K,ID,NRDOM
+    450 N)+C1S(K,ID,NLPOMN)+C1S(K,ID,NRPOMN))*QOUT(K,JB)*DLT/1000.
+    451                 ENDDO
+    452             ENDIF
+    453             
+    454 !IF (UP_HEAD(JB)) THEN
+    455 !    DO K=KT,KB(IU)
+    456 !    IUT = IU
+    457 !    IF (QUH1(K,JB) >= 0.0) IUT = IU-1
+    458 !    !CSSUH1(K,JC,JB) = C1S(K,IUT,JC)*QUH1(K,JB)
+    459 !
+    460 !  END DO
+    461 !  IF (UH_INTERNAL(JB)) THEN
+    462 !    IF (UHS(JB) /= DS(JBUH(JB)) .OR. DHS(JBUH(JB)) /= US(JB)) THEN
+    463 !      IF (JBUH(JB) >= BS(JW) .AND. JBUH(JB) <= BE(JW)) THEN
+    464 !        I = UHS(JB)
+    465 !        DO K=KT,KB(IU)
+    466 !          !CSSB(K,I,JC) = CSSB(K,I,JC)-CSSUH2(K,JC,JB)/DLT
+    467 !        END DO
+    468 !      ELSE
+    469 !        !CALL UPSTREAM_CONSTITUENT(C2(:,:,JC),CSSB(:,:,JC))
+    470 !      END IF
+    471 !    END IF
+    472 !  END IF
+    473 !END IF
+    474 !IF (DN_HEAD(JB)) THEN
+    475 !  DO K=KT,KB(ID+1)
+    476 !    IDT = ID+1
+    477 !    IF (QDH1(K,JB) >= 0.0) IDT = ID
+    478 !    !CSSDH1(K,JC,JB) = C1S(K,IDT,JC)*QDH1(K,JB)
+    479 !
+    480 !  END DO
+    481 !  IF (DH_INTERNAL(JB)) THEN
+    482 !    IF (DHS(JB) /= US(JBDH(JB)) .OR. UHS(JBDH(JB)) /= DS(JB)) THEN
+    483 !      IF (JBDH(JB) >= BS(JW) .AND. JBDH(JB) <= BE(JW)) THEN
+    484 !        I = DHS(JB)
+    485 !        DO K=KT,KB(ID+1)
+    486 !          !CSSB(K,I,JC) = CSSB(K,I,JC)+CSSDH2(K,JC,JB)/DLT
+    487 !        END DO
+    488 !      ELSE
+    489 !        !CALL DOWNSTREAM_CONSTITUENT(C2(:,:,JC),CSSB(:,:,JC))
+    490 !      END IF
+    491 !    END IF
+    492 !  END IF
+    493 !END IF
+    494          ENDIF  ! END OF TP AND TN MASS BALANCES
+    495          
+    496           
+
+Page 10          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    497         END DO    ! JB loop
+    498         
+    499 ! Atmospheric Depsition unit kg/km2/year if state variable in g/m3 or mg/l; or in mg/km2/year for Hg in ng/l or ug/m3
+    500         IF(ATM_DEPOSITION(JW))THEN
+    501             DO JB=BS(JW),BE(JW)
+    502                 DO I=CUS(JB),DS(JB)
+    503                     DO JAC=1,NACATD(JW)
+    504                             CSSB(KT,I,ATMDCN(JAC,JW))=CSSB(KT,I,ATMDCN(JAC,JW))+ATM_DEP_LOADING(ATMDCN(JAC,JW),JW)*BI(KT,I)*
+    504 DLX(I)*3.17098E-11   ! Conversion: kg/km2/year to g/m2/s 1000/(365*86400*1000*1000)=3.17098E-11; final unit g/s except for H
+    504 g where it is ug/s
+    505                             IF(ATMDCN(JAC,JW)==NPO4.OR.ATMDCN(JAC,JW)==NLPOMP.OR.ATMDCN(JAC,JW)==NRPOMP)THEN 
+    506                             ATMDEP_P(JW)=ATMDEP_P(JW)+ATM_DEP_LOADING(ATMDCN(JAC,JW),JW)*BI(KT,I)*DLX(I)*3.17098E-11*DLT/100
+    506 0.    ! P MASS BALANCE IN KG - CUMULATIVE
+    507                             ELSEIF(ATMDCN(JAC,JW)==NNO3.OR.ATMDCN(JAC,JW)==NLPOMN.OR.ATMDCN(JAC,JW)==NRPOMN.OR.ATMDCN(JAC,JW
+    507 )==NNH4)THEN 
+    508                             ATMDEP_N(JW)=ATMDEP_N(JW)+ATM_DEP_LOADING(ATMDCN(JAC,JW),JW)*BI(KT,I)*DLX(I)*3.17098E-11*DLT/100
+    508 0.    ! N MASS BALANCE IN KG - CUMULATIVE
+    509                             ENDIF
+    510                     ENDDO
+    511                 ENDDO
+    512             ENDDO
+    513         ENDIF  
+    514 
+    515         
+    516       END DO      ! JW Loop
+    517 
+    518 !**** Kinetic fluxes
+    519 
+    520       DO JW=1,NWB
+    521         KT = KTWB(JW)    ! SW 10/25/2017
+    522         IF (FLUX(JW)) CALL KINETIC_FLUXES
+    523       END DO
+    524 
+    525 !**** Constituent transport
+    526 
+    527 !!$OMP PARALLEL DO PRIVATE(I,JC,KT,JB,JW,DT,K,IU,ID,BTA1,GMA1)    !I,JC,KT,JW,JB,CNEW,SSB,SSK,COLD,AT,VT,CT,DT)
+    528     
+    529     DO JAC=1,NAC    !CONCURRENT(JAC=1:NAC)              !JAC=1,NAC
+    530     JC   =  CN(JAC)
+    531     COLD => C1S(:,:,JC)
+    532       DO JW=1,NWB
+    533         KT = KTWB(JW)
+    534         DO JB=BS(JW),BE(JW)
+    535         IF(BR_INACTIVE(JB))CYCLE   ! SW 6/12/2017
+    536           IU = CUS(JB)
+    537           ID = DS(JB)
+    538 !    DO JAC=1,NAC
+    539 !      JC   =  CN(JAC)
+    540 !COLD => C1S(:,:,JC)
+    541             CALL HORIZONTAL_MULTIPLIERS       
+    542             CALL VERTICAL_MULTIPLIERS           
+    543             
+    544 !       CNEW => C1(:,:,JC)
+    545 !       SSB  => CSSB(:,:,JC)
+    546 !       SSK  => CSSK(:,:,JC)
+    547 !       CALL HORIZONTAL_TRANSPORT
+    548             DO I=IU,ID
+
+Page 11          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+    549               DO K=KT,KB(I)      
+    550               DT(K,I) = (C1S(K,I,JC)*BH2(K,I)/DLT+(ADX(K,I)*BHR1(K,I)-ADX(K,I-1)*BHR1(K,I-1))/DLX(I)+(1.0D0-THETA(JW))      
+    550                &
+    551                     *(ADZ(K,I)*BB(K,I)-ADZ(K-1,I)*BB(K-1,I))+CSSB(K,I,JC)/DLX(I))*DLT/BH1(K,I)+CSSK(K,I,JC)*DLT        ! CSS
+    551 B g/s or ng/s if Hg   CSSK: g/m3/s or ng/m3/s for Hg
+    552               END DO                                                    
+    553             END DO
+    554             DO I=IU,ID
+    555 !      CALL TRIDIAG(AT(:,I),VT(:,I),CT(:,I),DT(:,I),KT,KB(I),KMX,CNEW(:,I))
+    556                     BTA1(KT)=VT(KT,I)
+    557                     GMA1(KT)=DT(KT,I)
+    558                   DO K=KT+1,KB(I)
+    559                            BTA1(K) = VT(K,I)-AT(K,I)/BTA1(K-1)*CT(K-1,I)
+    560                     GMA1(K) = DT(K,I)-AT(K,I)/BTA1(K-1)*GMA1(K-1)
+    561                   END DO
+    562                   C1(KB(I),I,JC) = GMA1(KB(I))/BTA1(KB(I))
+    563                   DO K=KB(I)-1,KT,-1
+    564                     C1(K,I,JC) = (GMA1(K)-CT(K,I)*C1(K+1,I,JC))/BTA1(K)
+    565                   END DO
+    566             END DO
+    567           END DO
+    568         END DO
+    569     END DO
+    570 !!$OMP END PARALLEL DO
+    571       IF (DERIVED_CALC) CALL DERIVED_CONSTITUENTS
+    572 
+    573     END SUBROUTINE WQCONSTITUENTS
+
+
+ENTRY POINTS
+
+ Address      Type  Name           
+                                   
+       WQCONSTITUENTS              
+
+Page 12          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Symbol Table                    ..\..\..\wqconstituents.F90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ADX                        Local  550      R(8)            8     2     1        ALC              550                               
+ ADZ                        Local  551      R(8)            8     2     1        ALC              551                               
+ AERATEC                    Local  181      CHAR            8           scalar                    181                               
+ AERATEMASS                 Subr   181                                                            181                               
+ ALG                        Local  299      R(8)            8     3     1        PTR              299,300,337,338                   
+ ALGAE                      Subr   137                                                            137                               
+ ALGAEREDUCEGASTRANSFER     Module 9                                                              9                                 
+ ALGAE_TOXIN                Local  159      L(4)            4           scalar                    159                               
+ ALGAE_TOXINS               Module 8                                                              8                                 
+ ALG_CALC                   Local  137      L(4)            4     1     1        ALC              137                               
+ ALKALINITY                 Subr   158                                                            158                               
+ AMMONIUM                   Subr   117                                                            117                               
+ AN                         Local  300      R(4)            4     1     1        ALC              300,315,338,353,377,399,419,439   
+ AP                         Local  299      R(4)            4     1     1        ALC              299,314,337,352,376,398,418,438   
+ AT                         Local  559      R(8)            8     2     1        ALC              559,560                           
+ ATMDCN                     Local  504      I(4)            4     2     1        ALC              504,505,506,507,508               
+ ATMDEP_N                   Local  508      R(4)            4     1     1        ALC              508                               
+ ATMDEP_P                   Local  506      R(4)            4     1     1        ALC              506                               
+ ATM_DEPOSITION             Local  500      L(4)            4     1     1        ALC              500                               
+ ATM_DEP_LOADING            Local  504      R(8)            8     2     1        ALC              504,506,508                       
+ BACTERIA                   Subr   106                                                            106                               
+ BB                         Local  551      R(8)            8     2     1        ALC              551                               
+ BE                         Local  20       I(4)            4     1     1        ALC              20,255,276,501,534                
+ BH1                        Local  551      R(8)            8     2     1        ALC              551                               
+ BH2                        Local  550      R(8)            8     2     1        ALC              550                               
+ BHR1                       Local  238      R(8)            8     2     1        ALC              238,240,550                       
+ BI                         Local  504      R(8)            8     2     1        ALC              504,506,508                       
+ BIOCHEMICAL_O2_DEMAND      Subr   142                                                            142                               
+ BIOCHEMICAL_O2_DEMAND_N    Subr   144                                                            144                               
+ BIOCHEMICAL_O2_DEMAND_P    Subr   143                                                            143                               
+ BIVALENTMN                 Subr   114                                                            114                               
+ BOD_CALC                   Local  141      L(4)            4     1     1        ALC              141                               
+ BOD_CALCN                  Local  144      L(4)            4     1     1        ALC              144                               
+ BOD_CALCP                  Local  143      L(4)            4     1     1        ALC              143                               
+ BR_INACTIVE                Local  21       L(4)            4     1     1        ALC              21,535                            
+ BS                         Local  20       I(4)            4     1     1        ALC              20,255,276,501,534                
+ BTA1                       Local  556      R(8)            8     1     1        ALC              556,559,560,562,564               
+ C1                         Local  198      R(8)            8     3     1        ALC,TGT          198,209,562,564                   
+ C1S                        Local  221      R(8)            8     3     1        ALC,TGT          221,238,240,245,250,271,376,377,38
+                                                                                                  0,381,384,385,387,388,438,439,442,
+                                                                                                  443,446,447,449,450,531,550       
+ C2                         Local  262      R(8)            8     3     1        ALC,TGT          262,282                           
+ CBODN                      Local  304      R(8)            8     3     1        PTR              304,342                           
+ CBODP                      Local  303      R(8)            8     3     1        PTR              303,341                           
+ CDTR                       Local  211      R(8)            8     2     1        ALC              211,352,353,356,357,360,361,363,36
+                                                                                                  4                                 
+ CIN                        Local  235      R(8)            8     2     1        ALC              235,418,419,422,423,426,427,429,43
+                                                                                                  0                                 
+ CN                         Local  103      I(4)            4     1     1        ALC              103,190,530                       
+ COLB                       Local  68       R(8)            8           scalar                    68,69                             
+ COLD                       Local  531      R(8)            8     2     1        PTR              531                               
+
+Page 13          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Symbol Table                    ..\..\..\wqconstituents.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ COLDEP                     Local  69       R(8)            8           scalar                    69,71                             
+ CPR                        Local  229      R(8)            8     2     1        ALC              229,398,399,402,403,406,407,409,41
+                                                                                                  0                                 
+ CSSB                       Local  185      R(8)            8     3     1        ALC,TGT          185,198,200,209,211,221,229,235,23
+                                                                                                  8,240,245,251,259,262,272,279,282,
+                                                                                                  504,551                           
+ CSSDH1                     Local  271      R(8)            8     3     1        ALC              271,272                           
+ CSSDH2                     Local  279      R(8)            8     3     1        ALC              279                               
+ CSSK                       Local  551      R(8)            8     3     1        ALC,TGT          551                               
+ CSSUH1                     Local  250      R(8)            8     3     1        ALC              250,251                           
+ CSSUH2                     Local  259      R(8)            8     3     1        ALC              259                               
+ CT                         Local  559      R(8)            8     2     1        ALC              559,564                           
+ CTR                        Local  200      R(8)            8     2     1        ALC              200,314,315,318,319,322,323,325,32
+                                                                                                  6                                 
+ CUS                        Local  22       I(4)            4     1     1        ALC              22,195,219,294,372,502,536        
+ CW                         Local  71       R(4)            4     2     1        ALC              71                                
+ DEPKTI                     Local  55       R(8)            8           scalar                    55,59,78                          
+ DERIVED_CALC               Local  571      L(4)            4           scalar                    571                               
+ DERIVED_CONSTITUENTS       Subr   571                                                            571                               
+ DHS                        Local  254      I(4)            4     1     1        ALC              254,275,277                       
+ DH_INTERNAL                Local  274      L(4)            4     1     1        ALC              274                               
+ DISSOLVED_GAS              Subr   107                                                            107                               
+ DISSOLVED_N2               Subr   108                                                            108                               
+ DISSOLVED_OXYGEN           Subr   133                                                            133                               
+ DISSOLVED_SILICA           Subr   119                                                            119                               
+ DIST_TRIBS                 Local  206      L(4)            4     1     1        ALC              206,332                           
+ DLT                        Local  259      R(8)            8           scalar                    259,279,310,311,325,326,348,349,36
+                                                                                                  3,364,387,388,409,410,429,430,449,
+                                                                                                  450,506,508,550,551               
+ DLX                        Local  71       R(8)            8     1     1        ALC              71,504,506,508,550,551            
+ DN_FLOW                    Local  245      L(4)            4     1     1        ALC              245,434                           
+ DN_HEAD                    Local  267      L(4)            4     1     1        ALC              267                               
+ DOWNSTREAM_CONSTITUENT     Subr   282                                                            282                               
+ DS                         Local  23       I(4)            4     1     1        ALC              23,254,275,502,537                
+ DT                         Local  550      R(8)            8     2     1        ALC              550,557,560                       
+ DYNSEDK                    Local  32       CHAR            8     1     1        ALC              32                                
+ EDDY                       Module 5                                                              5                                 
+ EL                         Local  55       R(8)            8     2     1        ALC              55,68                             
+ ELWS                       Local  55       R(8)            8     1     1        ALC              55,69                             
+ EPIPHYTON                  Subr   176                                                            176                               
+ EPIPHYTON_CALC             Local  176      L(4)            4     2     1        ALC              176                               
+ EV                         Local  185      R(8)            8     1     1        ALC              185                               
+ EVAPORATION                Local  182      L(4)            4     1     1        ALC              182                               
+ EXTRACELLULAR_TOXIN        Subr   161                                                            161                               
+ FERROUS                    Subr   112                                                            112                               
+ FLUX                       Local  522      L(4)            4     1     1        ALC              522                               
+ GDAYC                      Module 6                                                              6                                 
+ GENERIC_CONST              Subr   134                                                            134                               
+ GEOMC                      Module 5                                                              5                                 
+ GLOBAL                     Module 5                                                              5                                 
+ GMA1                       Local  557      R(8)            8     1     1        ALC              557,560,562,564                   
+ HEAD_FLOW                  Local  234      L(4)            4     1     1        ALC              234,416                           
+ HORIZONTAL_MULTIPLIERS     Subr   541                                                            541                               
+ I                          Local  47       I(4)            4           scalar                    47,55,59,60,61,62,65,66,67,68,69,7
+                                                                                                  1,72,73,78,79,80,81,83,84,85,183,1
+
+Page 14          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Symbol Table                    ..\..\..\wqconstituents.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  85,194,195,198,200,207,208,209,211
+                                                                                                  ,219,221,228,229,256,259,277,279,2
+                                                                                                  93,294,299,300,303,304,307,308,310
+                                                                                                  ,311,333,335,337,338,341,342,345,3
+                                                                                                  46,348,349,363,364,372,376,377,380
+                                                                                                  ,381,384,385,387,388,395,409,410,5
+                                                                                                  02,504,506,508,548,549,550,551,554
+                                                                                                  ,556,557,558,559,560,562,563,564  
+ ID                         Local  23       I(4)            4           scalar                    23,47,183,207,228,245,268,269,270,
+                                                                                                  272,278,333,395,435,438,439,442,44
+                                                                                                  3,446,447,449,450,537,548,554     
+ IDT                        Local  269      I(4)            4           scalar                    269,270,271                       
+ IMM                        Local  17       I(4)            4           scalar                    17                                
+ INORGANIC_CARBON           Subr   165                                                            165                               
+ INTRACELLULAR_TOXIN        Subr   160                                                            160                               
+ ISO_MACROPHYTE             Local  65       L(4)            4     2     1        ALC              65                                
+ ITR                        Local  194      I(4)            4     1     1        ALC              194,293                           
+ IU                         Local  22       I(4)            4           scalar                    22,47,183,207,228,233,235,237,238,
+                                                                                                  240,247,248,249,251,258,333,395,41
+                                                                                                  4,536,548,554                     
+ IUT                        Local  248      I(4)            4           scalar                    248,249,250                       
+ IWD                        Local  219      I(4)            4     1     1        ALC              219,372                           
+ JA                         Local  298      I(4)            4           scalar                    298,299,300,336,337,338           
+ JAC                        Local  102      I(4)            4           scalar                    102,103,189,190,503,504,505,506,50
+                                                                                                  7,508,529,530                     
+ JB                         Local  20       I(4)            4           scalar                    20,21,22,23,73,83,193,195,206,211,
+                                                                                                  218,229,232,234,235,245,246,249,25
+                                                                                                  0,251,253,254,255,256,259,267,270,
+                                                                                                  271,272,274,275,276,277,279,292,29
+                                                                                                  4,332,352,353,356,357,360,361,363,
+                                                                                                  364,371,398,399,402,403,406,407,40
+                                                                                                  9,410,413,416,418,419,422,423,426,
+                                                                                                  427,429,430,434,449,450,501,502,53
+                                                                                                  4,535,536,537                     
+ JBDH                       Local  275      I(4)            4     1     1        ALC              275,276                           
+ JBTR                       Local  193      I(4)            4     1     1        ALC              193,292                           
+ JBUH                       Local  254      I(4)            4     1     1        ALC              254,255                           
+ JBWD                       Local  218      I(4)            4     1     1        ALC              218,219,371,372                   
+ JC                         Local  103      I(4)            4           scalar                    103,104,105,106,107,108,109,110,11
+                                                                                                  1,112,113,114,115,117,118,119,120,
+                                                                                                  123,124,125,126,128,129,130,131,13
+                                                                                                  3,134,135,136,137,139,142,143,144,
+                                                                                                  148,149,150,151,152,153,154,155,15
+                                                                                                  6,158,159,160,161,190,198,200,209,
+                                                                                                  211,221,229,235,238,240,245,250,25
+                                                                                                  1,259,262,271,272,279,282,313,314,
+                                                                                                  315,317,318,319,321,322,323,351,35
+                                                                                                  2,353,355,356,357,359,360,361,375,
+                                                                                                  376,377,379,380,381,383,384,385,39
+                                                                                                  7,398,399,401,402,403,405,406,407,
+                                                                                                  417,418,419,421,422,423,425,426,42
+                                                                                                  7,437,438,439,441,442,443,445,446,
+                                                                                                  447,530,531,550,551,562,564       
+ JCB                        Local  140      I(4)            4           scalar                    140,141,142,143,144,302,303,304,34
+                                                                                                  0,341,342                         
+
+Page 15          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Symbol Table                    ..\..\..\wqconstituents.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ JE                         Local  175      I(4)            4           scalar                    175,176                           
+ JT                         Local  61       I(4)            4           scalar                    61,62,65,66,67,71,72,73,80,81,83,8
+                                                                                                  4,85,192,193,194,196,197,198,200,2
+                                                                                                  91,292,293,295,297,310,311,314,315
+                                                                                                  ,318,319,322,323,325,326          
+ JTT                        Local  192      I(4)            4           scalar                    192,291                           
+ JW                         Local  18       I(4)            4           scalar                    18,19,20,27,32,36,39,65,66,67,72,9
+                                                                                                  1,165,166,176,182,227,255,276,325,
+                                                                                                  326,363,364,387,388,394,409,410,42
+                                                                                                  9,430,449,450,500,501,503,504,505,
+                                                                                                  506,507,508,520,521,522,532,533,53
+                                                                                                  4,550                             
+ JWD                        Local  216      I(4)            4           scalar                    216,217,218,219,220,221,369,370,37
+                                                                                                  1,372,373,387,388                 
+ JWW                        Local  216      I(4)            4           scalar                    216,369                           
+ JZ                         Local  306      I(4)            4           scalar                    306,307,308,344,345,346           
+ K                          Local  196      I(4)            4           scalar                    196,198,200,220,221,233,235,237,23
+                                                                                                  8,240,247,249,250,251,258,259,268,
+                                                                                                  270,271,272,278,279,295,299,300,30
+                                                                                                  3,304,307,308,310,311,325,326,373,
+                                                                                                  376,377,380,381,384,385,387,388,41
+                                                                                                  4,429,430,435,438,439,442,443,446,
+                                                                                                  447,449,450,549,550,551,558,559,56
+                                                                                                  0,563,564                         
+ KB                         Local  233      I(4)            4     1     1        ALC              233,245,247,258,268,278,414,435,54
+                                                                                                  9,558,562,563                     
+ KBTR                       Local  196      I(4)            4     1     1        ALC              196,295                           
+ KBW                        Local  220      I(4)            4     1     1        ALC              220,373                           
+ KINETIC                    Module 5                                                              5                                 
+ KINETIC_FLUXES             Subr   522                                                            522                               
+ KINETIC_RATES              Subr   100                                                            100                               
+ KT                         Local  19       I(4)            4           scalar                    19,62,65,66,67,71,72,73,81,83,84,8
+                                                                                                  5,185,209,211,229,233,245,247,258,
+                                                                                                  268,278,337,338,341,342,345,346,34
+                                                                                                  8,349,414,435,504,506,508,521,533,
+                                                                                                  549,556,557,558,563               
+ KTI                        Local  55       I(4)            4     1     1        ALC              55,61,68,80                       
+ KTICOL                     Local  59       L(4)            4     1     1        ALC              59,60,78,79                       
+ KTTR                       Local  196      I(4)            4     1     1        ALC              196,295                           
+ KTW                        Local  220      I(4)            4     1     1        ALC              220,373                           
+ KTWB                       Local  19       I(4)            4     1     1        ALC              19,521,533                        
+ LABILE_DOM                 Subr   128                                                            128                               
+ LABILE_DOM_C               Subr   123                                                            123                               
+ LABILE_DOM_N               Subr   153                                                            153                               
+ LABILE_DOM_P               Subr   149                                                            149                               
+ LABILE_POM                 Subr   130                                                            130                               
+ LABILE_POM_C               Subr   125                                                            125                               
+ LABILE_POM_N               Subr   155                                                            155                               
+ LABILE_POM_P               Subr   151                                                            151                               
+ LDOMN                      Local  311      R(8)            8     2     1        PTR              311,349                           
+ LDOMP                      Local  310      R(8)            8     2     1        PTR              310,348                           
+ LOGICC                     Module 5                                                              5                                 
+ LONG_MACROPHYTE            Local  67       L(4)            4     2     1        ALC              67                                
+ LPOMN                      Local  311      R(8)            8     2     1        PTR              311,349                           
+ LPOMP                      Local  310      R(8)            8     2     1        PTR              310,348                           
+
+Page 16          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Symbol Table                    ..\..\..\wqconstituents.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ M                          Local  63       I(4)            4           scalar                    63,65,66,67,71,72,73,82,83,84,85,9
+                                                                                                  0,91,92                           
+ MACMBRT                    Local  73       R(4)            4     2     1        ALC              73,83                             
+ MACRC                      Local  65       R(4)            4     4     1        ALC              65,66,67,71,84                    
+ MACRM                      Local  71       R(4)            4     4     1        ALC              71,73,83,85                       
+ MACROPHYTE                 Subr   92                                                             92                                
+ MACROPHYTEC                Module 7                                                              7                                 
+ MACROPHYTE_CALC            Local  91       L(4)            4     2     1        ALC              91                                
+ MACROPHYTE_ON              Local  16       L(4)            4           scalar                    16,44                             
+ MACT                       Local  62       R(4)            4     3     1        ALC              62,72,81                          
+ MACWBCI                    Local  65       R(4)            4     2     1        ALC              65,72                             
+ MAIN                       Module 4                                                              4                                 
+ MAX                        Func   219                                  scalar                    219,372                           
+ METHANE                    Subr   110                                                            110                               
+ NAC                        Local  102      I(4)            4           scalar                    102,189,529                       
+ NACATD                     Local  503      I(4)            4     1     1        ALC              503                               
+ NAE                        Local  136      I(4)            4           scalar                    136,313,351,375,397,417,437       
+ NAL                        Local  298      I(4)            4           scalar                    298,336                           
+ NALK                       Local  158      I(4)            4           scalar                    158                               
+ NAMESC                     Module 5                                                              5                                 
+ NAS                        Local  136      I(4)            4           scalar                    136,137,313,314,315,351,352,353,37
+                                                                                                  5,376,377,397,398,399,417,418,419,
+                                                                                                  437,438,439                       
+ NATE                       Local  159      I(4)            4           scalar                    159                               
+ NATS                       Local  159      I(4)            4           scalar                    159,160,161                       
+ NBACT                      Local  106      I(4)            4           scalar                    106                               
+ NBOD                       Local  140      I(4)            4           scalar                    140,302,340                       
+ NBODC                      Local  142      I(4)            4     1     1        ALC              142                               
+ NBODE                      Local  139      I(4)            4           scalar                    139,317,355,379,401,421,441       
+ NBODN                      Local  144      I(4)            4     1     1        ALC              144                               
+ NBODP                      Local  143      I(4)            4     1     1        ALC              143                               
+ NBODS                      Local  139      I(4)            4           scalar                    139,317,355,379,401,421,441       
+ NCH4                       Local  110      I(4)            4           scalar                    110                               
+ NDGP                       Local  107      I(4)            4           scalar                    107                               
+ NDO                        Local  133      I(4)            4           scalar                    133                               
+ NDSI                       Local  119      I(4)            4           scalar                    119                               
+ NEP                        Local  175      I(4)            4           scalar                    175                               
+ NFEII                      Local  112      I(4)            4           scalar                    112                               
+ NFEOOH                     Local  113      I(4)            4           scalar                    113                               
+ NGCE                       Local  134      I(4)            4           scalar                    134                               
+ NGCS                       Local  134      I(4)            4           scalar                    134                               
+ NH2S                       Local  109      I(4)            4           scalar                    109                               
+ NH4                        Local  311      R(8)            8     2     1        PTR              311,349                           
+ NITRATE                    Subr   118                                                            118                               
+ NLDOM                      Local  128      I(4)            4           scalar                    128                               
+ NLDOMC                     Local  123      I(4)            4           scalar                    123                               
+ NLDOMN                     Local  153      I(4)            4           scalar                    153,326,364,388,410,430,450       
+ NLDOMP                     Local  149      I(4)            4           scalar                    149,325,363,387,409,429,449       
+ NLPOM                      Local  130      I(4)            4           scalar                    130                               
+ NLPOMC                     Local  125      I(4)            4           scalar                    125                               
+ NLPOMN                     Local  155      I(4)            4           scalar                    155,326,364,388,410,430,450,507   
+ NLPOMP                     Local  151      I(4)            4           scalar                    151,325,363,387,409,429,449,505   
+ NMC                        Local  63       I(4)            4           scalar                    63,82,90                          
+ NMNII                      Local  114      I(4)            4           scalar                    114                               
+ NMNO2                      Local  115      I(4)            4           scalar                    115                               
+
+Page 17          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Symbol Table                    ..\..\..\wqconstituents.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ NN2                        Local  108      I(4)            4           scalar                    108                               
+ NNH4                       Local  117      I(4)            4           scalar                    117,326,364,388,410,430,450,507   
+ NNO3                       Local  118      I(4)            4           scalar                    118,326,364,388,410,430,450,507   
+ NO3                        Local  311      R(8)            8     2     1        PTR              311,349                           
+ NPBALC                     Local  289      CHAR            8           scalar                    289                               
+ NPO4                       Local  104      I(4)            4           scalar                    104,325,363,387,409,429,449,505   
+ NPSI                       Local  120      I(4)            4           scalar                    120                               
+ NRDOM                      Local  129      I(4)            4           scalar                    129                               
+ NRDOMC                     Local  124      I(4)            4           scalar                    124                               
+ NRDOMN                     Local  154      I(4)            4           scalar                    154,326,364,388,410,430,450       
+ NRDOMP                     Local  150      I(4)            4           scalar                    150,325,363,387,409,429,449       
+ NRPOM                      Local  131      I(4)            4           scalar                    131                               
+ NRPOMC                     Local  126      I(4)            4           scalar                    126                               
+ NRPOMN                     Local  156      I(4)            4           scalar                    156,326,364,388,410,430,450,507   
+ NRPOMP                     Local  152      I(4)            4           scalar                    152,325,363,387,409,429,449,505   
+ NSO4                       Local  111      I(4)            4           scalar                    111                               
+ NSSE                       Local  135      I(4)            4           scalar                    135                               
+ NSSS                       Local  135      I(4)            4           scalar                    135                               
+ NWAGE                      Local  105      I(4)            4           scalar                    105,185                           
+ NWB                        Local  18       I(4)            4           scalar                    18,520,532                        
+ NZOOE                      Local  148      I(4)            4           scalar                    148,321,359,383,405,425,445       
+ NZOOS                      Local  148      I(4)            4           scalar                    148,321,322,323,359,360,361,383,38
+                                                                                                  4,385,405,406,407,425,426,427,445,
+                                                                                                  446,447                           
+ NZP                        Local  306      I(4)            4           scalar                    306,344                           
+ ORGC_CALC                  Local  122      L(4)            4           scalar                    122                               
+ OXIDIZEDFE                 Subr   113                                                            113                               
+ OXIDIZEDMN                 Subr   115                                                            115                               
+ PARTICULATE_SILICA         Subr   120                                                            120                               
+ PHOSPHORUS                 Subr   104                                                            104                               
+ PH_BUFFERING               Local  167      L(4)            4           scalar                    167                               
+ PH_CALC                    Local  165      L(4)            4     1     1        ALC              165,166                           
+ PH_CO2                     Subr   170                                                            170                               
+ PH_CO2_NEW                 Subr   168                                                            168                               
+ PO4                        Local  310      R(8)            8     2     1        PTR              310,348                           
+ POROSITY                   Subr   16                                                             16                                
+ POROSITYC                  Module 7                                                              7                                 
+ PREC                       Module 5                                                              5                                 
+ PRECIPITATION              Local  227      L(4)            4     1     1        ALC              227,394                           
+ QDH1                       Local  270      R(8)            8     2     1        ALC              270,271                           
+ QDT                        Local  208      R(8)            8     1     1        ALC              208,209,211,335,348,349,363,364   
+ QIN                        Local  235      R(8)            8     1     1        ALC              235,429,430                       
+ QINF                       Local  235      R(4)            4     2     1        ALC              235,429,430                       
+ QOUT                       Local  245      R(8)            8     2     1        ALC              245,449,450                       
+ QPR                        Local  229      R(8)            8     1     1        ALC              229,409,410                       
+ QSW                        Local  221      R(8)            8     2     1        ALC              221,387,388                       
+ QTR                        Local  197      R(8)            8     1     1        ALC              197,198,200,297,310,311,325,326   
+ QTRF                       Local  198      R(8)            8     2     1        ALC              198,200,310,311,325,326           
+ QUH1                       Local  249      R(8)            8     2     1        ALC              249,250                           
+ QWD                        Local  217      R(8)            8     1     1        ALC              217,370                           
+ RDOMN                      Local  311      R(8)            8     2     1        PTR              311,349                           
+ RDOMP                      Local  310      R(8)            8     2     1        PTR              310,348                           
+ REFRACTORY_DOM             Subr   129                                                            129                               
+ REFRACTORY_DOM_C           Subr   124                                                            124                               
+ REFRACTORY_DOM_N           Subr   154                                                            154                               
+
+Page 18          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Symbol Table                    ..\..\..\wqconstituents.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ REFRACTORY_DOM_P           Subr   150                                                            150                               
+ REFRACTORY_POM             Subr   131                                                            131                               
+ REFRACTORY_POM_C           Subr   126                                                            126                               
+ REFRACTORY_POM_N           Subr   156                                                            156                               
+ REFRACTORY_POM_P           Subr   152                                                            152                               
+ RESTART_OUTPUT             Subr   12                                   scalar                                                      
+ RPOMN                      Local  311      R(8)            8     2     1        PTR              311,349                           
+ RPOMP                      Local  310      R(8)            8     2     1        PTR              310,348                           
+ RSTART                     Module 6                                                              6                                 
+ SCREENC                    Module 6                                                              6                                 
+ SEDIMENT                   Subr   28                                                             28                                
+ SEDIMENT1                  Subr   37                                                             37                                
+ SEDIMENT2                  Subr   40                                                             40                                
+ SEDIMENTC                  Subr   31                                                             31                                
+ SEDIMENTN                  Subr   30                                                             30                                
+ SEDIMENTP                  Subr   29                                                             29                                
+ SEDIMENT_CALC              Local  27       L(4)            4     1     1        ALC              27                                
+ SEDIMENT_CALC1             Local  36       L(4)            4     1     1        ALC              36                                
+ SEDIMENT_CALC2             Local  39       L(4)            4     1     1        ALC              39                                
+ SEDIMENT_DECAY_RATE        Subr   32                                                             32                                
+ SELWC                      Module 6                                                              6                                 
+ SHADEC                     Module 5                                                              5                                 
+ STANDING_BIOMASS_DECAY     Local  35       L(4)            4           scalar                    35                                
+ STRUCTURES                 Module 6                                                              6                                 
+ SULFATE                    Subr   111                                                            111                               
+ SULFIDE                    Subr   109                                                            109                               
+ SURFHE                     Module 5                                                              5                                 
+ SUSPENDED_SOLIDS           Subr   135                                                            135                               
+ TDGAS                      Module 6                                                              6                                 
+ TEMPERATURE_RATES          Subr   99                                                             99                                
+ THETA                      Local  550      R(8)            8     1     1        ALC              550                               
+ THRKTI                     Local  59       R(8)            8           scalar                    59,78                             
+ TNALG                      Local  13       R(4)            4           scalar                    296,300,311,315,326,334,338,349,35
+                                                                                                  3,364,374,377,388,396,399,410,415,
+                                                                                                  419,430,436,439,450               
+ TNBOD                      Local  13       R(4)            4           scalar                    296,304,311,319,326,334,342,349,35
+                                                                                                  7,364,374,381,388,396,403,410,415,
+                                                                                                  423,430,436,443,450               
+ TNDTRIB                    Local  364      R(4)            4     1     1        ALC              364                               
+ TNIN                       Local  430      R(4)            4     1     1        ALC              430                               
+ TNOUT                      Local  311      R(4)            4     1     1        ALC              311,349,450                       
+ TNPR                       Local  410      R(4)            4     1     1        ALC              410                               
+ TNTRIB                     Local  326      R(4)            4     1     1        ALC              326                               
+ TNWD                       Local  388      R(4)            4     1     1        ALC              388                               
+ TNZ                        Local  13       R(4)            4           scalar                    296,308,311,323,326,334,346,349,36
+                                                                                                  1,364,374,385,388,396,407,410,415,
+                                                                                                  427,430,436,447,450               
+ TPALG                      Local  13       R(4)            4           scalar                    296,299,310,314,325,334,337,348,35
+                                                                                                  2,363,374,376,387,396,398,409,415,
+                                                                                                  418,429,436,438,449               
+ TPBOD                      Local  13       R(4)            4           scalar                    296,303,310,318,325,334,341,348,35
+                                                                                                  6,363,374,380,387,396,402,409,415,
+                                                                                                  422,429,436,442,449               
+ TPDTRIB                    Local  363      R(4)            4     1     1        ALC              363                               
+ TPIN                       Local  429      R(4)            4     1     1        ALC              429                               
+
+Page 19          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Symbol Table                    ..\..\..\wqconstituents.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ TPOUT                      Local  310      R(4)            4     1     1        ALC              310,348,449                       
+ TPPR                       Local  409      R(4)            4     1     1        ALC              409                               
+ TPTRIB                     Local  325      R(4)            4     1     1        ALC              325                               
+ TPWD                       Local  387      R(4)            4     1     1        ALC              387                               
+ TPZ                        Local  13       R(4)            4           scalar                    296,307,310,322,325,334,345,348,36
+                                                                                                  0,363,374,384,387,396,406,409,415,
+                                                                                                  426,429,436,446,449               
+ TRANS                      Module 6                                                              6                                 
+ TRIBUTARIES                Local  191      L(4)            4           scalar                    191,290                           
+ TRIDIAG_V                  Module 7                                                              7                                 
+ TVDC                       Module 6                                                              6                                 
+ U                          Local  237      R(8)            8     2     1        PTR              237,238,240                       
+ UHS                        Local  254      I(4)            4     1     1        ALC              254,256,275                       
+ UH_INTERNAL                Local  253      L(4)            4     1     1        ALC              253                               
+ UPDATE_KINETICS            Local  16       L(4)            4           scalar                    16,17,97                          
+ UPDATE_RATES               Local  98       L(4)            4           scalar                    98                                
+ UPSTREAM_CONSTITUENT       Subr   262                                                            262                               
+ UP_FLOW                    Local  232      L(4)            4     1     1        ALC              232,413                           
+ UP_HEAD                    Local  246      L(4)            4     1     1        ALC              246                               
+ US                         Local  254      I(4)            4     1     1        ALC              254,275                           
+ VERTICAL_MULTIPLIERS       Subr   542                                                            542                               
+ VERT_MACROPHYTE            Local  66       L(4)            4     2     1        ALC              66                                
+ VT                         Local  556      R(8)            8     2     1        ALC              556,559                           
+ WAGE                       Local  185      R(8)            8     2     1        PTR              185                               
+ WATER_AGE                  Subr   105                                                            105                               
+ WATER_AGE_ACTIVE           Local  182      L(4)            4           scalar                    182                               
+ WITHDRAWALS                Local  215      L(4)            4           scalar                    215,368                           
+ WQCONSTITUENTS             Subr   2                                                                                                
+ ZN                         Local  308      R(4)            4     1     1        ALC              308,323,346,361,385,407,427,447   
+ ZOO                        Local  307      R(8)            8     3     1        PTR              307,308,345,346                   
+ ZOOPLANKTON                Subr   148                                                            148                               
+ ZOOPLANKTONC               Module 7                                                              7                                 
+ ZOOPLANKTON_CALC           Local  148      L(4)            4           scalar                    148                               
+ ZP                         Local  307      R(4)            4     1     1        ALC              307,322,345,360,384,406,426,446   
+
+Page 20          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\wqconstituents.F90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ WQCONSTITUENTS             Subr   2                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 21          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:wqconstituents.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 22          Source Listing                  WQCONSTITUENTS
+2026-03-30 08:47                                 ..\..\..\wqconstituents.F90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : wqconstituents.lst
+  /object:wqconstituents.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

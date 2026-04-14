@@ -1,0 +1,2344 @@
+Page 1           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180764.i90
+
+      1 # 1 "..\..\..\layeraddsub.F90"
+      2 SUBROUTINE LAYERADDSUB
+      3 USE MAIN
+      4 USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINETIC; USE SHADEC; USE EDDY
+      5   USE STRUCTURES; USE TRANS;  USE TVDC;   USE SELWC;  USE GDAYC; USE SCREENC; USE TDGAS;   USE RSTART
+      6   USE MACROPHYTEC; USE POROSITYC; USE ZOOPLANKTONC
+      7  IMPLICIT NONE
+      8 
+      9 INTEGER :: KTMAX,JBIZ,KKB,I_BR_NUM
+     10 REAL(R8):: TMAC
+     11 REAL(R8):: W1,W2,W3, DUMMY
+     12 
+     13 !***************************************************************************************************************************
+     13 ********
+     14 !**                                       Task 2.5: Layer - Segment Additions and Subtractions                              
+     14       **
+     15 !***************************************************************************************************************************
+     15 ********
+     16 
+     17 !** Water surface minimum thickness
+     18 
+     19     DO JW=1,NWB
+     20       KT       =  KTWB(JW)
+     21       ZMIN(JW) = -1000.0
+     22       KTMAX    =  2                                                                                                 ! SR 10/
+     22 17/05
+     23       DO JB=BS(JW),BE(JW)
+     24          IF(BR_INACTIVE(JB))THEN 
+     25           IF(DS(JB)-US(JB)+1>=3)THEN
+     26               I_BR_NUM=DS(JB)-2
+     27           ELSE
+     28               I_BR_NUM=DS(JB)-1    ! FOR BRANCHES WITH LESS THAN 3 SEGMENTS
+     29           ENDIF
+     30           
+     31 ! Test to determine whether to re-activate an inactivated branch.  Original test is commented out below.      !SR 11/30/2021
+     32 ! IF(CUS(JBDH(JB))<=DHS(JB) .AND. ELWS(DHS(JB))>EL(KB(I_BR_NUM),I_BR_NUM))THEN     ! ***
+     33 
+     34 ! That test was odd and didn't take into account slope or the NLMIN requirement.  And when the branch         !SR 11/30/2021
+     35 ! was re-activated, only the last two segments of that branch were re-activated, regardless of I_BR_NUM.      !SR 11/30/2021
+     36 ! I will ignore I_BR_NUM, assume that only branches with a slope of zero ever get inactivated, do the         !SR 11/30/2021
+     37 ! standard NLMIN test, and require that at least the 2 downstream-most segments meet the NLMIN criteria.      !SR 11/30/2021
+     38 ! Two segments makes sense because two must be active to avoid inactivation in the code's initial tests,      !SR 11/30/2021
+     39 ! and 2 segments is the inactivation test that I applied (code change) later in this source file.             !SR 11/30/2021
+     40 
+     41 ! Note that re-activation requires DHS(JB)>0, but inactivation does not.  Perhaps that can be fixed later.    !SR 11/30/2021
+     42 ! Re-activation requires DHS(JB)>0 because initialization of many variables depends on DHS(JB)>0.             !SR 11/30/2021
+     43 ! Maybe branches with downstream flow and external head boundaries don't get inactivated because JB=JBDN(JW). !SR 11/30/2021
+     44 
+     45           IUT = US(JB)                                                                                                !SR 11
+     45 /30/2021
+     46           DO I=US(JB),DS(JB)                                                                                          !SR 11
+     46 /30/2021
+     47             IF (KB(I)-KT < NL(JB)-1) IUT = I+1                                                                        !SR 11
+     47 /30/2021
+     48           END DO                                                                                                      !SR 11
+     48 /30/2021
+     49           IF (DHS(JB) > 0 .AND. .NOT. BR_INACTIVE(JBDH(JB)) .AND. CUS(JBDH(JB))<=DHS(JB) .AND. IUT<=DS(JB)-1) THEN    !SR 11
+
+Page 2           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+     49 /30/2021
+     50 
+     51               BR_INACTIVE(JB)=.FALSE.
+     52                IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/1X,13("*"),1X,A,I0,A,F0.3,A,I0,1X,A,I0,13("*"))') '   Branch Active: ',jb
+     52 ,&
+     53                                                         ' at Julian day = ',JDAY,'   NIT = ',NIT 
+     54 ! IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/17X,2(A,I0))') ' Add segments ',DS(JB)-1,' through ',DS(JB)           !SR 11/30/2021
+     55             IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/17X,2(A,I0))') ' Add segments ',IUT,' through ',DS(JB)                !SR 11
+     55 /30/2021
+     56 
+     57             WRITE(WRN,'(1X,13("*"),1X,A,I0,A,F0.3,A,I0)') '   Branch Active: ',jb,' at Julian day = ',JDAY,'   NIT = ',NIT  
+     57      ! SW 7/24/2018
+     58             WRITE(WRN,'(/1X,13("*"),1X,A,I0,A,I0,A,I0)') '   Adding segments: ',IUT,' through ',DS(JB),'   NIT = ',NIT !SR 1
+     58 1/30/2021
+     59 
+     60 ! Code updated to reflect the what was deemed necessary for adding layers and segments                      !SR 11/30/2021
+     61 ! CUS(JB)=DS(JB)-1                                                                                          !SR 11/30/2021
+     62             CUS(JB) = IUT                                                                                             !SR 11
+     62 /30/2021
+     63 
+     64 ! DO I=DS(JB)-1,DS(JB)                                                                                      !SR 11/30/2021
+     65             DO I=CUS(JB)-1,DS(JB)+1                                                                                   !SR 11
+     65 /30/2021
+     66                           Z(I)         =  Z(DHS(JB))
+     67                           KTI(I)       =  KTI(DHS(JB))
+     68               H1(KT,I)     =  H(KT,JW)-Z(I)               ! moved                                                     !SR 11
+     68 /30/2021
+     69               DO K=KT+1,KB(I)                             ! previous code updated H1 only for KT and KT+1             !SR 11
+     69 /30/2021
+     70                 H1(K,I)    =  H(K,JW)                     ! we have no guarantee that KT didn't change by more        !SR 11
+     70 /30/2021
+     71               END DO                                      !  than 1 layer since the branch was inactivated            !SR 11
+     71 /30/2021
+     72               DO K=KT,KB(I)                               ! previous code updated AVH1 only for KT and KT+1           !SR 11
+     72 /30/2021
+     73                 BI(K,I)    =  B(K,I)                      ! moved                                                     !SR 11
+     73 /30/2021
+     74                 AVH1(K,I)  = (H1(K,I)+H1(K+1,I))*0.5D0                                                                !SR 11
+     74 /30/2021
+     75               END DO                                                                                                  !SR 11
+     75 /30/2021
+     76 ! H1(KT+1,I)   =  H(KT+1,JW)
+     77 ! AVH1(KT+1,I) = (H1(KT+1,I)+H1(KT+2,I))*0.5
+     78 ! AVHR(KT+1,I) =  H1(KT+1,I)+(H1(KT+1,I+1)-H1(KT+1,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                  !SW 07/29/04
+     79                           IF (.NOT. TRAPEZOIDAL(JW)) THEN
+     80 ! BI(KT:KB(I),I) = B(KT:KB(I),I)            ! moved                                                     !SR 11/30/2021
+     81                             BI(KT,I)    =  B(KTI(I),I)
+     82                 DO K=KT+1,KB(I)                           ! previous code updated vars only for KT and KT+1           !SR 11
+     82 /30/2021
+     83                   BH1(K,I)  =  B(K,I)*H(K,JW)                                                                         !SR 11
+     83 /30/2021
+     84                 END DO                                                                                                !SR 11
+     84 /30/2021
+     85                             BH1(KT,I)   =  BI(KT,I)*(EL(KT,I)-Z(I)*COSA(JB)-EL(KTI(I)+1,I))/COSA(JB)
+     86                             IF (KTI(I) >= KB(I)) BH1(KT,I) = B(KT,I)*H1(KT,I)
+     87                             DO K=KTI(I)+1,KT
+     88                               BH1(KT,I) = BH1(KT,I)+BH(K,I)
+
+Page 3           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+     89                             END DO
+     90                           ELSE
+     91                             CALL GRID_AREA1 (EL(KT,I)-Z(I),EL(KT+1,I),BH1(KT,I),BI(KT,I))                                   
+     91                  !SW 08/03/04
+     92                 DO K=KT+1,KB(I)                           ! previous code updated vars only for KT and KT+1           !SR 11
+     92 /30/2021
+     93                   BH1(K,I)  =  0.25D0*H(K,JW)*(BB(K-1,I)+2.D0*B(K,I)+BB(K,I))                                         !SR 11
+     93 /30/2021
+     94                 END DO                                                                                                !SR 11
+     94 /30/2021
+     95 ! BH1(KT+1,I) =  0.25*H(KT+1,JW)*(BB(KT,I)+2.*B(KT+1,I)+BB(KT+1,I))
+     96 ! H1(KT,I)    =  H(KT,JW)-Z(I)
+     97 ! AVH1(KT,I)  = (H1(KT,I)+H1(KT+1,I))*0.5
+     98 ! AVHR(KT,I)  =  H1(KT,I)+(H1(KT,I+1)-H1(KT,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                       !SW 07/29/04
+     99                           END IF
+    100                           BKT(I)      = BH1(KT,I)/H1(KT,I)
+    101               VOL(KT,I)     =  BH1(KT,I)*DLX(I)                                                                       !SR 11
+    101 /30/2021
+    102                           DEPTHB(KT,I) = H1(KT,I)
+    103                           DEPTHM(KT,I) = H1(KT,I)*0.5
+    104                           DO K=KT+1,KB(I)
+    105                 VOL(K,I)    =  BH1(K,I)*DLX(I)                                                                        !SR 11
+    105 /30/2021
+    106                             DEPTHB(K,I) = DEPTHB(K-1,I)+ H1(K,I)
+    107                             DEPTHM(K,I) = DEPTHM(K-1,I)+(H1(K-1,I)+H1(K,I))*0.5
+    108                           END DO
+    109               DO K=KT,KB(I)                                                                                           !SR 11
+    109 /30/2021
+    110                 SDKV(K,I)         = SDK(JW)                                                   ! moved                 !SR 11
+    110 /30/2021
+    111                 T1(K,I)           = T1(K,DHS(JB))                                             ! moved                 !SR 11
+    111 /30/2021
+    112                 T2(K,I)           = T1(K,DHS(JB))                                             ! moved                 !SR 11
+    112 /30/2021
+    113                 C1(K,I,CN(1:NAC)) = C1(K,DHS(JB),CN(1:NAC))                                   ! moved                 !SR 11
+    113 /30/2021
+    114                 C2(K,I,CN(1:NAC)) = C1(K,DHS(JB),CN(1:NAC))                                   ! moved                 !SR 11
+    114 /30/2021
+    115                 H2(K,I)           = H1(K,I)                                                   ! might be needed       !SR 11
+    115 /30/2021
+    116                 BH2(K,I)          = BH1(K,I)                                                  ! might be needed       !SR 11
+    116 /30/2021
+    117                 RHO(K,I)          = DENSITY(T1(K,I),DMAX1(TDS(K,I),0.0D0),DMAX1(TISS(K,I),0.0D0))     ! can't hurt    !SR 11
+    117 /30/2021
+    118               END DO                              ! didn't bother with sed vars, cssk, and a few others for now       !SR 11
+    118 /30/2021
+    119                         END DO
+    120 
+    121 ! DO I=DS(JB)-1,DS(JB)                                                                                      !SR 11/30/2021
+    122             DO I=CUS(JB)-1,DS(JB)                 ! do this after H1 and BH1 are updated for all relevant segs above  !SR 11
+    122 /30/2021
+    123               DO K=KT,KB(I)                                                                                           !SR 11
+    123 /30/2021
+    124                 AVHR(K,I) =  H1(K,I)+(H1(K,I+1) -H1(K,I))*DLX(I) /(DLX(I)+DLX(I+1))                         !SR 11/30/2021
+    125                 BHR1(K,I) = BH1(K,I)+(BH1(K,I+1)-BH1(K,I))*DLX(I)/(DLX(I)+DLX(I+1))                         !SR 11/30/2021
+    126                 IF (CONSTRICTION(K,I) .AND. BHR1(K,I) > BCONSTRICTION(I)*H1(K,I)) THEN                                !SR 11
+    126 /30/2021
+
+Page 4           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    127                   BHR1(K,I) = BCONSTRICTION(I)*H1(K,I)                                                                !SR 11
+    127 /30/2021
+    128                 END IF                                                                                                !SR 11
+    128 /30/2021
+    129                 AVH2(K,I) = AVH1(K,I)                                                            ! might be needed    !SR 11
+    129 /30/2021
+    130                 BHR2(K,I) = BHR1(K,I)                                                            ! might be needed    !SR 11
+    130 /30/2021
+    131               END DO                                                                                                  !SR 11
+    131 /30/2021
+    132 ! BHR1(KT+1,I) = BH1(KT+1,I)+(BH1(KT+1,I+1)-BH1(KT+1,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                !SW 07/29/04
+    133 ! BHR1(KT,I)   = BH1(KT,I)  +(BH1(KT,I+1)  -BH1(KT,I))  /(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                !SW 07/29/04
+    134 ! IF (CONSTRICTION(KT,I)) THEN    ! SW 6/26/2018
+    135 !   IF (BHR1(KT,I)   > BCONSTRICTION(I)*H1(KT,I))   BHR1(KT,I)   = BCONSTRICTION(I)*H1(KT,I)
+    136 !   IF (BHR1(KT+1,I) > BCONSTRICTION(I)*H1(KT+1,I)) BHR1(KT+1,I) = BCONSTRICTION(I)*H1(KT+1,I)
+    137 ! END IF
+    138                         END DO
+    139 
+    140 ! Did not add code to update macrophyte variables                                                           !SR 11/30/2021
+    141 
+    142 ! Recompute internal weir characteristics for floating weir. Do this after DEPTHB is set                    !SR 11/30/2021
+    143             IF (WEIR_CALC) THEN                                                                                       !SR 11
+    143 /30/2021
+    144               DO JWR=1,NIW                                                                                            !SR 11
+    144 /30/2021
+    145                 IF (IWR(JWR) >= CUS(JB) .AND. IWR(JWR) <= DS(JB)) THEN                                                !SR 11
+    145 /30/2021
+    146                   IF (EKTWR(JWR) == 0.0) THEN                                                                         !SR 11
+    146 /30/2021
+    147                     KTWR(JWR) = KTWB(JW)                                                                              !SR 11
+    147 /30/2021
+    148                   ELSE                                                                                                !SR 11
+    148 /30/2021
+    149                     KTWR(JWR) = INT(EKTWR(JWR))                                                                       !SR 11
+    149 /30/2021
+    150                   END IF                                                                                              !SR 11
+    150 /30/2021
+    151                   IF (EKBWR(JWR) <= 0.0) THEN                                                                         !SR 11
+    151 /30/2021
+    152                     DO K=KTWR(JWR),KB(IWR(JWR))                                                                       !SR 11
+    152 /30/2021
+    153                       IF (DEPTHB(K,IWR(JWR)) > ABS(EKBWR(JWR))) THEN                                                  !SR 11
+    153 /30/2021
+    154                         KBWR(JWR) = K                                                                                 !SR 11
+    154 /30/2021
+    155                         EXIT                                                                                          !SR 11
+    155 /30/2021
+    156                       END IF                                                                                          !SR 11
+    156 /30/2021
+    157                     END DO                                                                                            !SR 11
+    157 /30/2021
+    158                   ELSE                                                                                                !SR 11
+    158 /30/2021
+    159                     KBWR(JWR) = INT(EKBWR(JWR))                                                                       !SR 11
+    159 /30/2021
+    160                   END IF                                                                                              !SR 11
+    160 /30/2021
+
+Page 5           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    161                   DO K=2,KMX-1                                                                                        !SR 11
+    161 /30/2021
+    162                     IF (K >= KTWR(JWR) .AND. K <= KBWR(JWR)) THEN                                                     !SR 11
+    162 /30/2021
+    163                       INTERNAL_WEIR(K,IWR(JWR)) = .TRUE.                                                              !SR 11
+    163 /30/2021
+    164                     ELSE                                                                                              !SR 11
+    164 /30/2021
+    165                       INTERNAL_WEIR(K,IWR(JWR)) = .FALSE.                                                             !SR 11
+    165 /30/2021
+    166                     END IF                                                                                            !SR 11
+    166 /30/2021
+    167                   END DO                                                                                              !SR 11
+    167 /30/2021
+    168                 END IF                                                                                                !SR 11
+    168 /30/2021
+    169               END DO                                                                                                  !SR 11
+    169 /30/2021
+    170             END IF                                                                                                    !SR 11
+    170 /30/2021
+    171 
+    172             IF (DN_HEAD(JB)) THEN                                   ! should be true                                  !SR 11
+    172 /30/2021
+    173               DO K=KT,KB(I)                                                                                           !SR 11
+    173 /30/2021
+    174                 QDH1(K,JB)             = 0.0                                                                          !SR 11
+    174 /30/2021
+    175                 TSSDH1(K,JB)           = 0.0                                                                          !SR 11
+    175 /30/2021
+    176                 CSSDH1(K,CN(1:NAC),JB) = 0.0                                                                          !SR 11
+    176 /30/2021
+    177               END DO                                                                                                  !SR 11
+    177 /30/2021
+    178             END IF                                                                                                    !SR 11
+    178 /30/2021
+    179 
+    180 ! DO I=DS(JB)-1,DS(JB)                                                                                      !SR 11/30/2021
+    181             DO I=CUS(JB),DS(JB)                                                                                       !SR 11
+    181 /30/2021
+    182                           WIND2(I) = WIND2(DHS(JB))
+    183                           IF (DYNAMIC_SHADE(I)) CALL SHADING
+    184                           DO K=KT,KB(I)
+    185                              U(K,I)  = 0.0
+    186                 W(K,I)    = 0.0                                                                                       !SR 11
+    186 /30/2021
+    187 ! SDKV(K,I) = SDK(JW)                                                                    ! moved        !SR 11/30/2021
+    188                 IF (DXI(JW) >= 0.0) THEN
+    189                                  DX(K,I) = DXI(JW)
+    190                             ELSE
+    191                                  DX(K,I) = ABS(U(K,I))*ABS(DXI(JW))*H(K,JW)   ! SW 8/2/2017
+    192                             ENDIF
+    193                             IF (INTERNAL_WEIR(K,I)) THEN
+    194                               DX(K,I) = 0.0
+    195                               U(K,I)  = 0.0
+    196                             END IF
+    197 ! T1(K,I)   = T1(K,DHS(JB))                                                              ! moved        !SR 11/30/2021
+    198 ! T2(K,I)   = T1(K,DHS(JB))                                                              ! moved        !SR 11/30/2021
+
+Page 6           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    199                             SU(K,I)           = 0.0
+    200                 SW(K,I)   = 0.0                                                                                       !SR 11
+    200 /30/2021
+    201 ! C1(K,I,CN(1:NAC)) = C1(K,DHS(JB),CN(1:NAC))                                            ! moved        !SR 11/30/2021
+    202 ! C2(K,I,CN(1:NAC)) = C1(K,DHS(JB),CN(1:NAC))                                            ! moved        !SR 11/30/2021
+    203                             DO JE=1,NEP
+    204                               EPD(K,I,JE) = 0.01
+    205                               EPC(K,I,JE) = 0.01/H1(K,I)
+    206                             END DO
+    207                             CMBRT(CN(1:NAC),JB) = CMBRT(CN(1:NAC),JB)+C1(K,DHS(JB),CN(1:NAC))*DLX(I)*BH1(K,I)
+    208                             EBRI(JB)            = EBRI(JB)           +T1(K,DHS(JB))          *DLX(I)*BH1(K,I)
+    209                           END DO
+    210                           DO K=KT,KB(I)-1
+    211                             AZ(K,I)  = AZ(K,DHS(JB))
+    212 		                    TKE(K,I,1) = TKE(K,DHS(JB),1) !sg 10/4/07
+    213                             TKE(K,I,2) = TKE(K,DHS(JB),2) !sg 10/4/07
+    214                             SAZ(K,I) = AZ(K,DHS(JB))
+    215                             IF (INTERNAL_WEIR(K,I)) THEN
+    216                               AZ(K,I)  = 0.0
+    217 	                          TKE(K,I,1) = 0.0 !sg 10/4/07
+    218                               TKE(K,I,2) = 0.0 !sg 10/4/07
+    219                               SAZ(K,I) = 0.0
+    220                             END IF
+    221                           END DO
+    222                         ENDDO
+    223 ! Total active cells and single layers                                                                      !SR 11/30/2021
+    224             DO I=CUS(JB),DS(JB)                                                                                       !SR 11
+    224 /30/2021
+    225               NTAC         = NTAC+KB(I)-KT+1                                                                          !SR 11
+    225 /30/2021
+    226               ONE_LAYER(I) = KTWB(JW) == KB(I)                                                                        !SR 11
+    226 /30/2021
+    227             END DO                                                                                                    !SR 11
+    227 /30/2021
+    228             NTACMX = MAX(NTAC,NTACMX)                                                                                 !SR 11
+    228 /30/2021
+    229           ENDIF
+    230           ENDIF
+    231         IF(.NOT.BR_INACTIVE(JB))THEN
+    232         DO I=CUS(JB),DS(JB)
+    233           IF(KB(I) > KTMAX) KTMAX = KB(I)                                                                           ! SR 10/
+    233 17/05
+    234           IF (Z(I) > ZMIN(JW)) THEN
+    235             IZMIN(JW) = I
+    236             JBIZ      = JB
+    237           END IF
+    238           ZMIN(JW) = MAX(ZMIN(JW),Z(I))
+    239         END DO
+    240         ENDIF
+    241       END DO
+    242       ADD_LAYER = ZMIN(JW) < -0.85*H(KT-1,JW) .AND. KT /= 2
+    243       SUB_LAYER = ZMIN(JW) >  0.60*H(KT,JW)   .AND. KT < KTMAX                                                       ! SR 10
+    243 /17/05
+    244       IF (KTWB(JW) == KMX-1 .AND. SLOPE(JBIZ) > 0.0 .AND. SUB_LAYER .AND. ONE_LAYER(IZMIN(JW))) THEN
+    245         IF (ZMIN(JW) > 0.99*H(KT,JW)) THEN
+    246             WRITE (WRN,'(A,I0,2(A,F0.3))') 'Low water in segment ',IZMIN(JW),&
+    247                                               ' water surface deviation'//' = ',ZMIN(JW),' at day ',JDAY
+
+Page 7           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    248             WARNING_OPEN = .TRUE.
+    249         ENDIF
+    250         SUB_LAYER    = .FALSE.
+    251       END IF
+    252 
+    253       IF(ADD_LAYER == .TRUE. .OR. SUB_LAYER == .TRUE.)THEN
+    254       LAYERCHANGE(JW)=.TRUE.
+    255       ELSE
+    256       LAYERCHANGE(JW)=.FALSE.
+    257       ENDIF
+    258 
+    259 !**** Add layers
+    260 
+    261       DO WHILE (ADD_LAYER)
+    262         IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/1X,13("*"),1X,A,I0,A,F0.3,A,I0,1X,A,I0,13("*"))') '   Add layer ',KT-1,&
+    263                                                         ' at Julian day = ',JDAY,'   NIT = ',NIT,' IZMIN =',IZMIN(JW)   ! SW
+    263  1/23/06
+    264         WARNING_OPEN = .TRUE.
+    265         WRITE (WRN,'(/1X,13("*"),1X,A,I0,A,F0.3,A,I0,1X,A,I0,A,I5,1x,13("*"))') '   Add layer ',KT-1,&
+    266                                                         ' at Julian day = ',JDAY,'   NIT = ',NIT,' IZMIN =',IZMIN(JW),' Wate
+    266 rbody =',JW   ! SW 1/23/06
+    267 
+    268 !****** Variable initialization
+    269 
+    270         KTWB(JW) = KTWB(JW)-1
+    271         KT       = KTWB(JW)
+    272         ilayer = 0
+    273         
+    274 ! RECOMPUTE INTERNAL WEIR FOR FLOATING WEIR
+    275     IF (WEIR_CALC) THEN   !  SW 3/16/18
+    276     DO JWR=1,NIW
+    277      IF(IWR(JWR) >= US(BS(JW)) .AND. IWR(JWR) <= DS(BE(JW)))THEN
+    278         IF (EKTWR(JWR) == 0.0) THEN  
+    279             KTWR(JWR)=KTWB(JW)
+    280         ELSE  
+    281           KTWR(JWR) = INT(EKTWR(JWR))  
+    282         END IF 
+    283         IF (EKBWR(JWR) <= 0.0) THEN  
+    284             DO K=KTWR(JWR),KB(IWR(JWR))  
+    285             IF (DEPTHB(K,IWR(JWR)) > ABS(EKBWR(JWR))) THEN
+    286                 KBWR(JWR)=K
+    287                 EXIT  
+    288             ENDIF
+    289             END DO   
+    290         ELSE  
+    291           KBWR(JWR) = INT(EKBWR(JWR))  
+    292         END IF  
+    293         
+    294       DO K=2,KMX-1
+    295 ! IF ((K >= KTWR(JWR) .AND. K <= KBWR(JWR))) INTERNAL_WEIR(K,IWR(JWR)) = .TRUE.                                 !SR 11/30/20
+    295 21
+    296                     IF (K >= KTWR(JWR) .AND. K <= KBWR(JWR)) THEN                                                     !SR 11
+    296 /30/2021
+    297                       INTERNAL_WEIR(K,IWR(JWR)) = .TRUE.                                                              !SR 11
+    297 /30/2021
+    298                     ELSE                                                                                              !SR 11
+    298 /30/2021
+
+Page 8           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    299                       INTERNAL_WEIR(K,IWR(JWR)) = .FALSE.                                                             !SR 11
+    299 /30/2021
+    300                     END IF                                                                                            !SR 11
+    300 /30/2021
+    301       END DO
+    302      ENDIF     
+    303     END DO    
+    304   END IF
+    305         
+    306         
+    307         DO JB=BS(JW),BE(JW)
+    308         IF(BR_INACTIVE(JB))CYCLE    ! SW 6/12/2017
+    309           IU = CUS(JB)
+    310           ID = DS(JB)
+    311           DO I=IU-1,ID+1
+    312             Z(I)          =  H(KT,JW)+Z(I)
+    313             H1(KT,I)      =  H(KT,JW)-Z(I)
+    314             H1(KT+1,I)    =  H(KT+1,JW)
+    315             H2(KT+1,I)    =  H(KT+1,JW)
+    316             AVH1(KT,I)    = (H1(KT,I)  +H1(KT+1,I))*0.5D0
+    317             AVH1(KT+1,I)  = (H1(KT+1,I)+H1(KT+2,I))*0.5D0
+    318             IF (.NOT. TRAPEZOIDAL(JW)) THEN
+    319               BH1(KT,I)   = BH1(KT+1,I)-Bnew(KT+1,I)*H1(KT+1,I)                              ! SW 1/23/06
+    320               BH1(KT+1,I) = BNEW(KT+1,I)*H1(KT+1,I)                                          ! SW 1/23/06
+    321             ELSE
+    322               CALL GRID_AREA1(EL(KT,I)-Z(I),EL(KT+1,I),BH1(KT,I),DUMMY)                                                     
+    322      !SW 08/03/04
+    323               BH1(KT+1,I) = 0.25D0*H1(KT+1,JW)*(BB(KT,I)+2.D0*B(KT+1,I)+BB(KT+1,I))
+    324             ENDIF
+    325             VOL(KT,I)     = BH1(KT,I)  *DLX(I)
+    326             VOL(KT+1,I)   = BH1(KT+1,I)*DLX(I)
+    327             BKT(I)        = BH1(KT,I)/H1(KT,I)
+    328             DEPTHB(KT,I)  = H1(KT,I)
+    329             DEPTHM(KT,I)  = H1(KT,I)*0.5
+    330             BI(KT:KB(I),I) =  B(KT:KB(I),I)   ! SW 8/26/05
+    331             BI(KT,I)       =  B(KTI(I),I)
+    332             T1(KT,I)      = T1(KT+1,I)
+    333             T2(KT,I)      = T2(KT+1,I)   ! 11/17/2022 SW
+    334             SDKV(KT,I)    = SDKV(KT+1,I)      ! SW 1/18/08
+    335             SED(KT,I)     = SED(KT+1,I)       ! SW 1/18/08
+    336             SEDN(KT,I)    = SEDN(KT+1,I)      ! SW 1/18/08
+    337             SEDP(KT,I)    = SEDP(KT+1,I)      ! SW 1/18/08
+    338             SEDC(KT,I)    = SEDC(KT+1,I)      ! SW 1/18/08
+    339 !            RHO(KT,I)     = DENSITY(T1(KT,I),MAX(TDS(KT,I),0.0),MAX(TISS(KT,I),0.0))    ! SR 5/15/06
+    340             if(sdfirstadd(kt,i))then
+    341             sed1(kt,i)=sed1ic(kt,i)    ! cb 6/17/17
+    342             sed2(kt,i)=sed2ic(kt,i)    ! cb 6/17/17
+    343               sdfirstadd(kt,i)=.false.
+    344             end if
+    345             DO K=KT+1,KMX
+    346               DEPTHB(K,I) = DEPTHB(K-1,I)+ H1(K,I)
+    347               DEPTHM(K,I) = DEPTHM(K-1,I)+(H1(K-1,I)+H1(K,I))*0.5D0
+    348             END DO
+    349             C1(KT,I,CN(1:NAC))             = C1(KT+1,I,CN(1:NAC))
+    350             C2(KT,I,CN(1:NAC))             = C2(KT+1,I,CN(1:NAC))             ! SW 11/17/2022
+    351             CD(KT,I,CDN(1:NACD(JW),JW))    = CD(KT+1,I,CDN(1:NACD(JW),JW))    ! SW 11/10/2022
+    352             CSSK(KT,I,CN(1:NAC))           = CSSK(KT+1,I,CN(1:NAC))
+
+Page 9           Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    353             KF(KT,I,KFCN(1:NAF(JW),JW))    = KF(KT+1,I,KFCN(1:NAF(JW),JW))
+    354             KFS(KT,I,KFCN(1:NAF(JW),JW))   = KFS(KT+1,I,KFCN(1:NAF(JW),JW))                 !KF(KT+1,I,KFCN(1:NAF(JW),JW))  
+    354  CODE ERROR FIX SW 10/24/2017
+    355 !KF(KT+1,I,KFCN(1:NAF(JW),JW))  = 0.0   ! moved below 11/16/2022 SW
+    356 !KFS(KT+1,I,KFCN(1:NAF(JW),JW)) = 0.0
+    357             TISS(KT,I)=TISS(KT+1,I)   ! PART OF CD BUT IF NOT ACTIVE IT IS STILL USED FOR LIGHT EXTINCTION
+    358             IF(KT >= KBI(I))THEN         ! CB 5/24/06
+    359             ADX(KT+1,I)=0.0             ! CB 5/15/06
+    360             T1(KT+1,I)                    = 0.0    !SR 11/10/2023
+    361             T2(KT+1,I)                    = 0.0
+    362             C1(KT+1,I,CN(1:NAC))          = 0.0    ! CB 5/15/06
+    363             C2(KT+1,I,CN(1:NAC))          = 0.0    !SR 11/10/2023
+    364             CD(KT+1,I,CDN(1:NACD(JW),JW)) = 0.0
+    365             CSSK(KT+1,I,CN(1:NAC))=0.0  ! CB 5/15/06
+    366             KF(KT+1,I,KFCN(1:NAF(JW),JW))  = 0.0   ! moved into IF statement on 11/16/2022 SW
+    367             KFS(KT+1,I,KFCN(1:NAF(JW),JW)) = 0.0
+    368             ENDIF                       ! CB 5/15/06
+    369             DO JE=1,NEP
+    370               if(kt < kbi(i))then    ! CB 4/28/06
+    371               EPD(KT,I,JE)   = EPD(KT+1,I,JE)
+    372               EPM(KT,I,JE)   = EPD(KT,I,JE)*(Bi(KT,I)-B(KT+1,I)+2.0*H1(KT,I))*DLX(I)             ! SR 5/15/06
+    373               EPM(KT+1,I,JE) = EPM(KT+1,I,JE)-EPM(KT,I,JE)
+    374               EPC(KT,I,JE)   = EPM(KT,I,JE)/VOL(KT,I)
+    375               EPC(KT+1,I,JE) = EPM(KT+1,I,JE)/VOL(KT+1,I)
+    376               else
+    377               EPD(KT,I,JE)   = EPD(KT+1,I,JE) ! SW 5/15/06
+    378               EPM(KT,I,JE)   = EPM(KT+1,I,JE)
+    379               EPC(KT,I,JE) =   EPC(KT+1,I,JE)
+    380               EPD(KT+1,I,JE) = 0.0
+    381               EPM(KT+1,I,JE) = 0.0
+    382               EPC(KT+1,I,JE) = 0.0
+    383               END IF                ! CB 4/28/06
+    384             END DO
+    385           END DO
+    386 
+    387 !********macrophytes...
+    388           DO I=IU,ID
+    389             JT=KTI(I)
+    390             JE=KB(I)
+    391             DO J=JT,JE
+    392               IF(J.LT.KT)THEN
+    393                 COLB=EL(J+1,I)
+    394               ELSE
+    395                 COLB=EL(KT+1,I)
+    396               END IF
+    397 !     COLDEP=ELWS(I)-COLB
+    398                coldep=EL(KT,i)-Z(i)*COSA(JB)-colb  ! cb 3/7/16
+    399 !     MACT(J,KT,I)=MACT(J,KT+1,I)
+    400               IF(MACROPHYTE_ON)MACT(J,KT,I)=MACT(J,KT+1,I)    ! SW 9/28/13
+    401               DO M=1,NMC
+    402                 IF(MACROPHYTE_CALC(JW,M))THEN
+    403                   MACRC(J,KT,I,M)=MACRC(J,KT+1,I,M)
+    404                   MACRM(J,KT,I,M)=MACRC(J,KT,I,M)*CW(J,I)*COLDEP*DLX(I)
+    405                 END IF
+    406               END DO
+    407             END DO
+    408 
+
+Page 10          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    409             JT=KT+1
+    410             JE=KB(I)
+    411             DO J=JT,JE
+    412               DO M=1,NMC
+    413                 IF(MACROPHYTE_CALC(JW,M))THEN
+    414                   MACRM(J,KT+1,I,M)=MACRC(J,KT+1,I,M)*CW(J,I)*H(KT+1,JW)*DLX(I)
+    415                 END IF
+    416               END DO
+    417             END DO
+    418           END DO
+    419           DO I=IU-1,ID
+    420             AVHR(KT+1,I) =   H1(KT+1,I) +(H1(KT+1,I+1) -H1(KT+1,I))*DLX(I) /(DLX(I)+DLX(I+1))                  !SW 07/29/04 
+    420 (H1(KT+1,I+1) +H1(KT+1,I))*0.5
+    421             AVHR(KT,I)   =   H1(KT,I)   +(H1(KT,I+1)   -H1(KT,I))*DLX(I)   /(DLX(I)+DLX(I+1))                  !SW 07/29/04 
+    421 (H1(KT,I+1)   +H1(KT,I))*0.5
+    422             BHR1(KT,I)   =   BH1(KT,I)  +(BH1(KT,I+1)  -BH1(KT,I))*DLX(I)  /(DLX(I)+DLX(I+1))                  !SW 07/29/04 
+    422  (BH1(KT,I+1)  +BH1(KT,I))*0.5
+    423             BHR1(KT+1,I) =   BH1(KT+1,I)+(BH1(KT+1,I+1)-BH1(KT+1,I))*DLX(I) /(DLX(I)+DLX(I+1))                 !SW 07/29/04 
+    423  (BH1(KT+1,I+1)+BH1(KT+1,I))*0.5
+    424                              IF(CONSTRICTION(KT,I))THEN    ! SW 6/26/2018 Valid for all K
+    425                                         IF(BHR1(KT,I) > BCONSTRICTION(I)*H1(KT,I))BHR1(KT,I)= BCONSTRICTION(I)*H1(KT,I)
+    426                                         IF(BHR1(KT+1,I) > BCONSTRICTION(I)*H1(KT+1,I))BHR1(KT+1,I)= BCONSTRICTION(I)*H1(KT+1
+    426 ,I)
+    427                              ENDIF
+    428             U(KT,I)      = U(KT+1,I)
+    429           END DO
+    430           DO I=IU,ID
+    431             IF (ONE_LAYER(I)) THEN
+    432               W(KT,I) = 0.0
+    433             ELSE
+    434               W1      =  W(KT+1,I)*BB(KT+1,I)
+    435               W2      = (BHR1(KT+1,I)*U(KT+1,I)-BHR1(KT+1,I-1)*U(KT+1,I-1))/DLX(I)
+    436               W3      = (-QSS(KT+1,I)*BH1(KT+1,I)/(BH1(KT+1,I)+BH1(KT,I)))/DLX(I)
+    437               W(KT,I) = (W1+W2+W3)/BB(KT,I)
+    438             END IF
+    439           END DO
+    440           IF (UP_HEAD(JB)) THEN
+    441             BHSUM                     = BHR1(KT,IU-1)            +BHR1(KT+1,IU-1)
+    442             QUH1(KT,JB)               = QUH1(KT+1,JB)            *BHR1(KT,IU-1)  /BHSUM
+    443             QUH1(KT+1,JB)             = QUH1(KT+1,JB)            *BHR1(KT+1,IU-1)/BHSUM
+    444             TSSUH1(KT,JB)             = TSSUH1(KT+1,JB)          *BHR1(KT,IU-1)  /BHSUM
+    445             TSSUH1(KT+1,JB)           = TSSUH1(KT+1,JB)          *BHR1(KT+1,IU-1)/BHSUM
+    446             CSSUH1(KT,CN(1:NAC),JB)   = CSSUH1(KT+1,CN(1:NAC),JB)*BHR1(KT,IU-1)  /BHSUM
+    447             CSSUH1(KT+1,CN(1:NAC),JB) = CSSUH1(KT+1,CN(1:NAC),JB)*BHR1(KT+1,IU-1)/BHSUM
+    448           END IF
+    449           IF (DN_HEAD(JB)) THEN
+    450             BHSUM                     = BHR1(KT,ID)              +BHR1(KT+1,ID)
+    451             QDH1(KT,JB)               = QDH1(KT+1,JB)            *BHR1(KT,ID)    /BHSUM
+    452             QDH1(KT+1,JB)             = QDH1(KT+1,JB)            *BHR1(KT+1,ID)  /BHSUM
+    453             TSSDH1(KT,JB)             = TSSDH1(KT+1,JB)          *BHR1(KT,ID)    /BHSUM
+    454             TSSDH1(KT+1,JB)           = TSSDH1(KT+1,JB)          *BHR1(KT+1,ID)  /BHSUM
+    455             CSSDH1(KT,CN(1:NAC),JB)   = CSSDH1(KT+1,CN(1:NAC),JB)*BHR1(KT,ID)    /BHSUM
+    456             CSSDH1(KT+1,CN(1:NAC),JB) = CSSDH1(KT+1,CN(1:NAC),JB)*BHR1(KT+1,ID)  /BHSUM
+    457           END IF
+    458           DO I=IU,ID-1
+    459                 IF(DXI(JW)>=0.0)THEN
+    460                         DX(KT,I) = DXI(JW)
+
+Page 11          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    461                 ELSE
+    462                         DX(KT,I) = ABS(U(KT,I))*ABS(DXI(JW))*H(KT,JW)    ! SW 8/2/2017
+    463                 ENDIF
+    464                 IF (INTERNAL_WEIR(KT,I)) DX(KT,I) = 0.0
+    465           END DO
+    466           IUT = IU
+    467           IDT = ID-1
+    468           IF (UP_HEAD(JB)) IUT = IU-1
+    469           IF (DN_HEAD(JB)) IDT = ID
+    470           DO I=IUT,IDT
+    471             AZ(KT,I)  = AZMIN
+    472             TKE(KT,I,1) = 1.25E-7     !sg 10/4/07
+    473             TKE(KT,I,2) = 1.0E-9      !sg 10/4/07
+    474             SAZ(KT,I) = AZMIN
+    475             IF (INTERNAL_WEIR(KT,I)) THEN
+    476               AZ(KT,I)  = 0.0
+    477               TKE(KT,I,1) = 0.0       !sg  10/4/07
+    478               TKE(KT,I,2) = 0.0       !sg  10/4/07
+    479               SAZ(KT,I) = 0.0
+    480             END IF
+    481           END DO
+    482 !IF (CONSTITUENTS) THEN     ! SW 6/26/2019 No need to call twice - just do at end of BRANCH loop
+    483 !  CALL TEMPERATURE_RATES
+    484 !  CALL KINETIC_RATES
+    485 !END IF
+    486 
+    487 !******** Upstream active segment
+    488 
+    489           IUT = US(JB)
+    490           IF (SLOPE(JB) == 0.0) THEN
+    491             DO I=US(JB),DS(JB)
+    492               IF (KB(I)-KT < NL(JB)-1) IUT = I+1
+    493             END DO
+    494           ELSE
+    495             DO I=US(JB)-1,DS(JB)+1
+    496               IF (KB(I) > KBI(I)) THEN
+    497                 BNEW(KB(I),I)  = B(KB(I),I)                                                    ! SW 1/23/06   ! SW 3/2/05
+    498                 DX(KB(I),I) = 0.0
+    499                 KB(I)       = KB(I)-1
+    500                 ILAYER(I) = 1
+    501                 U(KB(I)+1,I)=0.0                                                               ! SW 1/23/06
+    502                 WRITE (WRN,'(2(A,I8),A,F0.3)') 'Raising bottom layer at segment ',I,' at iteration ',NIT,' at Julian day ',J
+    502 DAY
+    503                 WARNING_OPEN = .TRUE.
+    504               END IF
+    505             END DO                   ! SW 1/23/06
+    506             DO I=US(JB)-1,DS(JB)+1   ! SW 1/23/06
+    507 !              IF (KB(I)-KT < NL(JB)-1) IUT = I+1    ! SW 1/23/06
+    508 !                IF (I /= DS(JB)+1) KBMIN(I)   = MIN(KB(I),KB(I+1))                    ! SW 1/23/06                         
+    508         ! SW 3/2/05
+    509                 IF (I /= US(JB)-1) KBMIN(I-1) = MIN(KB(I-1),KB(I))                     ! SW 1/23/06
+    510                 iF(KBI(I) < KB(I))THEN
+    511                 BKT(I)=BH1(KT,I)/(H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB))    ! SW 1/23/06  SR 1/2024
+    512                 DEPTHB(KT,I)= H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB)    ! SW 1/23/06 SR 1/2024
+    513                 DEPTHM(KT,I)=(H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB))*0.5D0    ! SW 1/23/06
+    514 !IF(I<=DS(JB))THEN  ! SW 8/6/2018
+    515 !  AVHR(KT,I)= H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB)   +(H1(KT,I+1)-(EL(KBI(I)+1,I+1)-EL(KB(I)+1,I+1))/COSA(JB)  
+
+Page 12          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    515 &
+    516 !  -H1(KT,I)+(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB))*DLX(I)/(DLX(I)+DLX(I+1))
+    517 !ELSE
+    518 !    AVHR(KT,I)=AVHR(KT,I-1)
+    519 !ENDIF
+    520 ! SW 1/23/06
+    521                 END IF
+    522                 IF (I <= DS(JB)) THEN          ! SR 7/2024
+    523                 IF (KBI(I) < KB(I) .OR. KBI(I+1) < KB(I+1)) THEN
+    524                   HTMP1 = H1(KT,I)
+    525                   HTMP2 = H1(KT,I+1)
+    526                   IF (KBI(I)   < KB(I))   HTMP1 = H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB)
+    527                   IF (KBI(I+1) < KB(I+1)) HTMP2 = H1(KT,I+1)                                     &
+    528                                                  -(EL(KBI(I+1)+1,I+1)-EL(KB(I+1)+1,I+1))/COSA(JB)
+    529                   AVHR(KT,I) = HTMP1 +(HTMP2-HTMP1)*DLX(I)/(DLX(I)+DLX(I+1))
+    530 !IF (CONSTRICTION(KT,I)) THEN
+    531 !  IF (SPLR(KT,I) > BCONSTRICTION(I)+2.0D0*AVHR(KT,I))                          &
+    532 !                                 SPLR(KT,I) = BCONSTRICTION(I)+2.0D0*AVHR(KT,I)
+    533 !END IF
+    534                 END IF
+    535               ELSE
+    536                 IF (KBI(ID+1) < KB(ID+1)) THEN
+    537                   AVHR(KT,ID+1) = H1(KT,ID+1)-(EL(KBI(ID+1)+1,ID+1)-EL(KB(ID+1)+1,ID+1))/COSA(JB)
+    538                 ELSE
+    539                   AVHR(KT,ID+1) = H1(KT,ID+1)
+    540                 END IF
+    541               END IF
+    542 
+    543             ENDDO
+    544         DO I=US(JB)-1,DS(JB)+1   ! SW 1/23/06
+    545          DO K=KBMIN(I)+1,KB(I)
+    546          U(K,I)=0.0
+    547          END DO
+    548         END DO    ! SW 11/9/07
+    549 
+    550         DO I=US(JB),DS(JB)     ! SW 11/9/07
+    551          IF(ILAYER(I).EQ.1.AND.ILAYER(I+1).EQ.0)THEN
+    552          BHRSUM=0.0
+    553          Q(I)=0.0
+    554           DO K=KT,KBMIN(I)
+    555             IF (.NOT. INTERNAL_WEIR(K,I)) THEN
+    556               BHRSUM = BHRSUM+BHR1(K,I)
+    557               Q(I)   = Q(I)+U(K,I)*BHR1(K,I)
+    558             END IF
+    559           END DO
+    560           DO K=KT,KBMIN(I)
+    561             IF (INTERNAL_WEIR(K,I)) THEN
+    562               U(K,I) = 0.0
+    563             ELSE
+    564               U(K,I) =  U(K,I)+(QC(I)-Q(I))/BHRSUM
+    565             END IF
+    566           END DO
+    567           ELSEIF(ILAYER(I).EQ.1.AND.ILAYER(I-1).EQ.0)THEN
+    568           BHRSUM=0.0
+    569           Q(I-1)=0.0
+    570           DO K=KT,KBMIN(I-1)
+    571             IF (.NOT. INTERNAL_WEIR(K,I-1)) THEN
+
+Page 13          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    572               BHRSUM = BHRSUM+BHR1(K,I-1)
+    573               Q(I-1)   = Q(I-1)+U(K,I-1)*BHR1(K,I-1)
+    574             END IF
+    575           END DO
+    576           DO K=KT,KBMIN(I-1)
+    577             IF (INTERNAL_WEIR(K,I-1)) THEN
+    578               U(K,I-1) = 0.0
+    579             ELSE
+    580               U(K,I-1) =  U(K,I-1)+(QC(I-1)-Q(I-1))/BHRSUM
+    581             END IF
+    582           END DO
+    583           endif
+    584 
+    585             END DO
+    586           END IF
+    587 
+    588 !******** Segment addition
+    589 
+    590           IF (IUT /= IU) THEN
+    591             IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/17X,2(A,I0))') ' Add segments ',IUT,' through ',IU-1
+    592             WARNING_OPEN = .TRUE.
+    593             WRITE (WRN,'(/17X,2(A,I0))') ' Add segments ',IUT,' through ',IU-1
+    594             DO I=IUT-1,IU-1
+    595               Z(I)         =  Z(IU)
+    596               KTI(I)       =  KTI(IU)
+    597               H1(KT+1,I)   =  H(KT+1,JW)
+    598               AVH1(KT+1,I) = (H1(KT+1,I)+H1(KT+2,I))*0.5
+    599 ! AVHR(KT+1,I) =  H1(KT+1,I)+(H1(KT+1,I+1)-H1(KT+1,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)     ! moved     !SR 11/30/2021
+    600               IF (.NOT. TRAPEZOIDAL(JW)) THEN
+    601                 BH1(KT+1,I) =  B(KT+1,I)*H(KT+1,JW)
+    602                 H1(KT,I)    =  H(KT,JW)-Z(I)
+    603                 BI(KT:KB(I),I) =  B(KT:KB(I),I)                                                                        ! SW 
+    603 4/18/07
+    604                 BI(KT,I)    =  B(KTI(I),I)
+    605                 AVH1(KT,I)  = (H1(KT,I)+H1(KT+1,I))*0.5
+    606 ! AVHR(KT,I)  =  H1(KT,I)+(H1(KT,I+1)-H1(KT,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)          ! moved     !SR 11/30/2021
+    607                 BH1(KT,I)   =  BI(KT,I)*(EL(KT,I)-Z(I)*COSA(JB)-EL(KTI(I)+1,I))/COSA(JB)
+    608                 IF (KTI(I) >= KB(I)) BH1(KT,I) = B(KT,I)*H1(KT,I)
+    609                 DO K=KTI(I)+1,KT
+    610                   BH1(KT,I) = BH1(KT,I)+BH(K,I)
+    611                 END DO
+    612               ELSE
+    613                 CALL GRID_AREA1 (EL(KT,I)-Z(I),EL(KT+1,I),BH1(KT,I),BI(KT,I))                                               
+    613      !SW 08/03/04
+    614                 BH1(KT+1,I) =  0.25*H(KT+1,JW)*(BB(KT,I)+2.*B(KT+1,I)+BB(KT+1,I))
+    615                 H1(KT,I)    =  H(KT,JW)-Z(I)
+    616                 AVH1(KT,I)  = (H1(KT,I)+H1(KT+1,I))*0.5
+    617 ! AVHR(KT,I)  =  H1(KT,I)+(H1(KT,I+1)-H1(KT,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)          ! moved     !SR 11/30/2021
+    618               END IF
+    619               BKT(I)      = BH1(KT,I)/H1(KT,I)
+    620               VOL(KT,I)    = BH1(KT,I)*DLX(I)                                                                         !SR 11
+    620 /30/2021
+    621               DEPTHB(KT,I) = H1(KT,I)
+    622               DEPTHM(KT,I) = H1(KT,I)*0.5
+    623               DO K=KT+1,KB(I)
+    624                 VOL(K,I)    = BH1(K,I)*DLX(I)                                                                         !SR 11
+    624 /30/2021
+
+Page 14          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    625                 DEPTHB(K,I) = DEPTHB(K-1,I)+ H1(K,I)
+    626                 DEPTHM(K,I) = DEPTHM(K-1,I)+(H1(K-1,I)+H1(K,I))*0.5
+    627               END DO
+    628             END DO
+    629             DO I=IUT-1,IU-1
+    630               AVHR(KT+1,I) =  H1(KT+1,I)+(H1(KT+1,I+1) -H1(KT+1,I)) /(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)   ! moved     !SR 11
+    630 /30/2021
+    631               AVHR(KT,I)   =  H1(KT,I)  +(H1(KT,I+1)   -H1(KT,I))   /(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)   ! moved     !SR 11
+    631 /30/2021
+    632               BHR1(KT+1,I) = BH1(KT+1,I)+(BH1(KT+1,I+1)-BH1(KT+1,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                !SW 0
+    632 7/29/04
+    633               BHR1(KT,I)   = BH1(KT,I)  +(BH1(KT,I+1)  -BH1(KT,I))  /(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                !SW 0
+    633 7/29/04
+    634                              IF(CONSTRICTION(KT,I))THEN    ! SW 6/26/2018 Valid for all K
+    635                                         IF(BHR1(KT,I) > BCONSTRICTION(I)*H1(KT,I))BHR1(KT,I)= BCONSTRICTION(I)*H1(KT,I)
+    636                                         IF(BHR1(KT+1,I) > BCONSTRICTION(I)*H1(KT+1,I))BHR1(KT+1,I)= BCONSTRICTION(I)*H1(KT+1
+    636 ,I)
+    637                              ENDIF
+    638             END DO
+    639             DO I=IUT,IU-1
+    640 !ICE(I)   = ICE(IU)   ! SW 9/29/15
+    641 !ICETH(I) = ICETH(IU)
+    642               WIND2(I) = WIND2(IU)
+    643               IF (DYNAMIC_SHADE(I)) CALL SHADING
+    644               DO K=KT,KBMIN(I)              !KB(I)   SW 12/18/2018
+    645                 U(K,I)  = U(K,IU)
+    646                             IF(DXI(JW) >= 0.0)THEN
+    647                                  DX(K,I) = DXI(JW)
+    648                             ELSE
+    649                                  DX(K,I) = ABS(U(K,I))*ABS(DXI(JW))*H(K,JW)    ! SW 8/2/2017
+    650                             ENDIF
+    651                 SDKV(K,I)=SDK(JW)     ! SW 1/18/08
+    652                 IF (INTERNAL_WEIR(K,I)) THEN
+    653                   DX(K,I) = 0.0
+    654                   U(K,I)  = 0.0
+    655                 END IF
+    656               ENDDO
+    657               NTAC = NTAC+KB(I)-(KT+1)+1      ! newly activated cells in added segment, except for KT (added below)   !SR 11
+    657 /30/2021
+    658               
+    659             DO K=KT,KB(I)  ! SW 12/18/2018
+    660                 T1(K,I)           = T1(K,IU)
+    661                 T2(K,I)           = T1(K,IU)
+    662                 SU(K,I)           = U(K,IU)
+    663                 C1(K,I,CN(1:NAC)) = C1(K,IU,CN(1:NAC))
+    664                 C2(K,I,CN(1:NAC)) = C1(K,IU,CN(1:NAC))
+    665                 CD(K,I,CDN(1:NACD(JW),JW)) = CD(K,IU,CDN(1:NACD(JW),JW))      !SR 11/10/2023
+    666                 DO JE=1,NEP
+    667                   EPD(K,I,JE) = 0.01
+    668                   EPC(K,I,JE) = 0.01/H1(K,I)
+    669                 END DO
+    670                 CMBRT(CN(1:NAC),JB) = CMBRT(CN(1:NAC),JB)+C1(K,IU,CN(1:NAC))*DLX(I)*BH1(K,I)
+    671                 EBRI(JB)            = EBRI(JB)           +T1(K,IU)          *DLX(I)*BH1(K,I)
+    672               END DO
+    673               DO K=KT,KB(I)-1
+    674                 AZ(K,I)  = AZ(K,IU)
+    675 		        TKE(K,I,1) = TKE(K,IU,1) !sg 10/4/07
+
+Page 15          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    676                 TKE(K,I,2) = TKE(K,IU,2) !sg 10/4/07
+    677                 SAZ(K,I) = AZ(K,IU)
+    678                 IF (INTERNAL_WEIR(K,I)) THEN
+    679                   AZ(K,I)  = 0.0
+    680 	              TKE(K,I,1) = 0.0 !sg 10/4/07
+    681                   TKE(K,I,2) = 0.0 !sg 10/4/07
+    682                   SAZ(K,I) = 0.0
+    683                 END IF
+    684               END DO
+    685 !END DO
+    686 !*********macrophytes
+    687               DO M=1,NMC
+    688                 IF(MACROPHYTE_CALC(JW,M))THEN
+    689                   JT=KTI(I)
+    690                   JE=KB(I)
+    691                   DO J=JT,JE
+    692                     IF(J.LT.KT)THEN
+    693                       COLB=EL(J+1,I)
+    694                     ELSE
+    695                       COLB=EL(KT+1,I)
+    696                     END IF
+    697 !COLDEP=ELWS(I)-COLB
+    698                     coldep=EL(KT,i)-Z(i)*COSA(JB)-colb  ! cb 3/7/16
+    699 !MACRC(J,KT,I,M)=MACWBCI(JW,M)
+    700                     IF (ISO_macrophyte(JW,m))  macrc(j,kt,I,m) = macwbci(JW,m)     ! cb 3/7/16
+    701                     IF (VERT_macrophyte(JW,m)) macrc(j,kt,I,m) = 0.1
+    702                     IF (long_macrophyte(JW,m)) macrc(j,kt,I,m) = 0.1
+    703                     MACRM(J,KT,I,M)=MACRC(J,KT,I,M)*CW(J,I)*COLDEP*DLX(I)
+    704                     MACMBRT(JB,M) = MACMBRT(JB,M)+MACRM(J,KT,I,M)
+    705                   END DO
+    706                   DO K=KT+1,KB(I)
+    707                     JT=K
+    708                     JE=KB(I)
+    709                     DO J=JT,JE
+    710 !MACRC(J,K,I,M)=MACWBCI(JW,M)
+    711                       IF (ISO_macrophyte(JW,m))  macrc(j,k,I,m) = macwbci(JW,m)     ! cb 3/7/16
+    712                       IF (VERT_macrophyte(JW,m)) macrc(j,k,I,m) = 0.1
+    713                       IF (long_macrophyte(JW,m)) macrc(j,k,I,m) = 0.1
+    714                       MACRM(J,K,I,M)=MACRC(J,K,I,M)*CW(J,I)*H2(K,I)*DLX(I)
+    715                       MACMBRT(JB,M) = MACMBRT(JB,M)+MACRM(J,K,I,M)
+    716                     END DO
+    717                   END DO
+    718                 END IF
+    719               END DO
+    720             END DO  ! cb 3/7/16  moved enddo to include macrophytes
+    721             U(KB(IUT):KB(IU),IU-1)  = 0.0
+    722             SU(KB(IUT):KB(IU),IU-1) = 0.0
+    723             ADX(KB(IUT):KB(IU),IU)  = 0.0
+    724             IU                      = IUT
+    725             CUS(JB)                 = IU
+    726             IF (UH_EXTERNAL(JB)) KB(IU-1) = KB(IU)
+    727             IF (UH_INTERNAL(JB)) THEN
+    728               IF (JBUH(JB) >= BS(JW) .AND. JBUH(JB) <= BE(JW)) THEN
+    729                 KB(IU-1) = MIN(KB(UHS(JB)),KB(IU))
+    730               ELSE
+    731                 DO KKB=KT,KMX
+    732                   IF (EL(KKB,IU) <= EL(KB(UHS(JB)),UHS(JB))) EXIT
+
+Page 16          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    733                 END DO
+    734                 KB(IU-1) = MIN(KKB,KB(IU))
+    735               END IF
+    736             END IF
+    737             IF (UP_HEAD(JB)) THEN
+    738               AZ(KT:KB(IU-1)-1,IU-1)  = AZMIN
+    739               TKE(KT:KB(IU-1)-1,IU-1,1) = 1.25E-7     !SG 10/4/07
+    740               TKE(KT:KB(IU-1)-1,IU-1,2) = 1.0E-9      !SG 10/4/07
+    741               SAZ(KT:KB(IU-1)-1,IU-1) = AZMIN
+    742             END IF
+    743           END IF
+    744           IF (CONSTITUENTS) THEN
+    745             CALL TEMPERATURE_RATES
+    746             CALL KINETIC_RATES
+    747           END IF
+    748 
+    749 !******** Total active cells and single layers
+    750 
+    751           DO I=IU,ID
+    752             NTAC         = NTAC+1
+    753             ONE_LAYER(I) = KTWB(JW) == KB(I)
+    754           END DO
+    755           NTACMX = MAX(NTAC,NTACMX)
+    756         END DO    ! JB loop
+    757         CALL INTERPOLATION_MULTIPLIERS   
+    758 
+    759 !****** Additional layers
+    760 
+    761         ZMIN(JW) = -1000.0
+    762         DO JB=BS(JW),BE(JW)
+    763         IF(BR_INACTIVE(JB))CYCLE    ! SW 6/12/2017
+    764           DO I=CUS(JB),DS(JB)
+    765             ZMIN(JW) = MAX(ZMIN(JW),Z(I))
+    766           END DO
+    767         END DO
+    768         ADD_LAYER = ZMIN(JW) < -0.80*H(KT-1,JW) .AND. KT /= 2
+    769       END DO
+    770 
+    771 !**** Subtract layers
+    772 
+    773       DO WHILE (SUB_LAYER)
+    774         IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/1X,13("*"),1X,A,I0,A,F0.3,A,I0,1X,A,I0,1x,13("*"))') 'Subtract layer ',&
+    775         KT,' at Julian day = ', JDAY,' NIT = ',NIT,' IZMIN =',IZMIN(JW)      ! SW 1/23/06
+    776         WRITE (WRN,'(/1X,13("*"),1X,A,I0,A,F0.3,A,I0,1X,A,I0,1x,A,i4,1x,13("*"))') 'Subtract layer ',KT,' at Julian day = ',
+    776  JDAY,' NIT = ',NIT,' IZMIN =',IZMIN(JW),' WaterBody = ',JW   
+    777 
+    778 !****** Variable initialization
+    779 
+    780         KTWB(JW) = KTWB(JW)+1
+    781         KT       = KTWB(JW)
+    782         ILAYER=0       ! SW 1/23/06  11/7/07
+    783         
+    784 ! RECOMPUTE INTERNAL WEIR FOR FLOATING WEIR
+    785     IF (WEIR_CALC) THEN   !  SW 3/16/18
+    786     DO JWR=1,NIW
+    787      IF(IWR(JWR) >= US(BS(JW)) .AND. IWR(JWR) <= DS(BE(JW)))THEN
+    788         IF (EKTWR(JWR) == 0.0) THEN  
+
+Page 17          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    789             KTWR(JWR)=KTWB(JW)
+    790         ELSE  
+    791           KTWR(JWR) = INT(EKTWR(JWR))  
+    792         END IF 
+    793         IF (EKBWR(JWR) <= 0.0) THEN  
+    794             DO K=KTWR(JWR),KB(IWR(JWR))  
+    795             IF (DEPTHB(K,IWR(JWR)) > ABS(EKBWR(JWR))) THEN
+    796                 KBWR(JWR)=K
+    797                 EXIT  
+    798                 ENDIF
+    799             END DO   
+    800         ELSE  
+    801           KBWR(JWR) = INT(EKBWR(JWR))  
+    802         END IF  
+    803         
+    804       DO K=2,KMX-1
+    805 ! IF ((K >= KTWR(JWR) .AND. K <= KBWR(JWR))) INTERNAL_WEIR(K,IWR(JWR)) = .TRUE.                                 !SR 11/30/20
+    805 21
+    806                     IF (K >= KTWR(JWR) .AND. K <= KBWR(JWR)) THEN                                                     !SR 11
+    806 /30/2021
+    807                       INTERNAL_WEIR(K,IWR(JWR)) = .TRUE.                                                              !SR 11
+    807 /30/2021
+    808                     ELSE                                                                                              !SR 11
+    808 /30/2021
+    809                       INTERNAL_WEIR(K,IWR(JWR)) = .FALSE.                                                             !SR 11
+    809 /30/2021
+    810                     END IF                                                                                            !SR 11
+    810 /30/2021
+    811       END DO
+    812      ENDIF     
+    813     END DO    
+    814   END IF
+    815         
+    816         
+    817         
+    818         DO JB=BS(JW),BE(JW)
+    819         IF(BR_INACTIVE(JB))CYCLE    ! SW 6/12/2017
+    820           IU = CUS(JB)
+    821           ID = DS(JB)
+    822           IF (CONSTITUENTS) DO1(KT-1,IU-1:ID+1) = 0.0
+    823           DO I=IU-1,ID+1
+    824             Z(I)         =  Z(I)-H(KT-1,JW)
+    825             H1(KT-1,I)   =  H(KT-1,JW)
+    826             H1(KT,I)     =  H(KT,JW)-Z(I)
+    827             BI(KT,I)     =  B(KTI(I),I)
+    828             BI(KT-1,I)   =  B(KT-1,I)
+    829             AVH1(KT-1,I) = (H(KT-1,JW)+H(KT,JW))*0.5
+    830             AVH1(KT,I)   = (H1(KT,I)+H1(KT+1,I))*0.5
+    831             IF(.NOT. TRAPEZOIDAL(JW))THEN
+    832               IF(KB(I) >= KT)THEN                            ! SW 1/23/06
+    833               BH1(KT,I)   =  BH1(KT-1,I)+BH1(KT,I)           ! SW 1/23/06
+    834               BH1(KT-1,I) =  B(KT-1,I)*H(KT-1,JW)
+    835               ELSE  ! SW 1/23/06
+    836               BH1(KT,I)   =  BH1(KT-1,I)         ! SW 1/23/06
+    837               END IF  ! SW 1/23/06
+    838             ELSE
+    839               CALL GRID_AREA1 (EL(KT,I)-Z(I),EL(KT+1,I),BH1(KT,I),DUMMY)                                                    
+
+Page 18          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    839      !SW 08/03/04
+    840               BH1(KT-1,I) = 0.25*H1(KT-1,JW)*(BB(KT-2,I)+2.*B(KT-1,I)+BB(KT-1,I))
+    841             ENDIF
+    842             VOL(KT,I)   =  BH1(KT,I)*DLX(I)
+    843             VOL(KT-1,I) =  BH1(KT-1,I)*DLX(I)
+    844             BKT(I)      =  BH1(KT,I)/H1(KT,I)
+    845             if(kb(i) >= kt)then                             ! SW 1/23/06
+    846               U(KT,I)  = (U(KT-1,I)*BHR1(KT-1,I)+U(KT,I)*BHR(KT,I))/(BHR1(KT-1,I)+BHR(KT,I))
+    847               T1(KT,I) = (T1(KT-1,I)*(BH1(KT,I)-BH(KT,I))+T1(KT,I)*BH(KT,I))/BH1(KT,I)
+    848             ELSE
+    849 !              EBRI(JB) = EBRI(JB)-T1(KT,I)*VOL(KT,I)   1/23/06
+    850               u(kt,i) = u(kt-1,i)    ! SW 1/23/06
+    851               t1(kt,i) = t1(kt-1,i)  ! SW 1/23/06
+    852             END IF
+    853             IF(KB(I) >= KT)THEN       ! SW 1/23/06
+    854             C1(KT,I,CN(1:NAC))             = (C1(KT-1,I,CN(1:NAC))  *(BH1(KT,I)-BH(KT,I))+C1(KT,I,CN(1:NAC))  *BH(KT,I))/BH1
+    854 (KT,I)
+    855             CSSK(KT,I,CN(1:NAC))           = (CSSK(KT-1,I,CN(1:NAC))*(BH1(KT,I)-BH(KT,I))+CSSK(KT,I,CN(1:NAC))*BH(KT,I))/BH1
+    855 (KT,I)
+    856             ELSE
+    857             C1(KT,I,CN(1:NAC))             = C1(KT-1,I,CN(1:NAC))    ! SW 1/23/06
+    858             CSSK(KT,I,CN(1:NAC))           = CSSK(KT-1,I,CN(1:NAC))   ! SW 1/23/06
+    859             ENDIF   ! SW 1/23/06
+    860             CSSB(KT,I,CN(1:NAC))           =  CSSB(KT-1,I,CN(1:NAC))+CSSB(KT,I,CN(1:NAC))
+    861 !KF(KT,I,KFCN(1:NAF(JW),JW))    =  KF(KT-1,I,KFCN(1:NAF(JW),JW))
+    862 !KFS(KT,I,KFCN(1:NAF(JW),JW))   =  KFS(KT-1,I,KFCN(1:NAF(JW),JW))
+    863             KF(KT,I,KFCN(1:NAF(JW),JW))    =  (KF(KT-1,I,KFCN(1:NAF(JW),JW))*VOL(KT-1,I)+  KF(KT,I,KFCN(1:NAF(JW),JW))*VOL(K
+    863 T,I))/(VOL(KT-1,I)+VOL(KT,I))   ! SW Fix suggested by Taylor Adams Hydros 25Feb2021  ! KF is in units of g/m3/s
+    864             KFS(KT,I,KFCN(1:NAF(JW),JW))   =  KFS(KT-1,I,KFCN(1:NAF(JW),JW))+KFS(KT,I,KFCN(1:NAF(JW),JW))          ! SW Fix 
+    864 suggested by Taylor Adams Hydros 25Feb2021 ! KFS is in units of g KFS=KF*VOL*DT          C1(KT-1,I,CN(1:NAC))           =  0
+    864 .0
+    865             C1(KT-1,I,CN(1:NAC))           =  0.0
+    866             C2(KT-1,I,CN(1:NAC))           =  0.0
+    867             CSSB(KT-1,I,CN(1:NAC))         =  0.0
+    868             CSSK(KT-1,I,CN(1:NAC))         =  0.0
+    869             KF(KT-1,I,KFCN(1:NAF(JW),JW))  =  0.0
+    870             KFS(KT-1,I,KFCN(1:NAF(JW),JW)) =  0.0
+    871             DO JE=1,NEP
+    872               IF(KT <= KBI(I))THEN    ! CB 4/28/06
+    873               EPM(KT,I,JE)   = EPM(KT-1,I,JE)+EPM(KT,I,JE)
+    874               EPD(KT,I,JE)   = EPM(KT,I,JE)/((BI(KT,I)-BI(KT+1,I)+2.0*H1(KT,I))*DLX(I))
+    875               EPC(KT,I,JE)   = EPM(KT,I,JE)/VOL(KT,I)
+    876               EPM(KT-1,I,JE) = 0.0
+    877               EPD(KT-1,I,JE) = 0.0
+    878               EPC(KT-1,I,JE) = 0.0
+    879               ELSE                   ! SW 5/15/06
+    880               EPM(KT,I,JE)   = EPM(KT-1,I,JE)
+    881               EPD(KT,I,JE)   = EPD(KT-1,I,JE)
+    882               EPC(KT,I,JE)   = EPC(KT-1,I,JE)
+    883               EPM(KT-1,I,JE) = 0.0
+    884               EPD(KT-1,I,JE) = 0.0
+    885               EPC(KT-1,I,JE) = 0.0
+    886               ENDIF                   ! CB 4/28/06
+    887             END DO
+    888           END DO
+    889           DO I=IU,ID
+    890             DO M=1,NMC
+
+Page 19          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    891               IF(MACROPHYTE_CALC(JW,M))THEN
+    892                 IF(KTICOL(I))THEN
+    893                   JT=KTI(I)
+    894                 ELSE
+    895                   JT=KTI(I)+1
+    896                 END IF
+    897                 JE=KB(I)
+    898                 DO J=JT,JE
+    899                   IF(J.LT.KT)THEN
+    900                     COLB=EL(J+1,I)
+    901                   ELSE
+    902                     COLB=EL(KT+1,I)
+    903                   END IF
+    904 !COLDEP=ELWS(I)-COLB
+    905                    coldep=EL(KT,i)-Z(i)*COSA(JB)-colb  ! cb 3/7/16
+    906                   IF(J.LT.KT)THEN
+    907                     MACRM(J,KT,I,M)=MACRM(J,KT-1,I,M)
+    908                   ELSE
+    909                     MACRM(J,KT,I,M)=MACRM(J,KT-1,I,M)+MACRM(J,KT,I,M)
+    910                   END IF
+    911                   IF(CW(J,I).GT.0.0)THEN
+    912                     MACRC(J,KT,I,M)=MACRM(J,KT,I,M)/(CW(J,I)*COLDEP*DLX(I))
+    913                   ELSE
+    914                     MACRC(J,KT,I,M)=0.0
+    915                   END IF
+    916                   MACRM(J,KT-1,I,M)=0.0
+    917                   MACRC(J,KT-1,I,M)=0.0
+    918 
+    919                 END DO
+    920               END IF
+    921             END DO
+    922             JT=KTI(I)
+    923             JE=KB(I)
+    924             DO J=JT,JE
+    925               MACT(J,KT,I)=0.0
+    926               MACT(J,KT-1,I)=0.0
+    927             END DO
+    928             DO M=1,NMC
+    929               IF(MACROPHYTE_CALC(JW,M))THEN
+    930                  DO J=JT,JE
+    931                    MACT(J,KT,I)=MACRC(J,KT,I,M)+MACT(J,KT,I)
+    932                  END DO
+    933               END IF
+    934             END DO
+    935             DO M=1,NMC
+    936               TMAC=0.0
+    937               IF(MACROPHYTE_CALC(JW,M))THEN
+    938                 JT=KTI(I)
+    939                 JE=KB(I)
+    940                 DO J=JT,JE
+    941                   TMAC=TMAC+MACRM(J,KT,I,M)
+    942                 END DO
+    943               END IF
+    944               MAC(KT,I,M)=TMAC/(BH1(KT,I)*DLX(I))
+    945             END DO
+    946             DO M=1,NMC
+    947               IF(MACROPHYTE_CALC(JW,M))THEN
+
+Page 20          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    948                 MAC(KT-1,I,M)=0.0
+    949               END IF
+    950             END DO
+    951           END DO
+    952 
+    953           DO I=IU-1,ID
+    954             AVHR(KT-1,I) =  H1(KT-1,I)+( H1(KT-1,I+1)- H1(KT-1,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                  !SW 0
+    954 7/29/04
+    955             AVHR(KT,I)   =  H1(KT,I)  +( H1(KT,I+1)  - H1(KT,I))  /(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                  !SW 0
+    955 7/29/04
+    956             BHR1(KT,I)   = BH1(KT,I)  +(BH1(KT,I+1)  -BH1(KT,I))  /(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                  !SW 0
+    956 7/29/04
+    957             BHR1(KT-1,I) = BH1(KT-1,I)+(BH1(KT-1,I+1)-BH1(KT-1,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                  !SW 0
+    957 7/29/04
+    958                              IF(CONSTRICTION(KT,I))THEN    ! SW 6/26/2018 Valid for all K
+    959                                         IF(BHR1(KT,I) > BCONSTRICTION(I)*H1(KT,I))BHR1(KT,I)= BCONSTRICTION(I)*H1(KT,I)
+    960                                         IF(BHR1(KT-1,I) > BCONSTRICTION(I)*H1(KT-1,I))BHR1(KT-1,I)= BCONSTRICTION(I)*H1(KT-1
+    960 ,I)
+    961                              ENDIF            
+    962           END DO
+    963           U(KT-1,IU-1:ID+1)     = 0.0
+    964           W(KT-1,IU-1:ID+1)     = 0.0
+    965           SW(KT-1,IU-1:ID+1)    = 0.0                                                                                  !TC 3
+    965 /9/05
+    966           P(KT-1,IU-1:ID+1)     = 0.0
+    967           AZ(KT-1,IU-1:ID+1)    = 0.0
+    968           TKE(KT-1,IU-1:ID+1,1) = 0.0   !sg 10/4/07
+    969           TKE(KT-1,IU-1:ID+1,2) = 0.0   !sg 10/4/07
+    970           DZ(KT-1,IU-1:ID+1)    = 0.0
+    971           ADMZ(KT-1,IU-1:ID+1)  = 0.0
+    972           ADZ(KT-1,IU-1:ID+1)   = 0.0
+    973           DECAY(KT-1,IU-1:ID+1) = 0.0
+    974           T1(KT-1,IU-1:ID+1)    = 0.0   !SR 11/10/2023
+    975           T2(KT-1,IU-1:ID+1)    = 0.0
+    976           CD(KT-1,IU-1:ID+1,CDN(1:NACD(JW),JW)) = 0.0
+    977           IF (UP_HEAD(JB)) THEN
+    978             QUH1(KT,JB)             = QUH1(KT,JB)+QUH1(KT-1,JB)
+    979             TSSUH1(KT,JB)           = TSSUH1(KT-1,JB)          +TSSUH1(KT,JB)
+    980             CSSUH1(KT,CN(1:NAC),JB) = CSSUH1(KT-1,CN(1:NAC),JB)+CSSUH1(KT,CN(1:NAC),JB)
+    981           END IF
+    982           IF (DN_HEAD(JB)) THEN
+    983             QDH1(KT,JB)             = QDH1(KT,JB)+QDH1(KT-1,JB)
+    984             TSSDH1(KT,JB)           = TSSDH1(KT-1,JB)          +TSSDH1(KT,JB)
+    985             CSSDH1(KT,CN(1:NAC),JB) = CSSDH1(KT-1,CN(1:NAC),JB)+CSSDH1(KT,CN(1:NAC),JB)
+    986           END IF
+    987 
+    988 !******** Upstream active segment
+    989 
+    990           IUT = US(JB)
+    991           IF (SLOPE(JB) /= 0.0) THEN
+    992             DO I=US(JB)-1,DS(JB)+1
+    993               IF (KB(I) < KT ) THEN                                                                                  ! SR 10
+    993 /17/05
+    994                 KB(I)                 = KT
+    995                 Bnew(KB(I),I)         = 0.000001   ! sw 1/23/06
+    996                 IF(DXI(JW) >= 0.0)THEN
+    997                      DX(KB(I),I) = DXI(JW)
+
+Page 21          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+    998                 ELSE
+    999                      DX(KB(I),I) = ABS(U(KB(I),I))*ABS(DXI(JW))*H(K,JW)    ! SW 8/2/2017
+   1000                 ENDIF
+   1001                 ilayer(i)=1
+   1002                 T1(KB(I),I)           = T1(KT,I)                   !    SW 5/15/06    T1(KB(I)-1,I)
+   1003                 C1(KB(I),I,CN(1:NAC)) = C1(KT,I,CN(1:NAC))         !    SW 5/15/06    C1(KB(I)-1,I,CN(1:NAC))
+   1004                 CD(KB(I),I,CDN(1:NACD(JW),JW)) = CD(KT,I,CDN(1:NACD(JW),JW))    !SR 11/10/2023
+   1005                 
+   1006                 IF (SEDIMENT_CALC(JW))THEN      ! SW 5/26/2022
+   1007                 SED(KB(I),I)=SED(KT-1,I);SEDC(KB(I),I)=SEDC(KT-1,I);SEDN(KB(I),I)=SEDN(KT-1,I);SEDP(KB(I),I)=SEDP(KT-1,I)
+   1008                 ENDIF              
+   1009                 
+   1010                 WRITE (WRN,'(2(A,I8),A,F0.3,A,F0.3)') 'Lowering bottom segment ',I,' at iteration ',NIT,' at Julian day ',&
+   1011                                                        JDAY,' Z(I)=',Z(I)
+   1012                 WARNING_OPEN = .TRUE.
+   1013               END IF
+   1014             ENDDO                    ! SW 1/23/06
+   1015             DO I=US(JB)-1,DS(JB)+1   ! SW 1/23/06
+   1016                 IF (I /= US(JB)-1) KBMIN(I-1) = MIN(KB(I-1),KB(I))  ! SW 1/23/06
+   1017                 IF(KBI(I) < KB(I))THEN
+   1018                 BKT(I)=BH1(KT,I)/(H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB))    ! SW 1/23/06   SR 1/2024
+   1019                 DEPTHB(KT,I)=H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB)    ! SW 1/23/06
+   1020                 DEPTHM(KT,I)=(H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB))*0.5D0     ! SW 1/23/06
+   1021 !AVHR(KT,I)= H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB)   +(H1(KT,I+1)-(EL(KBI(I)+1,I+1)-EL(KB(I)+1,I+1))/COSA(JB)   &
+   1021       ! SR 1/2024
+   1022 !        -H1(KT,I)+(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB))*DLX(I)/(DLX(I)+DLX(I+1))                                        
+   1022                                    ! SW 1/23/06
+   1023                 END IF
+   1024                 IF (I <= DS(JB)) THEN   ! SR 7/2024
+   1025                 IF (KBI(I) < KB(I) .OR. KBI(I+1) < KB(I+1)) THEN
+   1026                   HTMP1 = H1(KT,I)
+   1027                   HTMP2 = H1(KT,I+1)
+   1028                   IF (KBI(I)   < KB(I))   HTMP1 = H1(KT,I)-(EL(KBI(I)+1,I)-EL(KB(I)+1,I))/COSA(JB)
+   1029                   IF (KBI(I+1) < KB(I+1)) HTMP2 = H1(KT,I+1)                                     &
+   1030                                                  -(EL(KBI(I+1)+1,I+1)-EL(KB(I+1)+1,I+1))/COSA(JB)
+   1031                   AVHR(KT,I) = HTMP1 +(HTMP2-HTMP1)*DLX(I)/(DLX(I)+DLX(I+1))
+   1032 !IF (CONSTRICTION(KT,I)) THEN
+   1033 !  IF (SPLR(KT,I) > BCONSTRICTION(I)+2.0D0*AVHR(KT,I))                          &
+   1034 !                                 SPLR(KT,I) = BCONSTRICTION(I)+2.0D0*AVHR(KT,I)
+   1035 !END IF
+   1036                 END IF
+   1037               ELSE
+   1038                 IF (KBI(ID+1) < KB(ID+1)) THEN
+   1039                   AVHR(KT,ID+1) = H1(KT,ID+1)-(EL(KBI(ID+1)+1,ID+1)-EL(KB(ID+1)+1,ID+1))/COSA(JB)
+   1040                 ELSE
+   1041                   AVHR(KT,ID+1) = H1(KT,ID+1)
+   1042                 END IF
+   1043               END IF
+   1044 
+   1045             ENDDO
+   1046 
+   1047         DO I=US(JB),DS(JB)   ! SW 1/23/06   11/13/07   US(JB)-1,DS(JB)+1
+   1048 
+   1049          IF(ILAYER(I).EQ.1.AND.ILAYER(I+1).EQ.0)THEN  ! SW 1/23/06
+   1050          BHRSUM=0.0
+   1051          Q(I)=0.0
+   1052           DO K=KT,KBMIN(I)
+
+Page 22          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+   1053             IF (.NOT. INTERNAL_WEIR(K,I)) THEN
+   1054               BHRSUM = BHRSUM+BHR1(K,I)
+   1055               Q(I)   = Q(I)+U(K,I)*BHR1(K,I)
+   1056             END IF
+   1057           END DO
+   1058           DO K=KT,KBMIN(I)
+   1059             IF (INTERNAL_WEIR(K,I)) THEN
+   1060               U(K,I) = 0.0
+   1061             ELSE
+   1062               U(K,I) =  U(K,I)+(QC(I)-Q(I))/BHRSUM
+   1063             END IF
+   1064           END DO
+   1065           ELSEIF(ILAYER(I).EQ.1.AND.ILAYER(I-1).EQ.0)THEN
+   1066           BHRSUM=0.0
+   1067           Q(I-1)=0.0
+   1068           DO K=KT,KBMIN(I-1)
+   1069             IF (.NOT. INTERNAL_WEIR(K,I-1)) THEN
+   1070               BHRSUM = BHRSUM+BHR1(K,I-1)
+   1071               Q(I-1)   = Q(I-1)+U(K,I-1)*BHR1(K,I-1)
+   1072             END IF
+   1073           END DO
+   1074           DO K=KT,KBMIN(I-1)
+   1075             IF (INTERNAL_WEIR(K,I-1)) THEN
+   1076               U(K,I-1) = 0.0
+   1077             ELSE
+   1078               U(K,I-1) =  U(K,I-1)+(QC(I-1)-Q(I-1))/BHRSUM
+   1079             END IF
+   1080           END DO
+   1081           ENDIF    ! SW 1/23/06
+   1082 
+   1083             END DO
+   1084           END IF
+   1085           DO I=US(JB),DS(JB)
+   1086             IF (KB(I)-KT < NL(JB)-1) IUT = I+1
+   1087             ONE_LAYER(I) = KTWB(JW) == KB(I)
+   1088           END DO
+   1089 
+   1090 !******** Fail if a main branch (JB=1 or JB=JBDN(JW)) has no active segments.  SR added the JBDN criterion.           !SR 11
+   1090 /30/2021
+   1091           IF (IUT > DS(JB) .AND. (JB == 1 .OR. JB == JBDN(JW))) THEN          !SR-- combined two lines and modified   !SR 11
+   1091 /30/2021
+   1092             WRITE (W2ERR,'(A,I0/A,F0.2,2(A,I0))') 'Fatal error - insufficient segments in branch ',JB,'Julian day = ',JDAY, 
+   1092      &    ! SEE NEW CODE BELOW
+   1093                                                   ' at iteration ',NIT,' with water surface layer = ',KT
+   1094             WRITE (W2ERR,'(2(A,I0))')             'Minimum water surface located at segment ',IZMIN(JW),' with bottom layer 
+   1094 at ',&
+   1095                                                    KB(IZMIN(JW))
+   1096             TEXT = 'Runtime error - see w2.err'
+   1097             ERROR_OPEN = .TRUE.
+   1098             RETURN
+   1099           END IF                                                                                                      !SR 11
+   1099 /30/2021
+   1100 
+   1101 !******** Inactivate a branch if <2 active segments.  SR changed from 1 to 2, so as to be consistent with activation  !SR 11
+   1101 /30/2021
+   1102 !******** SR also made this apply only for non-main branches-- not BR 1 or any JBDN(JW).  Those can have 1 active seg !SR 11
+   1102 /30/2021
+
+Page 23          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+   1103           IF (IUT > DS(JB)-1 .AND. JB /= 1 .AND. JB /= JBDN(JW)) THEN                                                 !SR 11
+   1103 /30/2021
+   1104             BR_INACTIVE(JB)=.TRUE.  ! SW 6/12/2017
+   1105             IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/1X,13("*"),1X,A,I0,A,F0.3,A,I0,1X,A,I0,13("*"))') '   Branch Inactive: ',jb,
+   1105 &
+   1106                                                         ' at Julian day = ',JDAY,'   NIT = ',NIT 
+   1107             WARNING_OPEN = .TRUE.
+   1108             WRITE (WRN,'(/1X,13("*"),1X,A,I0,A,F0.3,A,I0,1X,A,I0,13("*"))') '   Branch Inactive: ',jb,' at Julian day = ',JD
+   1108 AY,'   NIT = ',NIT    ! SW 11/16/2018
+   1109             DO I=IU,DS(JB)   ! SW 12/17/2018
+   1110               IF (KT > KB(I)) THEN                       !SR-- segment with no active layers after seg subtraction    !SR 11
+   1110 /30/2021
+   1111                 EBRI(JB)            = EBRI(JB)-T1(KT,I)*BH1(KT,I)*DLX(I)           !T1(KT,I) and BH1(KT,I) recomputed !SR 11
+   1111 /30/2021
+   1112                 CMBRT(CN(1:NAC),JB) = CMBRT(CN(1:NAC),JB)-C1(KT,I,CN(1:NAC))*BH1(KT,I)*DLX(I)   !C1(KT...) recomputed !SR 11
+   1112 /30/2021
+   1113               ELSE                                                                                                    !SR 11
+   1113 /30/2021
+   1114 ! DO K=KT-1,KB(I)       ! SW 12/18/2018  KT,KB(I)                !SR-- this didn't work for NL(JB) > 1  !SR 11/30/2021
+   1115                 DO K=KT,KB(I)                            !SR-- segment with >=1 active layer after seg subtraction    !SR 11
+   1115 /30/2021
+   1116                 EBRI(JB)            = EBRI(JB)-T1(K,I)*BH1(K,I)*DLX(I)    ! VOL(K,I)   SW 12/18/2018
+   1117                 CMBRT(CN(1:NAC),JB) = CMBRT(CN(1:NAC),JB)-C1(K,I,CN(1:NAC))*BH1(K,I)*DLX(I)   !VOL(K,I)              !+(CSSB
+   1117 (K,I,CN(1:NAC))+CSSK(K,I,CN(1:NAC))*VOL(K,I))*DLT
+   1118               END DO
+   1119               END IF                                                                                                  !SR 11
+   1119 /30/2021
+   1120               NTAC = NTAC-(KB(I)-(KT-1)+1)        ! counting KT-1 as well, which was active before layer subtracted   !SR 11
+   1120 /30/2021
+   1121             END DO
+   1122             NTACMN = MIN(NTAC,NTACMN)                                                                                 !SR 11
+   1122 /30/2021
+   1123             CYCLE
+   1124 
+   1125 ! Go to 230
+   1126           END IF
+   1127 
+   1128 !******** Segment subtraction
+   1129 
+   1130           IF (IUT /= IU) THEN
+   1131             IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/17X,A,I0,A,I0)') ' Subtract segments ',IU,' through ',IUT-1
+   1132             WARNING_OPEN = .TRUE.
+   1133             WRITE(WRN,'(/17X,A,I0,A,I0)') ' Subtract segments ',IU,' through ',IUT-1
+   1134             DO I=IU,IUT-1
+   1135               IF (KT > KB(I)) THEN                       !SR-- segment with no active layers after seg subtraction    !SR 11
+   1135 /30/2021
+   1136                 EBRI(JB)            = EBRI(JB)-T1(KT,I)*BH1(KT,I)*DLX(I)           !T1(KT,I) and BH1(KT,I) recomputed !SR 11
+   1136 /30/2021
+   1137                 CMBRT(CN(1:NAC),JB) = CMBRT(CN(1:NAC),JB)-C1(KT,I,CN(1:NAC))*BH1(KT,I)*DLX(I)   !C1(KT...) recomputed !SR 11
+   1137 /30/2021
+   1138               ELSE                                                                                                    !SR 11
+   1138 /30/2021
+   1139 ! DO K=KT-1,KB(I)     ! SW 12/18/2018 KT,KB(I)                   !SR-- this didn't work for NL(JB) > 1  !SR 11/30/2021
+   1140                 DO K=KT,KB(I)                            !SR-- segment with >=1 active layer after seg subtraction    !SR 11
+   1140 /30/2021
+   1141                 EBRI(JB)            = EBRI(JB)-T1(K,I)*BH1(K,I)*DLX(I)      !*VOL(K,I)    SW 12/18/2018
+   1142                 CMBRT(CN(1:NAC),JB) = CMBRT(CN(1:NAC),JB)-C1(K,I,CN(1:NAC))*BH1(K,I)*DLX(I)    !*VOL(K,I)        !+(CSSB(K,I
+
+Page 24          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+   1142 ,CN(1:NAC))+CSSK(K,I,CN(1:NAC))*VOL(K,I))*DLT
+   1143               END DO
+   1144               END IF                                                                                                  !SR 11
+   1144 /30/2021
+   1145               NTAC = NTAC-(KB(I)-(KT-1)+1)        ! counting KT-1 as well, which was active before layer subtracted   !SR 11
+   1145 /30/2021
+   1146             END DO
+   1147 
+   1148             DO I=IU,IUT-1
+   1149               DO M=1,NMC
+   1150                 IF(MACROPHYTE_CALC(JW,M))THEN
+   1151                   JT=KTI(I)
+   1152                   JE=KB(I)
+   1153                   DO J=JT,JE
+   1154                     IF(J.LT.KT)THEN
+   1155                       COLB=EL(J+1,I)
+   1156                     ELSE
+   1157                       COLB=EL(KT+1,I)
+   1158                     END IF
+   1159 !COLDEP=ELWS(I)-COLB
+   1160                      coldep=EL(KT,i)-Z(i)*COSA(JB)-colb  ! cb 3/7/16
+   1161 !                    MACMBRT(JB,M) = MACMBRT(JB,M)-MACRM(J,KT,I,M)+(MACSS(J,KT,I,M)*COLDEP*CW(J,I)*DLX(I))*DLT
+   1162                     MACMBRT(JB,M) = MACMBRT(JB,M)-MACRM(J,KT,I,M)
+   1163                   END DO
+   1164                   DO K=KT+1,KB(I)
+   1165                     JT=K
+   1166                     JE=KB(I)
+   1167                     DO J=JT,JE
+   1168 !                      MACMBRT(JB,M) = MACMBRT(JB,M)-MACRM(J,K,I,M)+(MACSS(J,K,I,M)*H2(K,I)*CW(J,I)*DMX(I))*DLT
+   1169                       MACMBRT(JB,M) = MACMBRT(JB,M)-MACRM(J,K,I,M)
+   1170                     END DO
+   1171                   END DO
+   1172                 END IF
+   1173               END DO
+   1174             END DO
+   1175             
+   1176             F(IU-1:IUT-1)     =  0.0
+   1177             Z(IU-1:IUT-1)     =  0.0
+   1178 !ICETH(IU-1:IUT-1) =  0.0    ! SW 9/29/15
+   1179             BHRHO(IU-1:IUT-1) =  0.0
+   1180 !ICE(IU-1:IUT-1)   = .FALSE.  ! SW 9/29/15
+   1181             DO K=KT,KB(IUT)
+   1182               ADX(K,IU-1:IUT-1)            = 0.0
+   1183               DX(K,IU-1:IUT-1)             = 0.0
+   1184               AZ(K,IU-1:IUT-1)             = 0.0
+   1185               TKE(K,IU-1:IUT-1,1)          = 0.0 !SG  10/4/07
+   1186               TKE(K,IU-1:IUT-1,2)          = 0.0 !SG  10/4/07
+   1187               SAZ(K,IU-1:IUT-1)            = 0.0
+   1188               U(K,IU-1:IUT-1)              = 0.0
+   1189               SU(K,IU-1:IUT-1)             = 0.0
+   1190               T1(K,IU-1:IUT-1)             = 0.0
+   1191               T2(K,IU-1:IUT-1)             = 0.0 !SR 11/10/2023
+   1192               TSS(K,IU-1:IUT-1)            = 0.0
+   1193               QSS(K,IU-1:IUT-1)            = 0.0
+   1194               C1(K,IU-1:IUT-1,CN(1:NAC))   = 0.0
+   1195               C2(K,IU-1:IUT-1,CN(1:NAC))   = 0.0
+   1196               C1S(K,IU-1:IUT-1,CN(1:NAC))  = 0.0
+
+Page 25          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+   1197               CSSB(K,IU-1:IUT-1,CN(1:NAC)) = 0.0
+   1198               CSSK(K,IU-1:IUT-1,CN(1:NAC)) = 0.0
+   1199               CD(K,IU-1:IUT-1,CDN(1:NACD(JW),JW)) = 0.0  !SR 11/10/2023
+   1200             END DO
+   1201             
+   1202             DO M=1,NMC
+   1203               IF (MACROPHYTE_CALC(JW,M)) THEN
+   1204                 MAC(K,I,M)=0.0
+   1205                 MACT(J,K,I)=0.0
+   1206               END IF
+   1207             END DO
+   1208             JT=KTI(I)
+   1209             JE=KB(I)
+   1210             DO J=JT,JE
+   1211               DO M=1,NMC
+   1212                 IF(MACROPHYTE_CALC(JW,M))THEN
+   1213                   MACRC(J,K,I,M) = 0.0
+   1214                 END IF
+   1215               END DO
+   1216             END DO
+   1217 
+   1218             IU           =  IUT
+   1219             CUS(JB)      =  IU
+   1220             Z(IU-1)      = (EL(KT,IU-1)-(EL(KT,IU)-Z(IU)*COSA(JB)))/COSA(JB)
+   1221             SZ(IU-1)     =  Z(IU)
+   1222             KTI(IU-1)    =  KTI(IU)
+   1223             IF (.NOT. TRAPEZOIDAL(JW)) THEN
+   1224               BI(KT,IU-1)  = B(KTI(IU-1),I)
+   1225               H1(KT,IU-1)  = H(KT,JW)-Z(IU-1)
+   1226               BH1(KT,IU-1) = Bnew(KTI(IU-1),IU-1)*(EL(KT,IU-1)-EL(KTI(IU-1)+1,IU-1)-Z(IU-1)*COSA(JB))/COSA(JB)   ! sw 1/23/0
+   1226 6  Bnew(KTI(IU-1),IU-1)*(EL(KT,IU-1)-EL(KTI(IU-1)+1,IU-1)-Z(IU-1)*COSA(JB))/COSA(JB)     ! SR 10/17/05
+   1227               IF (KT >= KB(IU-1)) BH1(KT,IU-1) = Bnew(KT,IU-1)*H1(KT,IU-1)   ! sw 1/23/06
+   1228               DO K=KTI(IU-1)+1,KT
+   1229                 BH1(KT,IU-1) = BH1(KT,IU-1)+BH1(K,IU-1)
+   1230               END DO
+   1231             ELSE
+   1232               CALL GRID_AREA1 (EL(KT,I)-Z(I),EL(KT+1,IU-1),BH1(KT,IU-1),BI(KT,IU-1))                                        
+   1232      !SW 08/03/04
+   1233               BH1(KT,I) = 0.25*H(KT,JW)*(BB(KT-1,I)+2.*B(KT,I)+BB(KT,I))
+   1234               H1(KT,I)  = H(KT,JW)-Z(I)
+   1235             END IF
+   1236             BKT(IU-1)     =  BH1(KT,IU-1)/H1(KT,IU-1)
+   1237             BHR1(KT,IU-1) =  BH1(KT,IU-1)+(BH1(KT,IU)-BH1(KT,IU-1))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                 !SW 0
+   1237 7/29/04
+   1238                             IF(CONSTRICTION(KT,IU-1))THEN    ! SW 6/26/2018 Valid for all K
+   1239                                         IF(BHR1(KT,IU-1) > BCONSTRICTION(IU-1)*H1(KT,IU-1))BHR1(KT,IU-1)= BCONSTRICTION(IU-1
+   1239 )*H1(KT,IU-1)
+   1240                              ENDIF
+   1241             IF (UH_EXTERNAL(JB)) KB(IU-1) = KB(IU)
+   1242             IF (UH_INTERNAL(JB)) THEN
+   1243               IF (JBUH(JB) >= BS(JW) .AND. JBUH(JB) <= BE(JW)) THEN
+   1244                 KB(IU-1) = MIN(KB(UHS(JB)),KB(IU))
+   1245               ELSE
+   1246                 DO KKB = KT, KMX
+   1247                   IF (EL(KKB,IU) <= EL(KB(UHS(JB)),UHS(JB))) EXIT
+   1248                 END DO
+   1249                 KB(IU-1) = MIN(KKB,KB(IU))
+
+Page 26          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+   1250               END IF
+   1251             END IF
+   1252           END IF
+   1253           IF (CONSTITUENTS) THEN      ! SW 5/15/06
+   1254             CALL TEMPERATURE_RATES
+   1255             CALL KINETIC_RATES
+   1256           END IF
+   1257 
+   1258 
+   1259 !******** Total active cells
+   1260 
+   1261           DO I=IU,ID
+   1262             NTAC = NTAC-1
+   1263           END DO
+   1264           NTACMN = MIN(NTAC,NTACMN)
+   1265         END DO
+   1266         
+   1267         CALL INTERPOLATION_MULTIPLIERS   
+   1268         
+   1269 !****** Additional layer subtractions
+   1270 
+   1271         ZMIN(JW) = -1000.0
+   1272         DO JB=BS(JW),BE(JW)
+   1273         IF(BR_INACTIVE(JB))CYCLE    ! SW 6/12/2017
+   1274           DO I=CUS(JB),DS(JB)
+   1275             ZMIN(JW) = MAX(ZMIN(JW),Z(I))
+   1276           END DO
+   1277         END DO
+   1278         SUB_LAYER = ZMIN(JW) > 0.60*H(KT,JW) .AND. KT < KTMAX                                                         ! SR 1
+   1278 0/17/05
+   1279       END DO
+   1280     END DO
+   1281 
+   1282 !** Temporary downstream head segment
+   1283 
+   1284     DO JB=1,NBR
+   1285     IF(BR_INACTIVE(JB))CYCLE    ! SW 6/12/2017
+   1286       IF (DHS(JB) > 0) THEN
+   1287 !DO JJB=1,NBR
+   1288 !  IF (DHS(JB) >= US(JJB) .AND. DHS(JB) <= DS(JJB)) EXIT
+   1289 !END DO
+   1290 !IF (CUS(JJB) > DHS(JB)) CDHS(JB) = CUS(JJB)
+   1291         CDHS(JB) = MAX(DHS(JB),CUS(JBDH(JB)))                  ! SR 1/2024
+   1292       END IF
+   1293     END DO
+   1294 RETURN
+   1295 END SUBROUTINE LAYERADDSUB
+
+Page 27          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Entry Points                    ..\..\..\layeraddsub.F90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name        
+                                
+       LAYERADDSUB              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ABS                        Func   153                                  scalar                    153,191,285,462,649,795,999       
+ ADD_LAYER                  Local  242      L(4)            4           scalar                    242,253,261,768                   
+ ADMZ                       Local  971      R(8)            8     2     1        PTR              971                               
+ ADX                        Local  359      R(8)            8     2     1        ALC              359,723,1182                      
+ ADZ                        Local  972      R(8)            8     2     1        ALC              972                               
+ AVH1                       Local  74       R(8)            8     2     1        ALC              74,129,316,317,598,605,616,829,830
+ AVH2                       Local  129      R(8)            8     2     1        ALC              129                               
+ AVHR                       Local  124      R(8)            8     2     1        ALC              124,420,421,529,537,539,630,631,95
+                                                                                                  4,955,1031,1039,1041              
+ AZ                         Local  211      R(8)            8     2     1        PTR              211,214,216,471,476,674,677,679,73
+                                                                                                  8,967,1184                        
+ AZMIN                      Param  471      R(8)            8           scalar                    471,474,738,741                   
+ B                          Local  73       R(8)            8     2     1        ALC              73,81,83,86,93,323,330,331,372,497
+                                                                                                  ,601,603,604,608,614,827,828,834,8
+                                                                                                  40,1224,1233                      
+ BB                         Local  93       R(8)            8     2     1        ALC              93,323,434,437,614,840,1233       
+ BCONSTRICTION              Local  126      R(8)            8     1     1        ALC              126,127,425,426,635,636,959,960,12
+                                                                                                  39                                
+ BE                         Local  23       I(4)            4     1     1        ALC              23,277,307,728,762,787,818,1243,12
+                                                                                                  72                                
+ BH                         Local  88       R(8)            8     2     1        ALC              88,610,847,854,855                
+ BH1                        Local  83       R(8)            8     2     1        ALC              83,85,86,88,91,93,100,101,105,116,
+                                                                                                  125,207,208,319,320,322,323,325,32
+                                                                                                  6,327,422,423,436,511,601,607,608,
+                                                                                                  610,613,614,619,620,624,632,633,67
+                                                                                                  0,671,833,834,836,839,840,842,843,
+                                                                                                  844,847,854,855,944,956,957,1018,1
+                                                                                                  111,1112,1116,1117,1136,1137,1141,
+                                                                                                  1142,1226,1227,1229,1232,1233,1236
+                                                                                                  ,1237                             
+ BH2                        Local  116      R(8)            8     2     1        ALC              116                               
+ BHR                        Local  846      R(8)            8     2     1        ALC              846                               
+ BHR1                       Local  125      R(8)            8     2     1        ALC              125,126,127,130,422,423,425,426,43
+                                                                                                  5,441,442,443,444,445,446,447,450,
+                                                                                                  451,452,453,454,455,456,556,557,57
+                                                                                                  2,573,632,633,635,636,846,956,957,
+                                                                                                  959,960,1054,1055,1070,1071,1237,1
+                                                                                                  239                               
+ BHR2                       Local  130      R(8)            8     2     1        ALC              130                               
+ BHRHO                      Local  1179     R(8)            8     1     1        ALC              1179                              
+ BHRSUM                     Local  552      R(8)            8           scalar                    552,556,564,568,572,580,1050,1054,
+                                                                                                  1062,1066,1070,1078               
+ BHSUM                      Local  441      R(8)            8           scalar                    441,442,443,444,445,446,447,450,45
+                                                                                                  1,452,453,454,455,456             
+
+Page 28          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ BI                         Local  73       R(8)            8     2     1        ALC              73,81,85,91,330,331,372,603,604,60
+                                                                                                  7,613,827,828,874,1224,1232       
+ BKT                        Local  100      R(8)            8     1     1        ALC              100,327,511,619,844,1018,1236     
+ BNEW                       Local  319      R(8)            8     2     1        ALC              319,320,497,995,1226,1227         
+ BR_INACTIVE                Local  24       L(4)            4     1     1        ALC              24,49,51,231,308,763,819,1104,1273
+                                                                                                  ,1285                             
+ BS                         Local  23       I(4)            4     1     1        ALC              23,277,307,728,762,787,818,1243,12
+                                                                                                  72                                
+ C1                         Local  113      R(8)            8     3     1        ALC,TGT          113,114,207,349,362,663,664,670,85
+                                                                                                  4,857,865,1003,1112,1117,1137,1142
+                                                                                                  ,1194                             
+ C1S                        Local  1196     R(8)            8     3     1        ALC,TGT          1196                              
+ C2                         Local  114      R(8)            8     3     1        ALC,TGT          114,350,363,664,866,1195          
+ CD                         Local  351      R(8)            8     3     1        ALC,TGT          351,364,665,976,1004,1199         
+ CDHS                       Local  1291     I(4)            4     1     1        ALC              1291                              
+ CDN                        Local  351      I(4)            4     2     1        ALC              351,364,665,976,1004,1199         
+ CMBRT                      Local  207      R(8)            8     2     1        ALC              207,670,1112,1117,1137,1142       
+ CN                         Local  113      I(4)            4     1     1        ALC              113,114,176,207,349,350,352,362,36
+                                                                                                  3,365,446,447,455,456,663,664,670,
+                                                                                                  854,855,857,858,860,865,866,867,86
+                                                                                                  8,980,985,1003,1112,1117,1137,1142
+                                                                                                  ,1194,1195,1196,1197,1198         
+ COLB                       Local  393      R(8)            8           scalar                    393,395,398,693,695,698,900,902,90
+                                                                                                  5,1155,1157,1160                  
+ COLDEP                     Local  398      R(8)            8           scalar                    398,404,698,703,905,912,1160      
+ CONSTITUENTS               Local  744      L(4)            4           scalar                    744,822,1253                      
+ CONSTRICTION               Local  126      L(4)            4     2     1        ALC              126,424,634,958,1238              
+ COSA                       Local  85       R(8)            8     1     1        ALC              85,398,511,512,513,526,528,537,607
+                                                                                                  ,698,905,1018,1019,1020,1028,1030,
+                                                                                                  1039,1160,1220,1226               
+ CSSB                       Local  860      R(8)            8     3     1        ALC,TGT          860,867,1197                      
+ CSSDH1                     Local  176      R(8)            8     3     1        ALC              176,455,456,985                   
+ CSSK                       Local  352      R(8)            8     3     1        ALC,TGT          352,365,855,858,868,1198          
+ CSSUH1                     Local  446      R(8)            8     3     1        ALC              446,447,980                       
+ CUS                        Local  49       I(4)            4     1     1        ALC              49,62,65,122,145,181,224,232,309,7
+                                                                                                  25,764,820,1219,1274,1291         
+ CW                         Local  404      R(4)            4     2     1        ALC              404,414,703,714,911,912           
+ DECAY                      Local  973      R(8)            8     2     1        ALC              973                               
+ DENSITY                    Func   117      R(8)            8           scalar                    117                               
+ DEPTHB                     Local  102      R(8)            8     2     1        ALC              102,106,153,285,328,346,512,621,62
+                                                                                                  5,795,1019                        
+ DEPTHM                     Local  103      R(8)            8     2     1        ALC              103,107,329,347,513,622,626,1020  
+ DHS                        Local  49       I(4)            4     1     1        ALC              49,66,67,111,112,113,114,182,207,2
+                                                                                                  08,211,212,213,214,1286,1291      
+ DLX                        Local  101      R(8)            8     1     1        ALC              101,105,124,125,207,208,325,326,37
+                                                                                                  2,404,414,420,421,422,423,435,436,
+                                                                                                  529,620,624,630,631,632,633,670,67
+                                                                                                  1,703,714,842,843,874,912,944,954,
+                                                                                                  955,956,957,1031,1111,1112,1116,11
+                                                                                                  17,1136,1137,1141,1142,1237       
+ DMAX1                      Func   117                                  scalar                    117                               
+ DN_HEAD                    Local  172      L(4)            4     1     1        ALC              172,449,469,982                   
+ DO1                        Local  822      R(4)            4     2     1        ALC              822                               
+ DS                         Local  25       I(4)            4     1     1        ALC              25,26,28,46,49,55,58,65,122,145,18
+                                                                                                  1,224,232,277,310,491,495,506,522,
+
+Page 29          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  544,550,764,787,821,992,1015,1024,
+                                                                                                  1047,1085,1091,1103,1109,1274     
+ DUMMY                      Local  11       R(8)            8           scalar                    322,839                           
+ DX                         Local  189      R(8)            8     2     1        ALC              189,191,194,460,462,464,498,647,64
+                                                                                                  9,653,997,999,1183                
+ DXI                        Local  188      R(8)            8     1     1        ALC              188,189,191,459,460,462,646,647,64
+                                                                                                  9,996,997,999                     
+ DYNAMIC_SHADE              Local  183      L(4)            4     1     1        ALC              183,643                           
+ DZ                         Local  970      R(8)            8     2     1        ALC              970                               
+ EBRI                       Local  208      R(8)            8     1     1        ALC              208,671,1111,1116,1136,1141       
+ EDDY                       Module 4                                                              4                                 
+ EKBWR                      Local  151      R(4)            4     1     1        ALC              151,153,159,283,285,291,793,795,80
+                                                                                                  1                                 
+ EKTWR                      Local  146      R(4)            4     1     1        ALC              146,149,278,281,788,791           
+ EL                         Local  85       R(8)            8     2     1        ALC              85,91,322,393,395,398,511,512,513,
+                                                                                                  526,528,537,607,613,693,695,698,73
+                                                                                                  2,839,900,902,905,1018,1019,1020,1
+                                                                                                  028,1030,1039,1155,1157,1160,1220,
+                                                                                                  1226,1232,1247                    
+ EPC                        Local  205      R(4)            4     3     1        ALC              205,374,375,379,382,668,875,878,88
+                                                                                                  2,885                             
+ EPD                        Local  204      R(4)            4     3     1        ALC              204,371,372,377,380,667,874,877,88
+                                                                                                  1,884                             
+ EPM                        Local  372      R(4)            4     3     1        ALC              372,373,374,375,378,381,873,874,87
+                                                                                                  5,876,880,883                     
+ ERROR_OPEN                 Local  1097     L(4)            4           scalar                    1097                              
+ F                          Local  1176     R(8)            8     1     1        ALC              1176                              
+ GDAYC                      Module 5                                                              5                                 
+ GEOMC                      Module 4                                                              4                                 
+ GLOBAL                     Module 4                                                              4                                 
+ GRID_AREA1                 Subr   91                                                             91,322,613,839,1232               
+ H                          Local  68       R(8)            8     2     1        ALC              68,70,83,93,191,242,243,245,312,31
+                                                                                                  3,314,315,414,462,597,601,602,614,
+                                                                                                  615,649,768,824,825,826,829,834,99
+                                                                                                  9,1225,1233,1234,1278             
+ H1                         Local  68       R(8)            8     2     1        ALC              68,70,74,86,100,102,103,106,107,11
+                                                                                                  5,124,126,127,205,313,314,316,317,
+                                                                                                  319,320,323,327,328,329,346,347,37
+                                                                                                  2,420,421,425,426,511,512,513,524,
+                                                                                                  525,526,527,537,539,597,598,602,60
+                                                                                                  5,608,615,616,619,621,622,625,626,
+                                                                                                  630,631,635,636,668,825,826,830,84
+                                                                                                  0,844,874,954,955,959,960,1018,101
+                                                                                                  9,1020,1026,1027,1028,1029,1039,10
+                                                                                                  41,1225,1227,1234,1236,1239       
+ H2                         Local  115      R(8)            8     2     1        ALC              115,315,714                       
+ HTMP1                      Local  524      R(8)            8           scalar                    524,526,529,1026,1028,1031        
+ HTMP2                      Local  525      R(8)            8           scalar                    525,527,529,1027,1029,1031        
+ I                          Local  46       I(4)            4           scalar                    46,47,65,66,67,68,69,70,72,73,74,8
+                                                                                                  1,82,83,85,86,87,88,91,92,93,100,1
+                                                                                                  01,102,103,104,105,106,107,109,110
+                                                                                                  ,111,112,113,114,115,116,117,122,1
+                                                                                                  23,124,125,126,127,129,130,173,181
+                                                                                                  ,182,183,184,185,186,189,191,193,1
+                                                                                                  94,195,199,200,204,205,207,208,210
+
+Page 30          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  ,211,212,213,214,215,216,217,218,2
+                                                                                                  19,224,225,226,232,233,234,235,238
+                                                                                                  ,311,312,313,314,315,316,317,319,3
+                                                                                                  20,322,323,325,326,327,328,329,330
+                                                                                                  ,331,332,333,334,335,336,337,338,3
+                                                                                                  40,341,342,343,346,347,349,350,351
+                                                                                                  ,352,353,354,357,358,359,360,361,3
+                                                                                                  62,363,364,365,366,367,370,371,372
+                                                                                                  ,373,374,375,377,378,379,380,381,3
+                                                                                                  82,388,389,390,393,395,398,400,403
+                                                                                                  ,404,410,414,419,420,421,422,423,4
+                                                                                                  24,425,426,428,430,431,432,434,435
+                                                                                                  ,436,437,458,460,462,464,470,471,4
+                                                                                                  72,473,474,475,476,477,478,479,491
+                                                                                                  ,492,495,496,497,498,499,500,501,5
+                                                                                                  02,506,509,510,511,512,513,522,523
+                                                                                                  ,524,525,526,527,528,529,544,545,5
+                                                                                                  46,550,551,553,554,555,556,557,560
+                                                                                                  ,561,562,564,567,569,570,571,572,5
+                                                                                                  73,576,577,578,580,594,595,596,597
+                                                                                                  ,598,601,602,603,604,605,607,608,6
+                                                                                                  09,610,613,614,615,616,619,620,621
+                                                                                                  ,622,623,624,625,626,629,630,631,6
+                                                                                                  32,633,634,635,636,639,642,643,644
+                                                                                                  ,645,647,649,651,652,653,654,657,6
+                                                                                                  59,660,661,662,663,664,665,667,668
+                                                                                                  ,670,671,673,674,675,676,677,678,6
+                                                                                                  79,680,681,682,689,690,693,695,698
+                                                                                                  ,700,701,702,703,704,706,708,711,7
+                                                                                                  12,713,714,715,751,753,764,765,823
+                                                                                                  ,824,825,826,827,828,829,830,832,8
+                                                                                                  33,834,836,839,840,842,843,844,845
+                                                                                                  ,846,847,850,851,853,854,855,857,8
+                                                                                                  58,860,863,864,865,866,867,868,869
+                                                                                                  ,870,872,873,874,875,876,877,878,8
+                                                                                                  80,881,882,883,884,885,889,892,893
+                                                                                                  ,895,897,900,902,905,907,909,911,9
+                                                                                                  12,914,916,917,922,923,925,926,931
+                                                                                                  ,938,939,941,944,948,953,954,955,9
+                                                                                                  56,957,958,959,960,992,993,994,995
+                                                                                                  ,997,999,1001,1002,1003,1004,1007,
+                                                                                                  1010,1011,1015,1016,1017,1018,1019
+                                                                                                  ,1020,1024,1025,1026,1027,1028,102
+                                                                                                  9,1030,1031,1047,1049,1051,1052,10
+                                                                                                  53,1054,1055,1058,1059,1060,1062,1
+                                                                                                  065,1067,1068,1069,1070,1071,1074,
+                                                                                                  1075,1076,1078,1085,1086,1087,1109
+                                                                                                  ,1110,1111,1112,1115,1116,1117,112
+                                                                                                  0,1134,1135,1136,1137,1140,1141,11
+                                                                                                  42,1145,1148,1151,1152,1155,1157,1
+                                                                                                  160,1162,1164,1166,1169,1204,1205,
+                                                                                                  1208,1209,1213,1224,1232,1233,1234
+                                                                                                  ,1237,1261,1274,1275              
+ ID                         Local  310      I(4)            4           scalar                    310,311,388,419,430,450,451,452,45
+                                                                                                  3,454,455,456,458,467,469,536,537,
+
+Page 31          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  539,751,821,822,823,889,953,963,96
+                                                                                                  4,965,966,967,968,969,970,971,972,
+                                                                                                  973,974,975,976,1038,1039,1041,126
+                                                                                                  1                                 
+ IDT                        Local  467      I(4)            4           scalar                    467,469,470                       
+ ILAYER                     Local  272      I(4)            4     1     1        ALC              272,500,551,567,782,1001,1049,1065
+ INT                        Func   149                                  scalar                    149,159,281,291,791,801           
+ INTERNAL_WEIR              Local  163      L(4)            4     2     1        ALC              163,165,193,215,297,299,464,475,55
+                                                                                                  5,561,571,577,652,678,807,809,1053
+                                                                                                  ,1059,1069,1075                   
+ INTERPOLATION_MULTIPLIERS  Subr   757                                                            757,1267                          
+ ISO_MACROPHYTE             Local  700      L(4)            4     2     1        ALC              700,711                           
+ IU                         Local  309      I(4)            4           scalar                    309,311,388,419,430,441,442,443,44
+                                                                                                  4,445,446,447,458,466,468,590,591,
+                                                                                                  593,594,595,596,629,639,642,645,66
+                                                                                                  0,661,662,663,664,665,670,671,674,
+                                                                                                  675,676,677,721,722,723,724,725,72
+                                                                                                  6,729,732,734,738,739,740,741,751,
+                                                                                                  820,822,823,889,953,963,964,965,96
+                                                                                                  6,967,968,969,970,971,972,973,974,
+                                                                                                  975,976,1109,1130,1131,1133,1134,1
+                                                                                                  148,1176,1177,1179,1182,1183,1184,
+                                                                                                  1185,1186,1187,1188,1189,1190,1191
+                                                                                                  ,1192,1193,1194,1195,1196,1197,119
+                                                                                                  8,1199,1218,1219,1220,1221,1222,12
+                                                                                                  24,1225,1226,1227,1228,1229,1232,1
+                                                                                                  236,1237,1238,1239,1241,1244,1247,
+                                                                                                  1249,1261                         
+ IUT                        Local  45       I(4)            4           scalar                    45,47,49,55,58,62,466,468,470,489,
+                                                                                                  492,590,591,593,594,629,639,721,72
+                                                                                                  2,723,724,990,1086,1091,1103,1130,
+                                                                                                  1131,1133,1134,1148,1176,1177,1179
+                                                                                                  ,1181,1182,1183,1184,1185,1186,118
+                                                                                                  7,1188,1189,1190,1191,1192,1193,11
+                                                                                                  94,1195,1196,1197,1198,1199,1218  
+ IWR                        Local  145      I(4)            4     1     1        ALC              145,152,153,163,165,277,284,285,29
+                                                                                                  7,299,787,794,795,807,809         
+ IZMIN                      Local  235      I(4)            4     1     1        ALC              235,244,246,263,266,775,776,1094,1
+                                                                                                  095                               
+ I_BR_NUM                   Local  9        I(4)            4           scalar                    26,28                             
+ J                          Local  391      I(4)            4           scalar                    391,392,393,400,403,404,411,414,69
+                                                                                                  1,692,693,700,701,702,703,704,709,
+                                                                                                  711,712,713,714,715,898,899,900,90
+                                                                                                  6,907,909,911,912,914,916,917,924,
+                                                                                                  925,926,930,931,940,941,1153,1154,
+                                                                                                  1155,1162,1167,1169,1205,1210,1213
+ JB                         Local  23       I(4)            4           scalar                    23,24,25,26,28,45,46,47,49,51,52,5
+                                                                                                  5,57,58,62,65,66,67,85,111,112,113
+                                                                                                  ,114,122,145,172,174,175,176,181,1
+                                                                                                  82,207,208,211,212,213,214,224,231
+                                                                                                  ,232,236,307,308,309,310,398,440,4
+                                                                                                  42,443,444,445,446,447,449,451,452
+                                                                                                  ,453,454,455,456,468,469,489,490,4
+                                                                                                  91,492,495,506,509,511,512,513,522
+                                                                                                  ,526,528,537,544,550,607,670,671,6
+
+Page 32          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  98,704,715,725,726,727,728,729,732
+                                                                                                  ,737,762,763,764,818,819,820,821,9
+                                                                                                  05,977,978,979,980,982,983,984,985
+                                                                                                  ,990,991,992,1015,1016,1018,1019,1
+                                                                                                  020,1024,1028,1030,1039,1047,1085,
+                                                                                                  1086,1091,1092,1103,1104,1105,1108
+                                                                                                  ,1109,1111,1112,1116,1117,1136,113
+                                                                                                  7,1141,1142,1160,1162,1169,1219,12
+                                                                                                  20,1226,1241,1242,1243,1244,1247,1
+                                                                                                  272,1273,1274,1284,1285,1286,1291 
+ JBDH                       Local  49       I(4)            4     1     1        ALC              49,1291                           
+ JBDN                       Local  1091     I(4)            4     1     1        ALC              1091,1103                         
+ JBIZ                       Local  9        I(4)            4           scalar                    236,244                           
+ JBUH                       Local  728      I(4)            4     1     1        ALC              728,1243                          
+ JDAY                       Local  53       R(8)            8           scalar                    53,57,247,263,266,502,775,776,1011
+                                                                                                  ,1092,1106,1108                   
+ JE                         Local  203      I(4)            4           scalar                    203,204,205,369,371,372,373,374,37
+                                                                                                  5,377,378,379,380,381,382,390,391,
+                                                                                                  410,411,666,667,668,690,691,708,70
+                                                                                                  9,871,873,874,875,876,877,878,880,
+                                                                                                  881,882,883,884,885,897,898,923,92
+                                                                                                  4,930,939,940,1152,1153,1166,1167,
+                                                                                                  1209,1210                         
+ JT                         Local  389      I(4)            4           scalar                    389,391,409,411,689,691,707,709,89
+                                                                                                  3,895,898,922,924,930,938,940,1151
+                                                                                                  ,1153,1165,1167,1208,1210         
+ JW                         Local  19       I(4)            4           scalar                    19,20,21,23,52,55,68,70,79,83,93,1
+                                                                                                  10,147,188,189,191,226,234,235,238
+                                                                                                  ,242,243,244,245,246,247,254,256,2
+                                                                                                  62,263,266,270,271,277,279,307,312
+                                                                                                  ,313,314,315,318,323,351,353,354,3
+                                                                                                  64,366,367,402,413,414,459,460,462
+                                                                                                  ,591,597,600,601,602,614,615,646,6
+                                                                                                  47,649,651,665,688,700,701,702,711
+                                                                                                  ,712,713,728,753,761,762,765,768,7
+                                                                                                  74,775,776,780,781,787,789,818,824
+                                                                                                  ,825,826,829,831,834,840,863,864,8
+                                                                                                  69,870,891,929,937,947,976,996,997
+                                                                                                  ,999,1004,1006,1087,1091,1094,1095
+                                                                                                  ,1103,1105,1131,1150,1199,1203,121
+                                                                                                  2,1223,1225,1233,1234,1243,1271,12
+                                                                                                  72,1275,1278                      
+ JWR                        Local  144      I(4)            4           scalar                    144,145,146,147,149,151,152,153,15
+                                                                                                  4,159,162,163,165,276,277,278,279,
+                                                                                                  281,283,284,285,286,291,296,297,29
+                                                                                                  9,786,787,788,789,791,793,794,795,
+                                                                                                  796,801,806,807,809               
+ K                          Local  69       I(4)            4           scalar                    69,70,72,73,74,82,83,87,88,92,93,1
+                                                                                                  04,105,106,107,109,110,111,112,113
+                                                                                                  ,114,115,116,117,123,124,125,126,1
+                                                                                                  27,129,130,152,153,154,161,162,163
+                                                                                                  ,165,173,174,175,176,184,185,186,1
+                                                                                                  89,191,193,194,195,199,200,204,205
+                                                                                                  ,207,208,210,211,212,213,214,215,2
+                                                                                                  16,217,218,219,284,285,286,294,296
+
+Page 33          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  ,297,299,345,346,347,545,546,554,5
+                                                                                                  55,556,557,560,561,562,564,570,571
+                                                                                                  ,572,573,576,577,578,580,609,610,6
+                                                                                                  23,624,625,626,644,645,647,649,651
+                                                                                                  ,652,653,654,659,660,661,662,663,6
+                                                                                                  64,665,667,668,670,671,673,674,675
+                                                                                                  ,676,677,678,679,680,681,682,706,7
+                                                                                                  07,711,712,713,714,715,794,795,796
+                                                                                                  ,804,806,807,809,999,1052,1053,105
+                                                                                                  4,1055,1058,1059,1060,1062,1068,10
+                                                                                                  69,1070,1071,1074,1075,1076,1078,1
+                                                                                                  115,1116,1117,1140,1141,1142,1164,
+                                                                                                  1165,1169,1181,1182,1183,1184,1185
+                                                                                                  ,1186,1187,1188,1189,1190,1191,119
+                                                                                                  2,1193,1194,1195,1196,1197,1198,11
+                                                                                                  99,1204,1205,1213,1228,1229       
+ KB                         Local  47       I(4)            4     1     1        ALC              47,69,72,82,86,92,104,109,123,152,
+                                                                                                  173,184,210,225,226,233,284,330,39
+                                                                                                  0,410,492,496,497,498,499,501,509,
+                                                                                                  510,511,512,513,523,526,527,528,53
+                                                                                                  6,537,545,603,608,623,657,659,673,
+                                                                                                  690,706,708,721,722,723,726,729,73
+                                                                                                  2,734,738,739,740,741,753,794,832,
+                                                                                                  845,853,897,923,939,993,994,995,99
+                                                                                                  7,999,1002,1003,1004,1007,1016,101
+                                                                                                  7,1018,1019,1020,1025,1028,1029,10
+                                                                                                  30,1038,1039,1086,1087,1095,1110,1
+                                                                                                  115,1120,1135,1140,1145,1152,1164,
+                                                                                                  1166,1181,1209,1227,1241,1244,1247
+                                                                                                  ,1249                             
+ KBI                        Local  358      I(4)            4     1     1        ALC              358,370,496,510,511,512,513,523,52
+                                                                                                  6,527,528,536,537,872,1017,1018,10
+                                                                                                  19,1020,1025,1028,1029,1030,1038,1
+                                                                                                  039                               
+ KBMIN                      Local  509      I(4)            4     1     1        ALC              509,545,554,560,570,576,644,1016,1
+                                                                                                  052,1058,1068,1074                
+ KBWR                       Local  154      I(4)            4     1     1        ALC              154,159,162,286,291,296,796,801,80
+                                                                                                  6                                 
+ KF                         Local  353      R(8)            8     3     1        ALC,TGT          353,366,863,869                   
+ KFCN                       Local  353      I(4)            4     2     1        ALC              353,354,366,367,863,864,869,870   
+ KFS                        Local  354      R(4)            4     3     1        ALC              354,367,864,870                   
+ KINETIC                    Module 4                                                              4                                 
+ KINETIC_RATES              Subr   746                                                            746,1255                          
+ KKB                        Local  9        I(4)            4           scalar                    731,732,734,1246,1247,1249        
+ KMX                        Local  161      I(4)            4           scalar                    161,244,294,345,731,804,1246      
+ KT                         Local  20       I(4)            4           scalar                    20,47,68,69,72,81,82,85,86,87,88,9
+                                                                                                  1,92,100,101,102,103,104,109,123,1
+                                                                                                  73,184,210,225,242,243,245,262,265
+                                                                                                  ,271,312,313,314,315,316,317,319,3
+                                                                                                  20,322,323,325,326,327,328,329,330
+                                                                                                  ,331,332,333,334,335,336,337,338,3
+                                                                                                  40,341,342,343,345,349,350,351,352
+                                                                                                  ,353,354,357,358,359,360,361,362,3
+                                                                                                  63,364,365,366,367,370,371,372,373
+                                                                                                  ,374,375,377,378,379,380,381,382,3
+
+Page 34          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  92,395,398,400,403,404,409,414,420
+                                                                                                  ,421,422,423,424,425,426,428,432,4
+                                                                                                  34,435,436,437,441,442,443,444,445
+                                                                                                  ,446,447,450,451,452,453,454,455,4
+                                                                                                  56,460,462,464,471,472,473,474,475
+                                                                                                  ,476,477,478,479,492,511,512,513,5
+                                                                                                  24,525,526,527,529,537,539,554,560
+                                                                                                  ,570,576,597,598,601,602,603,604,6
+                                                                                                  05,607,608,609,610,613,614,615,616
+                                                                                                  ,619,620,621,622,623,630,631,632,6
+                                                                                                  33,634,635,636,644,657,659,673,692
+                                                                                                  ,695,698,700,701,702,703,704,706,7
+                                                                                                  31,738,739,740,741,768,775,776,781
+                                                                                                  ,822,824,825,826,827,828,829,830,8
+                                                                                                  32,833,834,836,839,840,842,843,844
+                                                                                                  ,845,846,847,850,851,853,854,855,8
+                                                                                                  57,858,860,863,864,865,866,867,868
+                                                                                                  ,869,870,872,873,874,875,876,877,8
+                                                                                                  78,880,881,882,883,884,885,899,902
+                                                                                                  ,905,906,907,909,912,914,916,917,9
+                                                                                                  25,926,931,941,944,948,954,955,956
+                                                                                                  ,957,958,959,960,963,964,965,966,9
+                                                                                                  67,968,969,970,971,972,973,974,975
+                                                                                                  ,976,978,979,980,983,984,985,993,9
+                                                                                                  94,1002,1003,1004,1007,1018,1019,1
+                                                                                                  020,1026,1027,1028,1029,1031,1039,
+                                                                                                  1041,1052,1058,1068,1074,1086,1093
+                                                                                                  ,1110,1111,1112,1115,1120,1135,113
+                                                                                                  6,1137,1140,1145,1154,1157,1160,11
+                                                                                                  62,1164,1181,1220,1224,1225,1226,1
+                                                                                                  227,1228,1229,1232,1233,1234,1236,
+                                                                                                  1237,1238,1239,1246,1278          
+ KTI                        Local  67       I(4)            4     1     1        ALC              67,81,85,86,87,331,389,596,604,607
+                                                                                                  ,608,609,689,827,893,895,922,938,1
+                                                                                                  151,1208,1222,1224,1226,1228      
+ KTICOL                     Local  892      L(4)            4     1     1        ALC              892                               
+ KTMAX                      Local  9        I(4)            4           scalar                    22,233,243,1278                   
+ KTWB                       Local  20       I(4)            4     1     1        ALC              20,147,226,244,270,271,279,753,780
+                                                                                                  ,781,789,1087                     
+ KTWR                       Local  147      I(4)            4     1     1        ALC              147,149,152,162,279,281,284,296,78
+                                                                                                  9,791,794,806                     
+ LAYERADDSUB                Subr   2                                                                                                
+ LAYERCHANGE                Local  254      L(4)            4     1     1        ALC              254,256                           
+ LOGICC                     Module 4                                                              4                                 
+ LONG_MACROPHYTE            Local  702      L(4)            4     2     1        ALC              702,713                           
+ M                          Local  401      I(4)            4           scalar                    401,402,403,404,412,413,414,687,68
+                                                                                                  8,700,701,702,703,704,711,712,713,
+                                                                                                  714,715,890,891,907,909,912,914,91
+                                                                                                  6,917,928,929,931,935,937,941,944,
+                                                                                                  946,947,948,1149,1150,1162,1169,12
+                                                                                                  02,1203,1204,1211,1212,1213       
+ MAC                        Local  944      R(4)            4     3     1        ALC              944,948,1204                      
+ MACMBRT                    Local  704      R(4)            4     2     1        ALC              704,715,1162,1169                 
+ MACRC                      Local  403      R(4)            4     4     1        ALC              403,404,414,700,701,702,703,711,71
+                                                                                                  2,713,714,912,914,917,931,1213    
+
+Page 35          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ MACRM                      Local  404      R(4)            4     4     1        ALC              404,414,703,704,714,715,907,909,91
+                                                                                                  2,916,941,1162,1169               
+ MACROPHYTEC                Module 6                                                              6                                 
+ MACROPHYTE_CALC            Local  402      L(4)            4     2     1        ALC              402,413,688,891,929,937,947,1150,1
+                                                                                                  203,1212                          
+ MACROPHYTE_ON              Local  400      L(4)            4           scalar                    400                               
+ MACT                       Local  400      R(4)            4     3     1        ALC              400,925,926,931,1205              
+ MACWBCI                    Local  700      R(4)            4     2     1        ALC              700,711                           
+ MAIN                       Module 3                                                              3                                 
+ MAX                        Func   228                                  scalar                    228,238,755,765,1275,1291         
+ MIN                        Func   509                                  scalar                    509,729,734,1016,1122,1244,1249,12
+                                                                                                  64                                
+ NAC                        Local  113      I(4)            4           scalar                    113,114,176,207,349,350,352,362,36
+                                                                                                  3,365,446,447,455,456,663,664,670,
+                                                                                                  854,855,857,858,860,865,866,867,86
+                                                                                                  8,980,985,1003,1112,1117,1137,1142
+                                                                                                  ,1194,1195,1196,1197,1198         
+ NACD                       Local  351      I(4)            4     1     1        ALC              351,364,665,976,1004,1199         
+ NAF                        Local  353      I(4)            4     1     1        ALC              353,354,366,367,863,864,869,870   
+ NAMESC                     Module 4                                                              4                                 
+ NBR                        Local  1284     I(4)            4           scalar                    1284                              
+ NEP                        Local  203      I(4)            4           scalar                    203,369,666,871                   
+ NIT                        Local  53       I(4)            4           scalar                    53,57,58,263,266,502,775,776,1010,
+                                                                                                  1093,1106,1108                    
+ NIW                        Local  144      I(4)            4           scalar                    144,276,786                       
+ NL                         Local  47       I(4)            4     1     1        ALC              47,492,1086                       
+ NMC                        Local  401      I(4)            4           scalar                    401,412,687,890,928,935,946,1149,1
+                                                                                                  202,1211                          
+ NTAC                       Local  225      I(4)            4           scalar                    225,228,657,752,755,1120,1122,1145
+                                                                                                  ,1262,1264                        
+ NTACMN                     Local  1122     I(4)            4           scalar                    1122,1264                         
+ NTACMX                     Local  228      I(4)            4           scalar                    228,755                           
+ NWB                        Local  19       I(4)            4           scalar                    19                                
+ ONE_LAYER                  Local  226      L(4)            4     1     1        ALC              226,244,431,753,1087              
+ P                          Local  966      R(8)            8     2     1        ALC              966                               
+ POROSITYC                  Module 6                                                              6                                 
+ PREC                       Module 4                                                              4                                 
+ Q                          Local  553      R(8)            8     1     1        ALC              553,557,564,569,573,580,1051,1055,
+                                                                                                  1062,1067,1071,1078               
+ QC                         Local  564      R(8)            8     1     1        ALC              564,580,1062,1078                 
+ QDH1                       Local  174      R(8)            8     2     1        ALC              174,451,452,983                   
+ QSS                        Local  436      R(8)            8     2     1        ALC              436,1193                          
+ QUH1                       Local  442      R(8)            8     2     1        ALC              442,443,978                       
+ R8                         Param  10       I(4)            4           scalar                    10,11                             
+ RHO                        Local  117      R(8)            8     2     1        PTR              117                               
+ RSTART                     Module 5                                                              5                                 
+ SAZ                        Local  214      R(8)            8     2     1        ALC              214,219,474,479,677,682,741,1187  
+ SCREENC                    Module 5                                                              5                                 
+ SDFIRSTADD                 Local  340      L(4)            4     2     1        ALC              340,343                           
+ SDK                        Local  110      R(4)            4     1     1        ALC              110,651                           
+ SDKV                       Local  110      R(4)            4     2     1        ALC              110,334,651                       
+ SED                        Local  335      R(4)            4     2     1        ALC              335,1007                          
+ SED1                       Local  341      R(4)            4     2     1        ALC              341                               
+ SED1IC                     Local  341      R(4)            4     2     1        ALC              341                               
+ SED2                       Local  342      R(4)            4     2     1        ALC              342                               
+
+Page 36          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ SED2IC                     Local  342      R(4)            4     2     1        ALC              342                               
+ SEDC                       Local  338      R(4)            4     2     1        ALC              338,1007                          
+ SEDIMENT_CALC              Local  1006     L(4)            4     1     1        ALC              1006                              
+ SEDN                       Local  336      R(4)            4     2     1        ALC              336,1007                          
+ SEDP                       Local  337      R(4)            4     2     1        ALC              337,1007                          
+ SELWC                      Module 5                                                              5                                 
+ SHADEC                     Module 4                                                              4                                 
+ SHADING                    Subr   183                                                            183,643                           
+ SLOPE                      Local  244      R(8)            8     1     1        ALC              244,490,991                       
+ SNAPSHOT                   Local  52       L(4)            4     1     1        ALC              52,55,262,591,774,1105,1131       
+ SNP                        Local  52       I(4)            4     1     1        PTR              52,55,262,591,774,1105,1131       
+ STRUCTURES                 Module 5                                                              5                                 
+ SU                         Local  199      R(8)            8     2     1        ALC              199,662,722,1189                  
+ SUB_LAYER                  Local  243      L(4)            4           scalar                    243,244,250,253,773,1278          
+ SURFHE                     Module 4                                                              4                                 
+ SW                         Local  200      R(8)            8     2     1        ALC              200,965                           
+ SZ                         Local  1221     R(8)            8     1     1        ALC              1221                              
+ T1                         Local  111      R(8)            8     2     1        ALC,TGT          111,112,117,208,332,360,660,661,67
+                                                                                                  1,847,851,974,1002,1111,1116,1136,
+                                                                                                  1141,1190                         
+ T2                         Local  112      R(8)            8     2     1        PTR              112,333,361,661,975,1191          
+ TDGAS                      Module 5                                                              5                                 
+ TDS                        Local  117      R(8)            8     2     1        PTR              117                               
+ TEMPERATURE_RATES          Subr   745                                                            745,1254                          
+ TEXT                       Local  1096     CHAR            72          scalar                    1096                              
+ TISS                       Local  117      R(8)            8     2     1        PTR              117,357                           
+ TKE                        Local  212      R(8)            8     3     1        ALC              212,213,217,218,472,473,477,478,67
+                                                                                                  5,676,680,681,739,740,968,969,1185
+                                                                                                  ,1186                             
+ TMAC                       Local  10       R(8)            8           scalar                    936,941,944                       
+ TRANS                      Module 5                                                              5                                 
+ TRAPEZOIDAL                Local  79       L(4)            4     1     1        ALC              79,318,600,831,1223               
+ TSS                        Local  1192     R(8)            8     2     1        ALC,TGT          1192                              
+ TSSDH1                     Local  175      R(8)            8     2     1        ALC              175,453,454,984                   
+ TSSUH1                     Local  444      R(8)            8     2     1        ALC              444,445,979                       
+ TVDC                       Module 5                                                              5                                 
+ U                          Local  185      R(8)            8     2     1        PTR              185,191,195,428,435,462,501,546,55
+                                                                                                  7,562,564,573,578,580,645,649,654,
+                                                                                                  662,721,846,850,963,999,1055,1060,
+                                                                                                  1062,1071,1076,1078,1188          
+ UHS                        Local  729      I(4)            4     1     1        ALC              729,732,1244,1247                 
+ UH_EXTERNAL                Local  726      L(4)            4     1     1        ALC              726,1241                          
+ UH_INTERNAL                Local  727      L(4)            4     1     1        ALC              727,1242                          
+ UP_HEAD                    Local  440      L(4)            4     1     1        ALC              440,468,737,977                   
+ US                         Local  25       I(4)            4     1     1        ALC              25,45,46,277,489,491,495,506,509,5
+                                                                                                  44,550,787,990,992,1015,1016,1047,
+                                                                                                  1085                              
+ VERT_MACROPHYTE            Local  701      L(4)            4     2     1        ALC              701,712                           
+ VOL                        Local  101      R(8)            8     2     1        ALC              101,105,325,326,374,375,620,624,84
+                                                                                                  2,843,863,875                     
+ W                          Local  186      R(8)            8     2     1        PTR              186,432,434,437,964               
+ W1                         Local  11       R(8)            8           scalar                    434,437                           
+ W2                         Local  11       R(8)            8           scalar                    435,437                           
+ W2ERR                      Local  1092     I(4)            4           scalar                    1092,1094                         
+ W3                         Local  11       R(8)            8           scalar                    436,437                           
+
+Page 37          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Symbol Table                    ..\..\..\layeraddsub.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ WARNING_OPEN               Local  248      L(4)            4           scalar                    248,264,503,592,1012,1107,1132    
+ WEIR_CALC                  Local  143      L(4)            4           scalar                    143,275,785                       
+ WIND2                      Local  182      R(8)            8     1     1        ALC              182,642                           
+ WRN                        Local  57       I(4)            4           scalar                    57,58,246,265,502,593,776,1010,110
+                                                                                                  8,1133                            
+ Z                          Local  66       R(8)            8     1     1        ALC              66,68,85,91,234,238,312,313,322,39
+                                                                                                  8,595,602,607,613,615,698,765,824,
+                                                                                                  826,839,905,1011,1160,1177,1220,12
+                                                                                                  21,1225,1226,1232,1234,1275       
+ ZMIN                       Local  21       R(4)            4     1     1        ALC              21,234,238,242,243,245,247,761,765
+                                                                                                  ,768,1271,1275,1278               
+ ZOOPLANKTONC               Module 6                                                              6                                 
+
+Page 38          Source Listing                  LAYERADDSUB
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\layeraddsub.F90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ LAYERADDSUB                Subr   2                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 39          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:layeraddsub.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 40          Source Listing                  LAYERADDSUB
+2026-03-30 08:47                                 ..\..\..\layeraddsub.F90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : layeraddsub.lst
+  /object:layeraddsub.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

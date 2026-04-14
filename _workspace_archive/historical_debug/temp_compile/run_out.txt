@@ -1,0 +1,18 @@
+========================================
+CE-QUAL-W2 v4.5.5 - Console Edition
+Hydrodynamic + Temperature Simulation
+========================================
+ 
+Control file: w2_con.csv
+Reading input files...
+forrtl: severe (59): list-directed I/O syntax error, unit 10, file C:\Users\NING\Desktop\v455\temp_compile\w2_con.csv
+Image              PC                Routine            Line        Source             
+w2_v455_ifx.exe    00007FF6BF916739  Unknown               Unknown  Unknown
+w2_v455_ifx.exe    00007FF6BF91582E  Unknown               Unknown  Unknown
+w2_v455_ifx.exe    00007FF6BF69AF1E  Unknown               Unknown  Unknown
+w2_v455_ifx.exe    00007FF6BF859BC5  Unknown               Unknown  Unknown
+w2_v455_ifx.exe    00007FF6BF934C0B  Unknown               Unknown  Unknown
+w2_v455_ifx.exe    00007FF6BF9AA0D0  Unknown               Unknown  Unknown
+KERNEL32.DLL       00007FF950C0E8D7  Unknown               Unknown  Unknown
+ntdll.dll          00007FF95246C48C  Unknown               Unknown  Unknown
+Exit code: 59 

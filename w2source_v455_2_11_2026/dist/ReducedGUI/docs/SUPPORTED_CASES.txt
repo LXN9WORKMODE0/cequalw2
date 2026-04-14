@@ -1,0 +1,35 @@
+Supported Case Policy
+
+Current supported Bonneville/ReducedGUI baseline
+- temp_case_work
+- 绀轰緥鏂囦欢2
+
+Package mapping
+- packaging\cases\minimal_case_inputs
+  Clean-input case derived from 绀轰緥鏂囦欢2 and cleaned to match the final no-TDG reduced contract.
+- packaging\cases\minimal_case_verified
+  Verified-output snapshot derived from temp_case_work after the Stage 4 TDG cleanup.
+
+Supported reduced capabilities
+- gate / spill / pipe structure-flow behavior
+- structural withdrawal behavior
+- selective-withdrawal temperature control
+
+Unsupported reduced capabilities
+- TDG files: `w2_systdg.npt`, `w2_TDGtarget.csv`, `TDGdyntarget.csv`
+- TDG outputs: `TDG_output.csv`, `TDGTarget_output.csv`, `TDGTarget_warning.opt`
+- `%DO` / `TDG` output requests
+- `GASSPC = ON` / `GASGTC = ON`
+
+Current unsupported legacy case
+- 绀轰緥鏂囦欢
+
+Why 绀轰緥鏂囦欢 is unsupported in this package baseline
+- It is a different and larger legacy case shape than the current Bonneville baseline.
+- The current reduced CSV compatibility path is targeted at the Bonneville structure-flow baseline.
+- Historical testing indicates 绀轰緥鏂囦欢 did not run reliably even with the original v455 executable.
+
+Support boundary
+- This package guarantees only the Bonneville/ReducedGUI baseline described above.
+- TDG-enabled Bonneville variants are outside the supported reduced deliverable boundary.
+- Supporting 绀轰緥鏂囦欢 should be treated as a separate compatibility project.

@@ -1,0 +1,841 @@
+Page 1           Source Listing                  ENVIRP
+2026-03-30 08:48                                 C:\Users\NING\AppData\Local\Temp\341801394.i90
+
+      1 # 1 "..\..\..\envir_perf.f90"
+      2 !*******************************************************************
+      3 !**           S U B R O U T I N E   E N V I R P
+      4 !*******************************************************************
+      5 subroutine envirp
+      6 
+      7 USE GLOBAL; USE MAIN;use NAMESC; use screenc, only:nit,jday;use tvdc, only: constituents; use GEOMC, only:depthb
+      8 USE ENVIRPMOD; USE GDAYC
+      9 IMPLICIT NONE
+     10 CHARACTER(1) :: I_INT
+     11 CHARACTER(8) :: CHAR8
+     12 character(30):: CHAR30
+     13 INTEGER :: N
+     14 LOGICAL :: CSVFORMAT,EVPYEARLY
+     15 REAL :: DAYTEST
+     16 
+     17 SAVE
+     18 
+     19 !  initializing variables at first call
+     20  if(NIT==1.or.iopenfish==0)then
+     21       dltt=dlt
+     22       allocate(cc_e(NCT),c_int(NCT),c_top(NCT),cd_e(NDC),cd_int(NDC),cd_top(NDC),c_avg(NCT),cd_avg(NDC),cn_e(NCT),cdn_e(NDC)
+     22 )
+     23       cc_e='   '
+     24       c_int=0.0
+     25       c_top=0.0
+     26       cd_e='   '
+     27       cd_int=0.0
+     28       cd_top=0.0
+     29       c_avg=0.0
+     30       cd_avg=0.0
+     31       cn_e=0.0
+     32       cdn_e=0.0
+     33       NAC_E=0
+     34       NACD_E=0
+     35       CONE=NUNIT; NUNIT=NUNIT+1
+     36       open(CONE,file='w2_envirprf.npt',status='old')
+     37       
+     38      CSVFORMAT=.FALSE.
+     39      READ(CONE,'(//A)')CHAR30
+     40      DO J=1,30
+     41          IF(CHAR30(J:J)==',')THEN
+     42              CSVFORMAT=.TRUE.
+     43              EXIT
+     44          ENDIF
+     45      ENDDO
+     46      REWIND(CONE)
+     47 
+     48       IF(CSVFORMAT)THEN
+     49         READ(CONE,*)
+     50         READ(CONE,*)
+     51         READ (CONE,*) I_SEGINT,numclass,selectivec,sjday1,sjday2,istart(1),iend(1),(istart(I),iend(I),I=2,I_SEGINT)
+     52         SELECTIVEC=ADJUSTR(SELECTIVEC)
+     53         IF(I_SEGINT==0 .OR. SELECTIVEC=='OFF')I_SEGINT=1
+     54         READ(CONE,*)
+     55         READ(CONE,*)
+     56         Read (CONE,*) VEL_VPR, VEL_INT, VEL_TOP,TEMP_VPR,TEMP_INT,TEMP_TOP, depth_vpr,d_int,d_top
+
+Page 2           Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+     57         VEL_VPR=ADJUSTR(VEL_VPR);TEMP_VPR=ADJUSTR(TEMP_VPR);DEPTH_VPR=ADJUSTR(DEPTH_VPR)
+     58         READ(CONE,*)
+     59         READ(CONE,*)
+     60         DO JC=1,NCT
+     61         READ (CONE,*) CHAR8, CC_E(JC), C_INT(JC), C_TOP(JC)
+     62         CC_E(JC)=ADJUSTR(CC_E(JC))
+     63         ENDDO
+     64         READ(CONE,*)
+     65         READ(CONE,*)
+     66         DO JD=1,NDC
+     67         READ (CONE,*) CHAR8, CD_E(JD),CD_INT(JD), CD_TOP(JD)
+     68         CD_E(JD)=ADJUSTR(CD_E(JD))        
+     69         ENDDO
+     70       ELSE
+     71       READ (CONE,1200) I_SEGINT,numclass,selectivec,sjday1,sjday2,istart(1),iend(1),(istart(I),iend(I),I=2,I_SEGINT)
+     72       IF(I_SEGINT==0 .OR. SELECTIVEC=='OFF')I_SEGINT=1
+     73       Read (CONE,1201) VEL_VPR, VEL_INT, VEL_TOP,TEMP_VPR,TEMP_INT,TEMP_TOP, depth_vpr,d_int,d_top
+     74       READ (CONE,1050) (CC_E(JC), C_INT(JC), C_TOP(JC), JC=1,NCT)
+     75       READ (CONE,1050) (CD_E(JD),CD_INT(JD), CD_TOP(JD), JD=1,NDC)
+     76       ENDIF
+     77       CLOSE(CONE)
+     78       EVPYEARLY=.FALSE.
+     79       IF(SJDAY1 < 0.0)THEN           ! SW 9/22/2022
+     80           EVPYEARLY=.TRUE.
+     81           SJDAY1=ABS(SJDAY1)
+     82       ENDIF
+     83       
+     84           DO JC=1,NCT
+     85           IF (CC_E(JC).EQ.' ON') THEN
+     86             NAC_E     = NAC_E+1
+     87             CN_E(NAC_E) = JC
+     88           END IF
+     89           End DO
+     90           DO JD=1,NDC
+     91           IF (CD_E(JD).EQ.' ON') THEN
+     92             NACD_E     = NACD_E+1
+     93             CDN_E(NACD_E) = JD
+     94           END IF
+     95           End DO
+     96 
+     97  1050 FORMAT(//(8X,(5X,A3,F8.0,F8.0)))
+     98  1200 FORMAT(//I1,7X,I8,5x,a3,f8.0,f8.0,9(i8,i8))        ! UP TO A MAX OF 9 INTERVALS
+     99  1201 format(//8x,3(5x,a3,f8.3,f8.3))
+    100 
+    101     allocate (c_cnt(I_SEGINT,NCT),cd_cnt(I_SEGINT,NDC),c_class(I_SEGINT,NCT,numclass),cd_class(I_SEGINT,NDC,numclass),c_tot(
+    101 I_SEGINT,NCT),cd_tot(I_SEGINT,NDC),t_class(I_SEGINT,numclass),v_class(I_SEGINT,numclass),c_sum(NCT),cd_sum(NDC))
+    102     allocate (conc_c(NCT,numclass),conc_cd(NDC,numclass))
+    103     allocate(d_class(I_SEGINT,numclass))
+    104     ALLOCATE (D_TOT(I_SEGINT),D_CNT(I_SEGINT),T_TOT(I_SEGINT),T_CNT(I_SEGINT))
+    105     ALLOCATE(V_TOT(I_SEGINT),V_CNT(I_SEGINT),VOLGL(I_SEGINT),SUMVOLT(I_SEGINT))
+    106         cd_cnt=0.0
+    107         c_cnt=0.0
+    108         c_class=0.0
+    109         cd_class=0.0
+    110         c_tot=0.0
+    111         cd_tot=0.0
+    112         
+
+Page 3           Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+    113         v_cnt=0.0
+    114         v_class=0.0
+    115         v_tot=0.0
+    116 
+    117         t_cnt=0.0
+    118         t_class=0.0
+    119         t_tot=0.0
+    120         
+    121         d_cnt=0.0
+    122         d_class=0.0
+    123         d_tot=0.0
+    124 
+    125       sumvolt=0.0
+    126   else
+    127       dltt=(jday-timlast)*86400.
+    128   end if
+    129 
+    130   if(iopenfish.eq.3)go to 650     !iopenfish=3 is end of simulation deallocate arrays
+    131   
+    132   if(selectivec == ' ON')then
+    133       
+    134            IF(.NOT.EVPYEARLY)THEN
+    135              DAYTEST=JDAY
+    136            ELSE
+    137              DAYTEST=REAL(JDAYG)+JDAY-INT(JDAY)
+    138            END IF    
+    139 
+    140       if(DAYTEST < sjday1  .or. DAYTEST > sjday2)go to 650          !if(jdayG < sjday1  .or. jdayG > sjday2)go to 650
+    141   endif
+    142   
+    143 DO N=1,I_SEGINT            ! LOOP OVER SEGMENT INTERVALS BASED ON INPUT DATA
+    144   
+    145    volgL(N)=0.0
+    146 ! start loop for succeeding calls to subroutine
+    147 
+    148 do JW=1,NWB
+    149   do jb=bs(JW),be(JW)
+    150       do i=cus(jb),ds(jb)
+    151         if(selectivec == ' ON')then
+    152             IF(i < istart(N))THEN 
+    153                 CYCLE    ! SW 2/16/2017   exit
+    154             ELSEIF(i > iend(N))THEN
+    155                 EXIT
+    156             endif
+    157         endif
+    158           
+    159 ! Depth
+    160            if(depth_vpr.eq.' ON')then
+    161             d_tot(N)=d_tot(N)+depthb(kb(i),i)*dltt
+    162             d_cnt(N)=d_cnt(N)+dltt
+    163             d_crit=d_top
+    164             if(depthb(kb(i),i).ge.d_top)d_class(N,1)=d_class(N,1)+dltt
+    165             do jj=2,numclass
+    166               if(depthb(kb(i),i).lt.d_crit.and.depthb(kb(i),i).ge.d_crit-d_int)then
+    167                 d_class(N,jj)=d_class(N,jj)+dltt
+    168                 go to 300
+    169               else
+
+Page 4           Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+    170                 d_crit=d_crit-d_int
+    171               end if
+    172               if(jj.eq.numclass.and.depthb(kb(i),i).lt.d_crit+d_int)then
+    173                 d_class(N,jj)=d_class(N,jj)+dltt
+    174               end if
+    175             end do
+    176           end if
+    177 300       continue
+    178 
+    179           
+    180           
+    181           
+    182           
+    183         do k=KTWB(JW),kb(i)
+    184             volgL(N)=volgL(N)+vol(K,I)
+    185 
+    186 ! Temperature
+    187 
+    188         if(temp_vpr.eq.' ON')then
+    189 
+    190             t_tot(N)=t_tot(N)+t2(k,i)*VOL(k,i)*dltt
+    191             t_cnt(N)=t_cnt(N)+vol(k,i)*dltt
+    192             t_crit=temp_top
+    193             if(t2(k,i).ge.temp_top)t_class(N,1)=t_class(N,1)+dltt*vol(k,i)
+    194             do jj=2,numclass
+    195               if(t2(k,i).lt.t_crit.and.t2(k,i).ge.t_crit-temp_int)then
+    196                 t_class(N,jj)=t_class(N,jj)+dltt*vol(k,i)
+    197                 go to 200
+    198               else
+    199                 t_crit=t_crit-temp_int
+    200               end if
+    201               if(jj.eq.numclass.and.t2(k,i).lt.t_crit+temp_int)then
+    202                 t_class(N,jj)=t_class(N,jj)+dltt*vol(k,i)
+    203               end if
+    204             end do
+    205           end if
+    206 200       continue
+    207 
+    208 
+    209 ! Velocity
+    210 
+    211         if(vel_vpr.eq.' ON')then
+    212 
+    213             v_tot(N)=v_tot(N)+u(k,i)*vol(k,i)*dltt
+    214             v_cnt(N)=v_cnt(N)+vol(k,i)*dltt
+    215             v_crit=vel_top
+    216             if(u(k,i).ge.vel_top)v_class(N,1)=v_class(N,1)+dltt*vol(k,i)
+    217             do jj=2,numclass
+    218               if(u(k,i).lt.v_crit.and.u(k,i).ge.v_crit-vel_int)then
+    219                 v_class(N,jj)=v_class(N,jj)+dltt*vol(k,i)
+    220                 go to 210
+    221               else
+    222                 v_crit=v_crit-vel_int
+    223               end if
+    224               if(jj.eq.numclass.and.u(k,i).lt.v_crit+vel_int)then
+    225                 v_class(N,jj)=v_class(N,jj)+dltt*vol(k,i)
+    226               end if
+
+Page 5           Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+    227             end do
+    228           end if
+    229 210       continue
+    230 
+    231 
+    232 ! Constituents
+    233   IF(CONSTITUENTS)THEN
+    234             do jc=1,nac_e
+    235               jac=cn_e(jc)
+    236 
+    237             c_tot(N,jc)=c_tot(N,jc)+c2(k,i,jac)*cmult(jac)*vol(k,i)*dltt
+    238             c_cnt(N,jc)=c_cnt(N,jc)+vol(k,i)*dltt
+    239             c_crit=c_top(jac)
+    240             if(c2(k,i,jac)*cmult(jac).ge.c_top(jac))c_class(N,jc,1)=c_class(N,jc,1)+dltt*vol(k,i)
+    241             do jj=2,numclass
+    242               if(c2(k,i,jac)*cmult(jac).lt.c_crit.and.c2(k,i,jac)*cmult(jac).ge.c_crit-c_int(jac))then
+    243                 c_class(N,jc,jj)=c_class(N,jc,jj)+dltt*vol(k,i)
+    244                 go to 220
+    245               else
+    246                 c_crit=c_crit-c_int(jac)
+    247               end if
+    248               if(jj.eq.numclass.and.c2(k,i,jac)*cmult(jac).lt.c_crit+c_int(jac))then
+    249                 c_class(N,jc,jj)=c_class(N,jc,jj)+dltt*vol(k,i)
+    250               end if
+    251             end do
+    252           
+    253 220       continue
+    254     
+    255 
+    256             end do
+    257 
+    258 
+    259 ! Derived Constituents
+    260 
+    261             do jc=1,nacd_e
+    262 
+    263             jacd=cdn_e(jc)
+    264 
+    265             cd_tot(N,jc)=cd_tot(N,jc)+cd(k,i,jacd)*CDMULT(jacd)*vol(k,i)*dltt
+    266             cd_cnt(N,jc)=cd_cnt(N,jc)+vol(k,i)*dltt
+    267             cd_crit=cd_top(jacd)
+    268             if(cd(k,i,jacd)*CDMULT(jacd).ge.cd_top(jacd))cd_class(N,jc,1)=cd_class(N,jc,1)+dltt*vol(k,i)
+    269             do jj=2,numclass
+    270               if(cd(k,i,jacd)*CDMULT(jacd).lt.cd_crit.and.cd(k,i,jacd)*CDMULT(jacd).ge.cd_crit-cd_int(jacd))then
+    271                 cd_class(N,jc,jj)=cd_class(N,jc,jj)+dltt*vol(k,i)
+    272                 go to 240
+    273               else
+    274                 cd_crit=cd_crit-cd_int(jacd)
+    275               end if
+    276               if(jj.eq.numclass.and.cd(k,i,jacd)*CDMULT(jacd).lt.cd_crit+cd_int(jacd))then
+    277                 cd_class(N,jc,jj)=cd_class(N,jc,jj)+dltt*vol(k,i)
+    278               end if
+    279             end do
+    280   240       continue
+    281 
+    282             end do
+    283   ENDIF            
+
+Page 6           Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+    284        end do
+    285      end do
+    286   end do
+    287 end do
+    288 
+    289 ! sum of volgL*dltt for volume fraction calculation
+    290 
+    291    sumvolt(N)=sumvolt(N)+VOLGL(N)*dltt
+    292    ENDDO  ! END OF INTERVAL FOR SEGMENTS
+    293 
+    294 650   continue
+    295 
+    296       if(iopenfish == 3)then
+    297 !  calculating average violation concentration and writing to file
+    298        DO N=1,I_SEGINT
+    299         cd_sum=0.0
+    300         c_sum=0.0
+    301         T_SUM=0.0
+    302         V_SUM=0.0
+    303         WRITE (I_INT,'(I1)') N   
+    304         
+    305         if(temp_vpr.eq.' ON')then
+    306           if(t_cnt(N).gt.0.0)then
+    307           t_avg=t_tot(N)/t_cnt(N)
+    308           else
+    309           t_avg=0.0
+    310           end if
+    311 
+    312         open(CONE,file='envrprf_t_'//I_INT//'.csv',status='unknown')
+    313         write(CONE,*)'"Temperature interval,","Fraction of volume"'
+    314         temp_c=temp_top
+    315           do i=1,numclass
+    316           write(CONE,125)temp_c,t_class(N,i)/sumvolt(N)
+    317           temp_c=temp_c-temp_int
+    318           t_sum=t_sum+t_class(N,i)/sumvolt(N)
+    319           end do
+    320         write(CONE,'(1x)')
+    321         write(CONE,'(" Sum of fractions, ",e12.4)')t_sum
+    322         write(CONE,'(1x)')
+    323         write(CONE,'(" Average, ",e12.4)')t_avg
+    324         close(CONE)
+    325         end if
+    326 
+    327         if(vel_vpr.eq.' ON')then
+    328           if(v_cnt(N).gt.0.0)then
+    329           v_avg=v_tot(N)/v_cnt(N)
+    330           else
+    331           v_avg=0.0
+    332           end if
+    333         open(CONE,file='envrprf_v'//I_INT//'.csv',status='unknown')
+    334         write(CONE,*)'"Velocity interval,","Fraction of volume"'
+    335         vel_c=vel_top
+    336           do i=1,numclass
+    337           write(CONE,125)vel_c,v_class(N,i)/sumvolt(N)
+    338           vel_c=vel_c-vel_int
+    339           v_sum=v_sum+v_class(N,i)/sumvolt(N)
+    340           end do
+
+Page 7           Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+    341         write(CONE,'(1x)')
+    342         write(CONE,'(" Sum of fractions, ",e12.4)')v_sum
+    343         write(CONE,'(1x)')
+    344         write(CONE,'(" Average, ",e12.4)')v_avg
+    345         close(CONE)
+    346         end if
+    347         
+    348         
+    349         if(depth_vpr.eq.' ON')then
+    350           if(d_cnt(N).gt.0.0)then
+    351           d_avg=d_tot(N)/d_cnt(N)
+    352           else
+    353           d_avg=0.0
+    354           end if
+    355         open(CONE,file='envrprf_depth'//I_INT//'.csv',status='unknown')
+    356         write(CONE,*)'"Depth interval,","Fraction of time"'
+    357         d_c=d_top
+    358           do i=1,numclass
+    359           write(CONE,125)d_c,d_class(N,i)/d_cnt(N)
+    360           d_c=d_c-d_int
+    361           d_sum=d_sum+d_class(N,i)/d_cnt(N)
+    362           end do
+    363         write(CONE,'(1x)')
+    364         write(CONE,'(" Sum of fractions, ",e12.4)')d_sum
+    365         write(CONE,'(1x)')
+    366         write(CONE,'(" Average, ",e12.4)')d_avg
+    367         close(CONE)
+    368         end if
+    369         
+    370 if(nac_e > 0)then
+    371        open(CONE,file='envrprf_c'//I_INT//'.csv',status='unknown')
+    372        write(CONE,4000)(cname2(cn_e(jc)),jc=1,nac_e)
+    373 4000 format(<nac_e>(a15,'_interval, Fraction_of_volume, '))
+    374        do jc=1,nac_e
+    375         if(c_cnt(N,jc).gt.0.0)then
+    376         c_avg(jc)=c_tot(N,jc)/c_cnt(N,jc)
+    377         else
+    378         c_avg(jc)=0.0
+    379         end if
+    380           do i=1,numclass
+    381              if(i.eq.1)then
+    382              conc_c(jc,i)=c_top(cn_e(jc))
+    383              else
+    384              conc_c(jc,i)=conc_c(jc,i-1)-c_int(cn_e(jc))
+    385              end if
+    386           c_sum(jc)=c_sum(jc)+c_class(N,jc,i)/sumvolt(N)
+    387           end do
+    388        end do
+    389         do i=1,numclass
+    390         write(CONE,126)(conc_c(jc,i),c_class(N,jc,i)/sumvolt(N),jc=1,nac_e)
+    391         end do
+    392         write(CONE,'(1x)')
+    393         write(CONE,'(<nac_e>("Sum_of_fractions,",f9.4,","))')(c_sum(jc),jc=1,nac_e)     
+    394         write(CONE,'(1x)')
+    395         write(CONE,'(<nac_e>("Average,",e12.4,","))')(c_avg(jc),jc=1,nac_e)     
+    396         close(CONE)
+    397       
+
+Page 8           Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+    398   if(nacd_e > 0)then     
+    399        open(CONE,file='envrprf_cd'//I_INT//'.csv',status='unknown')
+    400      write(CONE,4001)(cdname2(cdn_e(jc)),jc=1,nacd_e)
+    401 4001 format(<nacd_e>(a15,'_interval, Fraction_of_volume,'))
+    402        do jc=1,nacd_e
+    403         if(cd_cnt(N,jc).gt.0.0)then
+    404         cd_avg(jc)=cd_tot(N,jc)/cd_cnt(N,jc)
+    405         else
+    406         cd_avg(jc)=0.0
+    407         end if
+    408 
+    409           do i=1,numclass
+    410               if(i.eq.1)then
+    411               conc_cd(jc,i)=cd_top(cdn_e(jc))
+    412               else
+    413               conc_cd(jc,i)=conc_cd(jc,i-1)-cd_int(cdn_e(jc))
+    414               end if
+    415           cd_sum(jc)=cd_sum(jc)+cd_class(N,jc,i)/sumvolt(N)
+    416           end do
+    417        end do
+    418         do i=1,numclass
+    419         write(CONE,124)(conc_cd(jc,i),cd_class(N,jc,i)/sumvolt(N),jc=1,nacd_e)
+    420         end do
+    421         write(CONE,'(1x)')
+    422         write(CONE,'(<nacd_e>("Sum_of_fractions,",f9.4,","))')(cd_sum(jc),jc=1,nacd_e)
+    423         write(CONE,'(1x)')
+    424         write(CONE,'(<nacd_e>("Average,",e12.4,","))')(cd_avg(jc),jc=1,nacd_e)
+    425         close(CONE)
+    426     endif
+    427 endif
+    428 ENDDO
+    429        
+    430 124       format(<nacd_e>(f10.4,',',e12.4,','))
+    431 125       format((f6.2,',',e12.4,','))
+    432 126       format(<nac_e>(f10.4,',',e12.4,','))
+    433 127       format(<nacd_e>(f10.4,',',e12.4,','))
+    434 128       format(<nacd_e>(" 0, ",e12.4,','))
+    435 129       format(<nac_e>(" 0, ",e12.4,','))
+    436 
+    437     end if
+    438 
+    439 timlast=jday
+    440 
+    441       END SUBROUTINE ENVIRP
+
+Page 9           Source Listing                  ENVIRP
+2026-03-30 08:48 Entry Points                    ..\..\..\envir_perf.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name   
+                           
+       ENVIRP              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 1050                       Label  97                                                             74,75                             
+ 1200                       Label  98                                                             71                                
+ 1201                       Label  99                                                             73                                
+ 124                        Label  430                                                            419                               
+ 125                        Label  431                                                            316,337,359                       
+ 126                        Label  432                                                            390                               
+ 127                        Label  433                                                                                              
+ 128                        Label  434                                                                                              
+ 129                        Label  435                                                                                              
+ 200                        Label  206                                                            197                               
+ 210                        Label  229                                                            220                               
+ 220                        Label  253                                                            244                               
+ 240                        Label  280                                                            272                               
+ 300                        Label  177                                                            168                               
+ 4000                       Label  373                                                            372                               
+ 4001                       Label  401                                                            400                               
+ 650                        Label  294                                                            130,140                           
+ ABS                        Func   81                                   scalar                    81                                
+ ADJUSTR                    Func   52                                   scalar                    52,57,62,68                       
+ BE                         Local  149      I(4)            4     1     1        ALC              149                               
+ BS                         Local  149      I(4)            4     1     1        ALC              149                               
+ C2                         Local  237      R(8)            8     3     1        ALC,TGT          237,240,242,248                   
+ CC_E                       Local  22       CHAR            3     1     1        ALC,SAVE         22,23,61,62,74,85                 
+ CD                         Local  265      R(8)            8     3     1        ALC,TGT          265,268,270,276                   
+ CDMULT                     Local  265      R(8)            8     1     1        ALC              265,268,270,276                   
+ CDNAME2                    Local  400      CHAR            15    1     1        ALC              400                               
+ CDN_E                      Local  22       R(4)            4     1     1        ALC,SAVE         22,32,93,263,400,411,413          
+ CD_AVG                     Local  22       R(4)            4     1     1        ALC,SAVE         22,30,404,406,424                 
+ CD_CLASS                   Local  101      R(4)            4     3     1        ALC,SAVE         101,109,268,271,277,415,419       
+ CD_CNT                     Local  101      R(4)            4     2     1        ALC,SAVE         101,106,266,403,404               
+ CD_CRIT                    Local  267      R(4)            4           scalar   SAVE             267,270,274,276                   
+ CD_E                       Local  22       CHAR            3     1     1        ALC,SAVE         22,26,67,68,75,91                 
+ CD_INT                     Local  22       R(4)            4     1     1        ALC,SAVE         22,27,67,75,270,274,276,413       
+ CD_SUM                     Local  101      R(4)            4     1     1        ALC,SAVE         101,299,415,422                   
+ CD_TOP                     Local  22       R(4)            4     1     1        ALC,SAVE         22,28,67,75,267,268,411           
+ CD_TOT                     Local  101      R(4)            4     2     1        ALC,SAVE         101,111,265,404                   
+ CHAR30                     Local  12       CHAR            30          scalar   SAVE             39,41                             
+ CHAR8                      Local  11       CHAR            8           scalar   SAVE             61,67                             
+ CMULT                      Local  237      R(8)            8     1     1        ALC              237,240,242,248                   
+ CNAME2                     Local  372      CHAR            15    1     1        ALC              372                               
+ CN_E                       Local  22       R(4)            4     1     1        ALC,SAVE         22,31,87,235,372,382,384          
+ CONC_C                     Local  102      R(4)            4     2     1        ALC,SAVE         102,382,384,390                   
+ CONC_CD                    Local  102      R(4)            4     2     1        ALC,SAVE         102,411,413,419                   
+ CONE                       Local  35       I(4)            4           scalar                    35,36,39,46,49,50,51,54,55,56,58,5
+
+Page 10          Source Listing                  ENVIRP
+2026-03-30 08:48 Symbol Table                    ..\..\..\envir_perf.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  9,61,64,65,67,71,73,74,75,77,312,3
+                                                                                                  13,316,320,321,322,323,324,333,334
+                                                                                                  ,337,341,342,343,344,345,355,356,3
+                                                                                                  59,363,364,365,366,367,371,372,390
+                                                                                                  ,392,393,394,395,396,399,400,419,4
+                                                                                                  21,422,423,424,425                
+ CONSTITUENTS               Local  7        L(4)            4           scalar                    7,233                             
+ CSVFORMAT                  Local  14       L(4)            4           scalar   SAVE             38,42,48                          
+ CUS                        Local  150      I(4)            4     1     1        ALC              150                               
+ C_AVG                      Local  22       R(4)            4     1     1        ALC,SAVE         22,29,376,378,395                 
+ C_CLASS                    Local  101      R(4)            4     3     1        ALC,SAVE         101,108,240,243,249,386,390       
+ C_CNT                      Local  101      R(4)            4     2     1        ALC,SAVE         101,107,238,375,376               
+ C_CRIT                     Local  239      R(4)            4           scalar   SAVE             239,242,246,248                   
+ C_INT                      Local  22       R(4)            4     1     1        ALC,SAVE         22,24,61,74,242,246,248,384       
+ C_SUM                      Local  101      R(4)            4     1     1        ALC,SAVE         101,300,386,393                   
+ C_TOP                      Local  22       R(4)            4     1     1        ALC,SAVE         22,25,61,74,239,240,382           
+ C_TOT                      Local  101      R(4)            4     2     1        ALC,SAVE         101,110,237,376                   
+ DAYTEST                    Local  15       R(4)            4           scalar   SAVE             135,137,140                       
+ DEPTHB                     Local  7        R(8)            8     2     1        ALC              7,161,164,166,172                 
+ DEPTH_VPR                  Local  56       CHAR            3           scalar   SAVE             56,57,73,160,349                  
+ DLT                        Local  21       R(8)            8           scalar                    21                                
+ DLTT                       Local  21       R(4)            4           scalar   SAVE             21,127,161,162,164,167,173,190,191
+                                                                                                  ,193,196,202,213,214,216,219,225,2
+                                                                                                  37,238,240,243,249,265,266,268,271
+                                                                                                  ,277,291                          
+ DS                         Local  150      I(4)            4     1     1        ALC              150                               
+ D_AVG                      Local  351      R(4)            4           scalar   SAVE             351,353,366                       
+ D_C                        Local  357      R(4)            4           scalar   SAVE             357,359,360                       
+ D_CLASS                    Local  103      R(4)            4     2     1        ALC,SAVE         103,122,164,167,173,359,361       
+ D_CNT                      Local  104      R(4)            4     1     1        ALC,SAVE         104,121,162,350,351,359,361       
+ D_CRIT                     Local  163      R(4)            4           scalar   SAVE             163,166,170,172                   
+ D_INT                      Local  56       R(4)            4           scalar   SAVE             56,73,166,170,172,360             
+ D_SUM                      Local  361      R(4)            4           scalar   SAVE             361,364                           
+ D_TOP                      Local  56       R(4)            4           scalar   SAVE             56,73,163,164,357                 
+ D_TOT                      Local  104      R(4)            4     1     1        ALC,SAVE         104,123,161,351                   
+ ENVIRP                     Subr   5                                                                                                
+ ENVIRPMOD                  Module 8                                                              8                                 
+ EVPYEARLY                  Local  14       L(4)            4           scalar   SAVE             78,80,134                         
+ GDAYC                      Module 8                                                              8                                 
+ GEOMC                      Module 7                                                              7                                 
+ GLOBAL                     Module 7                                                              7                                 
+ I                          Local  51       I(4)            4           scalar                    51,71,150,152,154,161,164,166,172,
+                                                                                                  183,184,190,191,193,195,196,201,20
+                                                                                                  2,213,214,216,218,219,224,225,237,
+                                                                                                  238,240,242,243,248,249,265,266,26
+                                                                                                  8,270,271,276,277,315,316,318,336,
+                                                                                                  337,339,358,359,361,380,381,382,38
+                                                                                                  4,386,389,390,409,410,411,413,415,
+                                                                                                  418,419                           
+ IEND                       Local  51       I(4)            4     1     9                         51,71,154                         
+ INT                        Func   137                                  scalar                    137                               
+ IOPENFISH                  Local  20       I(4)            4           scalar                    20,130,296                        
+ ISTART                     Local  51       I(4)            4     1     9                         51,71,152                         
+ I_INT                      Local  10       CHAR            1           scalar   SAVE             303,312,333,355,371,399           
+ I_SEGINT                   Local  51       I(4)            4           scalar                    51,53,71,72,101,103,104,105,143,29
+
+Page 11          Source Listing                  ENVIRP
+2026-03-30 08:48 Symbol Table                    ..\..\..\envir_perf.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  8                                 
+ J                          Local  40       I(4)            4           scalar                    40,41                             
+ JAC                        Local  235      I(4)            4           scalar                    235,237,239,240,242,246,248       
+ JACD                       Local  263      I(4)            4           scalar                    263,265,267,268,270,274,276       
+ JB                         Local  149      I(4)            4           scalar                    149,150                           
+ JC                         Local  60       I(4)            4           scalar                    60,61,62,74,84,85,87,234,235,237,2
+                                                                                                  38,240,243,249,261,263,265,266,268
+                                                                                                  ,271,277,372,374,375,376,378,382,3
+                                                                                                  84,386,390,393,395,400,402,403,404
+                                                                                                  ,406,411,413,415,419,422,424      
+ JD                         Local  66       I(4)            4           scalar                    66,67,68,75,90,91,93              
+ JDAY                       Local  7        R(8)            8           scalar                    7,127,135,137,439                 
+ JDAYG                      Local  137      I(4)            4           scalar                    137                               
+ JJ                         Local  165      I(4)            4           scalar                    165,167,172,173,194,196,201,202,21
+                                                                                                  7,219,224,225,241,243,248,249,269,
+                                                                                                  271,276,277                       
+ JW                         Local  148      I(4)            4           scalar                    148,149,183                       
+ K                          Local  183      I(4)            4           scalar                    183,184,190,191,193,195,196,201,20
+                                                                                                  2,213,214,216,218,219,224,225,237,
+                                                                                                  238,240,242,243,248,249,265,266,26
+                                                                                                  8,270,271,276,277                 
+ KB                         Local  161      I(4)            4     1     1        ALC              161,164,166,172,183               
+ KTWB                       Local  183      I(4)            4     1     1        ALC              183                               
+ LA                         Label  393                                                                                              
+ LB                         Label  393                                                                                              
+ LC                         Label  395                                                                                              
+ LD                         Label  395                                                                                              
+ LE                         Label  422                                                                                              
+ LF                         Label  422                                                                                              
+ LG                         Label  424                                                                                              
+ LH                         Label  424                                                                                              
+ MAIN                       Module 7                                                              7                                 
+ N                          Local  13       I(4)            4           scalar   SAVE             143,145,152,154,161,162,164,167,17
+                                                                                                  3,184,190,191,193,196,202,213,214,
+                                                                                                  216,219,225,237,238,240,243,249,26
+                                                                                                  5,266,268,271,277,291,298,303,306,
+                                                                                                  307,316,318,328,329,337,339,350,35
+                                                                                                  1,359,361,375,376,386,390,403,404,
+                                                                                                  415,419                           
+ NACD_E                     Local  34       I(4)            4           scalar                    34,92,93,261,398,400,401,402,419,4
+                                                                                                  22,424,430,433,434                
+ NAC_E                      Local  33       I(4)            4           scalar                    33,86,87,234,370,372,373,374,390,3
+                                                                                                  93,395,432,435                    
+ NAMESC                     Module 7                                                              7                                 
+ NCT                        Local  22       I(4)            4           scalar                    22,60,74,84,101,102               
+ NDC                        Local  22       I(4)            4           scalar                    22,66,75,90,101,102               
+ NIT                        Local  7        I(4)            4           scalar                    7,20                              
+ NUMCLASS                   Local  51       I(4)            4           scalar                    51,71,101,102,103,165,172,194,201,
+                                                                                                  217,224,241,248,269,276,315,336,35
+                                                                                                  8,380,389,409,418                 
+ NUNIT                      Local  35       I(4)            4           scalar                    35                                
+ NWB                        Local  148      I(4)            4           scalar                    148                               
+ REAL                       Func   137                                  scalar                    137                               
+ SCREENC                    Module 7                                                              7                                 
+ SELECTIVEC                 Local  51       CHAR            3           scalar   SAVE             51,52,53,71,72,132,151            
+
+Page 12          Source Listing                  ENVIRP
+2026-03-30 08:48 Symbol Table                    ..\..\..\envir_perf.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ SJDAY1                     Local  51       R(4)            4           scalar   SAVE             51,71,79,81,140                   
+ SJDAY2                     Local  51       R(4)            4           scalar   SAVE             51,71,140                         
+ SUMVOLT                    Local  105      R(4)            4     1     1        ALC,SAVE         105,125,291,316,318,337,339,386,39
+                                                                                                  0,415,419                         
+ T2                         Local  190      R(8)            8     2     1        PTR              190,193,195,201                   
+ TEMP_C                     Local  314      R(4)            4           scalar   SAVE             314,316,317                       
+ TEMP_INT                   Local  56       R(4)            4           scalar   SAVE             56,73,195,199,201,317             
+ TEMP_TOP                   Local  56       R(4)            4           scalar   SAVE             56,73,192,193,314                 
+ TEMP_VPR                   Local  56       CHAR            3           scalar   SAVE             56,57,73,188,305                  
+ TIMLAST                    Local  127      R(4)            4           scalar   SAVE             127,439                           
+ TVDC                       Module 7                                                              7                                 
+ T_AVG                      Local  307      R(4)            4           scalar   SAVE             307,309,323                       
+ T_CLASS                    Local  101      R(4)            4     2     1        ALC,SAVE         101,118,193,196,202,316,318       
+ T_CNT                      Local  104      R(4)            4     1     1        ALC,SAVE         104,117,191,306,307               
+ T_CRIT                     Local  192      R(4)            4           scalar   SAVE             192,195,199,201                   
+ T_SUM                      Local  301      R(4)            4           scalar   SAVE             301,318,321                       
+ T_TOT                      Local  104      R(4)            4     1     1        ALC,SAVE         104,119,190,307                   
+ U                          Local  213      R(8)            8     2     1        PTR              213,216,218,224                   
+ VEL_C                      Local  335      R(4)            4     1     1        ALC,SAVE         335,337,338                       
+ VEL_INT                    Local  56       R(4)            4           scalar   SAVE             56,73,218,222,224,338             
+ VEL_TOP                    Local  56       R(4)            4           scalar   SAVE             56,73,215,216,335                 
+ VEL_VPR                    Local  56       CHAR            3           scalar   SAVE             56,57,73,211,327                  
+ VOL                        Local  184      R(8)            8     2     1        ALC              184,190,191,193,196,202,213,214,21
+                                                                                                  6,219,225,237,238,240,243,249,265,
+                                                                                                  266,268,271,277                   
+ VOLGL                      Local  105      R(4)            4     1     1        ALC,SAVE         105,145,184,291                   
+ V_AVG                      Local  329      R(4)            4           scalar   SAVE             329,331,344                       
+ V_CLASS                    Local  101      R(4)            4     2     1        ALC,SAVE         101,114,216,219,225,337,339       
+ V_CNT                      Local  105      R(4)            4     1     1        ALC,SAVE         105,113,214,328,329               
+ V_CRIT                     Local  215      R(4)            4           scalar   SAVE             215,218,222,224                   
+ V_SUM                      Local  302      R(4)            4           scalar   SAVE             302,339,342                       
+ V_TOT                      Local  105      R(4)            4     1     1        ALC,SAVE         105,115,213,329                   
+
+Page 13          Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+    442 
+
+Page 14          Source Listing                  ENVIRP
+2026-03-30 08:48 Subprograms/Common Blocks       ..\..\..\envir_perf.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ENVIRP                     Subr   5                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 15          Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:envir_perf.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 16          Source Listing                  ENVIRP
+2026-03-30 08:48                                 ..\..\..\envir_perf.f90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : envir_perf.lst
+  /object:envir_perf.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

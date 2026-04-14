@@ -1,0 +1,411 @@
+Page 1           Source Listing                  RESTART_OUTPUT
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\341801214.i90
+
+      1 # 1 "..\..\..\restart.f90"
+      2 !***************************************************************************************************************************
+      2 ********
+      3 !*                                       S U B R O U T I N E    R E S T A R T   O U T P U T                                 
+      3       **
+      4 !***************************************************************************************************************************
+      4 ********
+      5 
+      6 SUBROUTINE RESTART_OUTPUT (RSOFN)
+      7   USE GLOBAL; USE SCREENC; USE RSTART; USE GDAYC; USE GEOMC; USE KINETIC, ONLY:EPM,EPD,SEDC,SEDN,SEDP, SDKV; USE TVDC, ONLY:
+      7 QSUM     
+      8   USE KINETIC, ONLY:SED, PFLUXIN,NFLUXIN ; USE ZOOPLANKTONC, ONLY: ZOO; USE EDDY, ONLY: TKE; USE MAIN, ONLY:ENVIRPC,WARNING_
+      8 OPEN,NXWL,NXFLOWBAL,NXNPBAL;USE ENVIRPMOD; USE LOGICC;USE STRUCTURES
+      9   USE MACROPHYTEC
+     10   IMPLICIT NONE
+     11   
+     12   CHARACTER(*) :: RSOFN
+     13   OPEN  (RSO,FILE=RSOFN,FORM='UNFORMATTED',STATUS='UNKNOWN')
+     14   WRITE (RSO) NIT,    NV,     KMIN,   IMIN,   NSPRF,  CMBRT,  ZMIN,   IZMIN,  START,  CURRENT
+     15   WRITE (RSO) DLTDP,  SNPDP,  TSRDP,  VPLDP,  PRFDP,  CPLDP,  SPRDP,  RSODP,  SCRDP,  FLXDP,  WDODP
+     16   WRITE (RSO) JDAY,    ELTM,   ELTMF,  DLT,    DLTAV,  DLTS,   MINDLT, JDMIN,  CURMAX
+     17   WRITE (RSO) NXTMSN, NXTMTS, NXTMPR, NXTMCP, NXTMVP, NXTMRS, NXTMSC, NXTMSP, NXTMFL, NXTMWD, NXWL, NXFLOWBAL, NXNPBAL,NXTMW
+     17 D_SEC, NXTMUK
+     18   WRITE (RSO) VOLIN,  VOLOUT, VOLUH,  VOLDH,  VOLPR,  VOLTRB, VOLDT,  VOLWD,  VOLEV,  VOLSBR, VOLTR, VOLSR,VOLICE,ICEBANK
+     19   WRITE (RSO) TSSEV,  TSSPR,  TSSTR,  TSSDT,  TSSWD,  TSSIN,  TSSOUT, TSSS,   TSSB,   TSSICE
+     20   WRITE (RSO) TSSUH,  TSSDH,  TSSUH2, TSSDH2, CSSUH2, CSSDH2, VOLUH2, VOLDH2, QUH1
+     21   WRITE (RSO) ESBR,   ETBR,   EBRI
+     22   WRITE (RSO) Z,      SZ,     ELWS,   SAVH2,  SAVHR,  H2
+     23   WRITE (RSO) KTWB,   KTI,    SKTI,   SBKT
+     24   WRITE (RSO) ICE,    ICETH,  CUF,    QSUM
+     25   WRITE (RSO) U,      W,      SU,     SW,     AZ,     SAZ,    DLTLIM, SELWS
+     26   WRITE (RSO) T1,     T2,     C1,     C2,     C1S,    SED,    KFS,    CSSK
+     27   WRITE (RSO) EPD,   EPM
+     28   WRITE (RSO) MACMBRT,MACRC, MAC, MACRM,  MACSS
+     29   WRITE (RSO) SEDC, SEDN, SEDP, ZOO, CD  ! mlm 10/06
+     30   WRITE(RSO) SDKV                        ! MLM 6/10/07
+     31   WRITE(RSO) TKE                         ! SW 10/4/07
+     32   WRITE(RSO) BR_INACTIVE,WARNING_OPEN   ! SW 8/1/2018
+     33   IF(ENVIRPC == '      ON')WRITE(RSO)T_CLASS,V_CLASS,C_CLASS,CD_CLASS,T_TOT,T_CNT,SUMVOLT,V_CNT,V_TOT,C_TOT,C_CNT,CD_TOT,CD_
+     33 CNT
+     34   IF(PIPES)WRITE(RSO)YS,VS,VST,YST,DTP,QOLD
+     35   WRITE(RSO)TPOUT,TPTRIB,TPDTRIB,TPWD,TPPR,TPIN,TP_SEDSOD_PO4,PFLUXIN,TNOUT,TNTRIB,TNDTRIB,TNWD,TNPR,TNIN,TN_SEDSOD_NH4,NFLU
+     35 XIN,ATMDEP_P,ATMDEP_N,NH3GASLOSS    !TP_SEDBURIAL,TN_SEDBURIAL,
+     36 
+     37   CLOSE (RSO)
+     38 END SUBROUTINE RESTART_OUTPUT
+
+Page 2           Source Listing                  RESTART_OUTPUT
+2026-03-30 08:47 Entry Points                    ..\..\..\restart.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name           
+                                   
+       RESTART_OUTPUT              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ATMDEP_N                   Local  35       R(4)            4     1     1        ALC              35                                
+ ATMDEP_P                   Local  35       R(4)            4     1     1        ALC              35                                
+ AZ                         Local  25       R(8)            8     2     1        PTR              25                                
+ BR_INACTIVE                Local  32       L(4)            4     1     1        ALC              32                                
+ C1                         Local  26       R(8)            8     3     1        ALC,TGT          26                                
+ C1S                        Local  26       R(8)            8     3     1        ALC,TGT          26                                
+ C2                         Local  26       R(8)            8     3     1        ALC,TGT          26                                
+ CD                         Local  29       R(8)            8     3     1        ALC,TGT          29                                
+ CD_CLASS                   Local  33       R(4)            4     3     1        ALC,SAVE         33                                
+ CD_CNT                     Local  33       R(4)            4     2     1        ALC,SAVE         33                                
+ CD_TOT                     Local  33       R(4)            4     2     1        ALC,SAVE         33                                
+ CMBRT                      Local  14       R(8)            8     2     1        ALC              14                                
+ CPLDP                      Local  15       I(4)            4     1     1        ALC              15                                
+ CSSDH2                     Local  20       R(8)            8     3     1        ALC              20                                
+ CSSK                       Local  26       R(8)            8     3     1        ALC,TGT          26                                
+ CSSUH2                     Local  20       R(8)            8     3     1        ALC              20                                
+ CUF                        Local  24       R(4)            4           scalar                    24                                
+ CURMAX                     Local  16       R(8)            8           scalar                    16                                
+ CURRENT                    Local  14       R(8)            8           scalar                    14                                
+ C_CLASS                    Local  33       R(4)            4     3     1        ALC,SAVE         33                                
+ C_CNT                      Local  33       R(4)            4     2     1        ALC,SAVE         33                                
+ C_TOT                      Local  33       R(4)            4     2     1        ALC,SAVE         33                                
+ DLT                        Local  16       R(8)            8           scalar                    16                                
+ DLTAV                      Local  16       R(8)            8           scalar                    16                                
+ DLTDP                      Local  15       I(4)            4           scalar                    15                                
+ DLTLIM                     Local  25       R(8)            8     2     1        PTR              25                                
+ DLTS                       Local  16       R(8)            8           scalar                    16                                
+ DTP                        Local  34       R(8)            8     1     1        ALC              34                                
+ EBRI                       Local  21       R(8)            8     1     1        ALC              21                                
+ EDDY                       Module 8                                                              8                                 
+ ELTM                       Local  16       R(8)            8           scalar                    16                                
+ ELTMF                      Local  16       R(8)            8     1     1        ALC              16                                
+ ELWS                       Local  22       R(8)            8     1     1        ALC              22                                
+ ENVIRPC                    Local  8        CHAR            8           scalar                    8,33                              
+ ENVIRPMOD                  Module 8                                                              8                                 
+ EPD                        Local  7        R(4)            4     3     1        ALC              7,27                              
+ EPM                        Local  7        R(4)            4     3     1        ALC              7,27                              
+ ESBR                       Local  21       R(8)            8     1     1        ALC              21                                
+ ETBR                       Local  21       R(8)            8     1     1        ALC              21                                
+ FLXDP                      Local  15       I(4)            4     1     1        ALC              15                                
+ GDAYC                      Module 7                                                              7                                 
+ GEOMC                      Module 7                                                              7                                 
+ GLOBAL                     Module 7                                                              7                                 
+ H2                         Local  22       R(8)            8     2     1        ALC              22                                
+
+Page 3           Source Listing                  RESTART_OUTPUT
+2026-03-30 08:47 Symbol Table                    ..\..\..\restart.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ICE                        Local  24       L(4)            4     1     1        ALC              24                                
+ ICEBANK                    Local  18       R(8)            8     1     1        ALC              18                                
+ ICETH                      Local  24       R(8)            8     1     1        ALC              24                                
+ IMIN                       Local  14       I(4)            4           scalar                    14                                
+ IZMIN                      Local  14       I(4)            4     1     1        ALC              14                                
+ JDAY                       Local  16       R(8)            8           scalar                    16                                
+ JDMIN                      Local  16       R(8)            8           scalar                    16                                
+ KFS                        Local  26       R(4)            4     3     1        ALC              26                                
+ KINETIC                    Module 7                                                              7,8                               
+ KMIN                       Local  14       I(4)            4           scalar                    14                                
+ KTI                        Local  23       I(4)            4     1     1        ALC              23                                
+ KTWB                       Local  23       I(4)            4     1     1        ALC              23                                
+ LOGICC                     Module 8                                                              8                                 
+ MAC                        Local  28       R(4)            4     3     1        ALC              28                                
+ MACMBRT                    Local  28       R(4)            4     2     1        ALC              28                                
+ MACRC                      Local  28       R(4)            4     4     1        ALC              28                                
+ MACRM                      Local  28       R(4)            4     4     1        ALC              28                                
+ MACROPHYTEC                Module 9                                                              9                                 
+ MACSS                      Local  28       R(4)            4     4     1        ALC              28                                
+ MAIN                       Module 8                                                              8                                 
+ MINDLT                     Local  16       R(8)            8           scalar                    16                                
+ NFLUXIN                    Local  8        R(4)            4     1     1        ALC              8,35                              
+ NH3GASLOSS                 Local  35       R(4)            4     1     1        ALC              35                                
+ NIT                        Local  14       I(4)            4           scalar                    14                                
+ NSPRF                      Local  14       I(4)            4     1     1        ALC              14                                
+ NV                         Local  14       I(4)            4           scalar                    14                                
+ NXFLOWBAL                  Local  8        R(8)            8           scalar                    8,17                              
+ NXNPBAL                    Local  8        R(8)            8           scalar                    8,17                              
+ NXTMCP                     Local  17       R(4)            4     1     1        ALC              17                                
+ NXTMFL                     Local  17       R(4)            4     1     1        ALC              17                                
+ NXTMPR                     Local  17       R(4)            4     1     1        ALC              17                                
+ NXTMRS                     Local  17       R(8)            8           scalar                    17                                
+ NXTMSC                     Local  17       R(4)            4     1     1        ALC              17                                
+ NXTMSN                     Local  17       R(4)            4     1     1        ALC              17                                
+ NXTMSP                     Local  17       R(4)            4     1     1        ALC              17                                
+ NXTMTS                     Local  17       R(8)            8           scalar                    17                                
+ NXTMUK                     Local  17       R(8)            8           scalar                    17                                
+ NXTMVP                     Local  17       R(4)            4     1     1        ALC              17                                
+ NXTMWD                     Local  17       R(8)            8           scalar                    17                                
+ NXTMWD_SEC                 Local  17       R(8)            8           scalar                    17                                
+ NXWL                       Local  8        R(8)            8           scalar                    8,17                              
+ PFLUXIN                    Local  8        R(4)            4     1     1        ALC              8,35                              
+ PIPES                      Local  34       L(4)            4           scalar                    34                                
+ PRFDP                      Local  15       I(4)            4     1     1        ALC              15                                
+ QOLD                       Local  34       R(8)            8     1     1        ALC              34                                
+ QSUM                       Local  7        R(8)            8     1     1        ALC              7,24                              
+ QUH1                       Local  20       R(8)            8     2     1        ALC              20                                
+ RESTART_OUTPUT             Subr   6                                                                                                
+ RSO                        Local  13       I(4)            4           scalar                    13,14,15,16,17,18,19,20,21,22,23,2
+                                                                                                  4,25,26,27,28,29,30,31,32,33,34,35
+                                                                                                  ,37                               
+ RSODP                      Local  15       I(4)            4           scalar                    15                                
+ RSOFN                      Dummy  12       CHAR                        scalar   ARG,INOUT        13                                
+ RSTART                     Module 7                                                              7                                 
+ SAVH2                      Local  22       R(8)            8     2     1        ALC              22                                
+
+Page 4           Source Listing                  RESTART_OUTPUT
+2026-03-30 08:47 Symbol Table                    ..\..\..\restart.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ SAVHR                      Local  22       R(8)            8     2     1        ALC              22                                
+ SAZ                        Local  25       R(8)            8     2     1        ALC              25                                
+ SBKT                       Local  23       R(8)            8     1     1        ALC              23                                
+ SCRDP                      Local  15       I(4)            4     1     1        ALC              15                                
+ SCREENC                    Module 7                                                              7                                 
+ SDKV                       Local  7        R(4)            4     2     1        ALC              7,30                              
+ SED                        Local  8        R(4)            4     2     1        ALC              8,26                              
+ SEDC                       Local  7        R(4)            4     2     1        ALC              7,29                              
+ SEDN                       Local  7        R(4)            4     2     1        ALC              7,29                              
+ SEDP                       Local  7        R(4)            4     2     1        ALC              7,29                              
+ SELWS                      Local  25       R(8)            8     1     1        ALC              25                                
+ SKTI                       Local  23       I(4)            4     1     1        ALC              23                                
+ SNPDP                      Local  15       I(4)            4     1     1        ALC              15                                
+ SPRDP                      Local  15       I(4)            4     1     1        ALC              15                                
+ START                      Local  14       R(8)            8           scalar                    14                                
+ STRUCTURES                 Module 8                                                              8                                 
+ SU                         Local  25       R(8)            8     2     1        ALC              25                                
+ SUMVOLT                    Local  33       R(4)            4     1     1        ALC,SAVE         33                                
+ SW                         Local  25       R(8)            8     2     1        ALC              25                                
+ SZ                         Local  22       R(8)            8     1     1        ALC              22                                
+ T1                         Local  26       R(8)            8     2     1        ALC,TGT          26                                
+ T2                         Local  26       R(8)            8     2     1        PTR              26                                
+ TKE                        Local  8        R(8)            8     3     1        ALC              8,31                              
+ TNDTRIB                    Local  35       R(4)            4     1     1        ALC              35                                
+ TNIN                       Local  35       R(4)            4     1     1        ALC              35                                
+ TNOUT                      Local  35       R(4)            4     1     1        ALC              35                                
+ TNPR                       Local  35       R(4)            4     1     1        ALC              35                                
+ TNTRIB                     Local  35       R(4)            4     1     1        ALC              35                                
+ TNWD                       Local  35       R(4)            4     1     1        ALC              35                                
+ TN_SEDSOD_NH4              Local  35       R(4)            4     1     1        ALC              35                                
+ TPDTRIB                    Local  35       R(4)            4     1     1        ALC              35                                
+ TPIN                       Local  35       R(4)            4     1     1        ALC              35                                
+ TPOUT                      Local  35       R(4)            4     1     1        ALC              35                                
+ TPPR                       Local  35       R(4)            4     1     1        ALC              35                                
+ TPTRIB                     Local  35       R(4)            4     1     1        ALC              35                                
+ TPWD                       Local  35       R(4)            4     1     1        ALC              35                                
+ TP_SEDSOD_PO4              Local  35       R(4)            4     1     1        ALC              35                                
+ TSRDP                      Local  15       I(4)            4           scalar                    15                                
+ TSSB                       Local  19       R(8)            8     1     1        ALC              19                                
+ TSSDH                      Local  20       R(8)            8     1     1        ALC              20                                
+ TSSDH2                     Local  20       R(8)            8     2     1        ALC              20                                
+ TSSDT                      Local  19       R(8)            8     1     1        ALC              19                                
+ TSSEV                      Local  19       R(8)            8     1     1        ALC              19                                
+ TSSICE                     Local  19       R(8)            8     1     1        ALC              19                                
+ TSSIN                      Local  19       R(8)            8     1     1        ALC              19                                
+ TSSOUT                     Local  19       R(8)            8     1     1        ALC              19                                
+ TSSPR                      Local  19       R(8)            8     1     1        ALC              19                                
+ TSSS                       Local  19       R(8)            8     1     1        ALC              19                                
+ TSSTR                      Local  19       R(8)            8     1     1        ALC              19                                
+ TSSUH                      Local  20       R(8)            8     1     1        ALC              20                                
+ TSSUH2                     Local  20       R(8)            8     2     1        ALC              20                                
+ TSSWD                      Local  19       R(8)            8     1     1        ALC              19                                
+ TVDC                       Module 7                                                              7                                 
+ T_CLASS                    Local  33       R(4)            4     2     1        ALC,SAVE         33                                
+ T_CNT                      Local  33       R(4)            4     1     1        ALC,SAVE         33                                
+
+Page 5           Source Listing                  RESTART_OUTPUT
+2026-03-30 08:47 Symbol Table                    ..\..\..\restart.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ T_TOT                      Local  33       R(4)            4     1     1        ALC,SAVE         33                                
+ U                          Local  25       R(8)            8     2     1        PTR              25                                
+ VOLDH                      Local  18       R(8)            8     1     1        ALC              18                                
+ VOLDH2                     Local  20       R(8)            8     2     1        ALC              20                                
+ VOLDT                      Local  18       R(8)            8     1     1        ALC              18                                
+ VOLEV                      Local  18       R(8)            8     1     1        ALC              18                                
+ VOLICE                     Local  18       R(8)            8     1     1        ALC              18                                
+ VOLIN                      Local  18       R(8)            8     1     1        ALC              18                                
+ VOLOUT                     Local  18       R(8)            8     1     1        ALC              18                                
+ VOLPR                      Local  18       R(8)            8     1     1        ALC              18                                
+ VOLSBR                     Local  18       R(8)            8     1     1        ALC              18                                
+ VOLSR                      Local  18       R(8)            8     1     1        ALC              18                                
+ VOLTR                      Local  18       R(8)            8     1     1        ALC              18                                
+ VOLTRB                     Local  18       R(8)            8     1     1        ALC              18                                
+ VOLUH                      Local  18       R(8)            8     1     1        ALC              18                                
+ VOLUH2                     Local  20       R(8)            8     2     1        ALC              20                                
+ VOLWD                      Local  18       R(8)            8     1     1        ALC              18                                
+ VPLDP                      Local  15       I(4)            4     1     1        ALC              15                                
+ VS                         Local  34       R(8)            8     2     1        ALC              34                                
+ VST                        Local  34       R(8)            8     2     1        ALC              34                                
+ V_CLASS                    Local  33       R(4)            4     2     1        ALC,SAVE         33                                
+ V_CNT                      Local  33       R(4)            4     1     1        ALC,SAVE         33                                
+ V_TOT                      Local  33       R(4)            4     1     1        ALC,SAVE         33                                
+ W                          Local  25       R(8)            8     2     1        PTR              25                                
+ WARNING_OPEN               Local  8        L(4)            4           scalar                    8,32                              
+ WDODP                      Local  15       I(4)            4           scalar                    15                                
+ YS                         Local  34       R(8)            8     2     1        ALC              34                                
+ YST                        Local  34       R(8)            8     2     1        ALC              34                                
+ Z                          Local  22       R(8)            8     1     1        ALC              22                                
+ ZMIN                       Local  14       R(4)            4     1     1        ALC              14                                
+ ZOO                        Local  8        R(8)            8     3     1        PTR              8,29                              
+ ZOOPLANKTONC               Module 8                                                              8                                 
+
+Page 6           Source Listing                  RESTART_OUTPUT
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\restart.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ RESTART_OUTPUT             Subr   6                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 7           Source Listing                  RESTART_OUTPUT
+2026-03-30 08:47                                 ..\..\..\restart.f90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:restart.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 8           Source Listing                  RESTART_OUTPUT
+2026-03-30 08:47                                 ..\..\..\restart.f90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : restart.lst
+  /object:restart.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

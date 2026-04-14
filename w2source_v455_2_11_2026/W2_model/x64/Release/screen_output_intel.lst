@@ -1,0 +1,960 @@
+Page 1           Source Listing                  WINMAIN
+2026-03-30 08:48                                 C:\Users\NING\AppData\Local\Temp\341801304.i90
+
+      1 # 1 "..\..\..\screen_output_intel.f90"
+      2 !***************************************************************************************************************************
+      2 ********
+      3 !**                                                 F U N C T I O N   W I N M A I N                                         
+      3       **
+      4 !***************************************************************************************************************************
+      4 ********
+      5 
+      6 INTEGER FUNCTION WINMAIN (HINSTANCE,HPREVINSTANCE,LPSZCMDLINE,NCMDSHOW)
+      7 !DEC$ IF DEFINED(_X86_)
+      8 !DEC$ ATTRIBUTES STDCALL, ALIAS : '_WinMain@16' :: WINMAIN
+      9 !DEC$ ELSE
+     10 !DEC$ ATTRIBUTES STDCALL, ALIAS: 'WinMain':: WinMain
+     11 !DEC$ ENDIF
+     12   USE DFLIB; USE IFWIN, RENAMED => DLT; USE IFLOGM        !USE DFLOGM; use dfwin
+     13   INTEGER(8) :: HINSTANCE, HPREVINSTANCE, LPSZCMDLINE, NCMDSHOW
+     14 
+     15   CALL W2_DIALOG
+     16   WINMAIN = 0
+     17   RETURN
+     18 END FUNCTION WINMAIN
+
+
+ENTRY POINTS
+
+ Address      Type  Name    
+                            
+       WinMain              
+
+Page 2           Source Listing                  WINMAIN
+2026-03-30 08:48 Symbol Table                    ..\..\..\screen_output_intel.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DFLIB                      Module 12                                                             12                                
+ HINSTANCE                  Dummy  13       I(8)            8           scalar   ARG,INOUT                                          
+ HPREVINSTANCE              Dummy  13       I(8)            8           scalar   ARG,INOUT                                          
+ IFLOGM                     Module 12                                                             12                                
+ IFWIN                      Module 12                                                             12                                
+ LPSZCMDLINE                Dummy  13       I(8)            8           scalar   ARG,INOUT                                          
+ NCMDSHOW                   Dummy  13       I(8)            8           scalar   ARG,INOUT                                          
+ RENAMED                    Param  12       I(4)            4           scalar                                                      
+ W2_DIALOG                  Subr   15                                                             15                                
+ WINMAIN                    Local  6        I(4)            4           scalar                                                      
+ WINMAIN                    Func   6        I(4)            4           scalar                    16                                
+
+Page 3           Source Listing                  WINMAIN
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+     19 
+     20 !***************************************************************************************************************************
+     20 ********
+     21 !**                                                P R O G R A M   W 2   D I A L O G                                        
+     21       **
+     22 !***************************************************************************************************************************
+     22 ********
+     23 
+     24 subroutine W2_DIALOG
+     25   USE IFLOGM; USE MSCLIB          !DFLOGM
+     26   INTEGER       :: RESULT
+     27   LOGICAL       :: RSO_EXISTS=.FALSE., RESTARTED, RESULTLOG
+     28   TYPE (DIALOG) :: DLG
+     29   EXTERNAL RUN_W2
+     30 
+     31   RESTARTED = .FALSE.                                                                               
+     32   OPEN (1,FILE='rso.opt',STATUS='OLD',IOSTAT=RESULT); CLOSE (1)                                   !Does restart file exist?
+     33   RSO_EXISTS = RESULT == 0                                                                        !Restart file exists
+     34   RESULTLOG = DLGINIT   (OUTPUT_DIALOG,DLG)                                                          !Initialize dialog box
+     35   RESULTLOG = DLGSET    (DLG,STATUS,'Pending execution')                                             !Display execution stat
+     35 us
+     36   RESULTLOG = DLGSET    (DLG,RESTART,        RSO_EXISTS,DLG_ENABLE)                                  !Enable  'Restart' butt
+     36 on
+     37   RESULTLOG = DLGSET    (DLG,RUN,           .FALSE.,    DLG_ENABLE)
+     38   RESULTLOG = DLGSET    (DLG,STOP_EXECUTION,.FALSE.,    DLG_ENABLE)                                  !Disable 'Stop'    butt
+     38 on
+     39   RESULTLOG = DLGSETSUB (DLG,OUTPUT_DIALOG,RUN_W2)
+     40   RESULTLOG = DLGSETSUB (DLG,RUN,            RUN_W2)                                                 !Set 'Run'     callback
+     41   RESULTLOG = DLGSETSUB (DLG,STOP_EXECUTION, RUN_W2)                                                 !Set 'Stop'    callback
+     42   RESULTLOG = DLGSETSUB (DLG,RESTART,        RUN_W2)                                                 !Set 'Restart' callback
+     43   RESULTLOG = DLGSETSUB (DLG,HIGHEST,        RUN_W2)                                                 !Set 'Highest' callback
+     44   RESULTLOG = DLGSETSUB (DLG,HIGH,           RUN_W2)                                                 !Set 'High'    callback
+     45   RESULTLOG = DLGSETSUB (DLG,NORMAL,         RUN_W2)                                                 !Set 'Normal'  callback
+     46   RESULTLOG = DLGSETSUB (DLG,LOW,            RUN_W2)                                                 !Set 'Low'     callback
+     47   RESULTLOG = DLGSETSUB (DLG,LOWEST,         RUN_W2)                                                 !Set 'Lowest'  callback
+     48   RESULTLOG = DLGSETSUB (DLG,IDLE,           RUN_W2)                                                 !Set 'Idle'    callback
+     49   RESULTLOG = DLGSETSUB (DLG,IDOK,RUN_W2)
+     50   RESULTLOG = DLGMODAL  (DLG)                                                                        !Show dialog box
+     51   CALL DLGUNINIT     (DLG)                                                                        !Close dialog box
+     52 END subroutine W2_DIALOG
+
+Page 4           Source Listing                  W2_DIALOG
+2026-03-30 08:48 Entry Points                    ..\..\..\screen_output_intel.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name      
+                              
+       W2_DIALOG              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DIALOG                     Type   28                                   scalar                    28                                
+ DLG                        Local  28       DIALOG          120         scalar                    34,35,36,37,38,39,40,41,42,43,44,4
+                                                                                                  5,46,47,48,49,50,51               
+ DLGINIT                    Func   34       L(4)            4           scalar                    34                                
+ DLGMODAL                   Func   50       I(4)            4           scalar                    50                                
+ DLGSET                     Local  35                                   scalar                    35,36,37,38                       
+ DLGSETCHAR                 Func   35       L(4)            4           scalar                    35                                
+ DLGSETLOG                  Func   36       L(4)            4           scalar                    36,37,38                          
+ DLGSETSUB                  Func   39       L(4)            4           scalar                    39,40,41,42,43,44,45,46,47,48,49  
+ DLGUNINIT                  Subr   51                                                             51                                
+ DLG_ENABLE                 Param  36       I(4)            4           scalar                    36,37,38                          
+ HIGH                       Param  44       I(4)            4           scalar                    44                                
+ HIGHEST                    Param  43       I(4)            4           scalar                    43                                
+ IDLE                       Param  48       I(4)            4           scalar                    48                                
+ IDOK                       Param  49       I(4)            4           scalar                    49                                
+ IFLOGM                     Module 25                                                             25                                
+ LOW                        Param  46       I(4)            4           scalar                    46                                
+ LOWEST                     Param  47       I(4)            4           scalar                    47                                
+ MSCLIB                     Module 25                                                             25                                
+ NORMAL                     Param  45       I(4)            4           scalar                    45                                
+ OUTPUT_DIALOG              Param  34       I(4)            4           scalar                    34,39                             
+ RESTART                    Param  36       I(4)            4           scalar                    36,42                             
+ RESTARTED                  Local  27       L(4)            4           scalar                    31                                
+ RESULT                     Local  26       I(4)            4           scalar                    32,33                             
+ RESULTLOG                  Local  27       L(4)            4           scalar                    34,35,36,37,38,39,40,41,42,43,44,4
+                                                                                                  5,46,47,48,49,50                  
+ RSO_EXISTS                 Local  27       L(4)            4           scalar                    27,33,36                          
+ RUN                        Param  37       I(4)            4           scalar                    37,40                             
+ RUN_W2                     Subr   29                                   scalar                    39,40,41,42,43,44,45,46,47,48,49  
+ STATUS                     Param  35       I(4)            4           scalar                    35                                
+ STOP_EXECUTION             Param  38       I(4)            4           scalar                    38,41                             
+ W2_DIALOG                  Subr   24                                                                                               
+
+Page 5           Source Listing                  W2_DIALOG
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+     53 
+     54 !***************************************************************************************************************************
+     54 ********
+     55 !*                                                  S U B R O U T I N E   R U N   W 2                                       
+     55       **
+     56 !***************************************************************************************************************************
+     56 ********
+     57 
+     58 SUBROUTINE RUN_W2 (DLG,CONTROL_NAME,ACTION)
+     59   USE IFWIN, RENAMED => DLT; USE IFLOGM; USE MSCLIB; USE GLOBAL, ONLY: CDATE, CCTIME;  USE MAIN, ONLY: END_RUN              
+     59  !Rename DLT in DFWIN   DFLOGM  DFWIN
+     60   IMPLICIT NONE
+     61   INTEGER                             :: ACTION, IDTHREAD, CONTROL_NAME, I
+     62   LOGICAL                             :: RESULT
+     63   CHARACTER(8)                        :: TIME
+     64   CHARACTER(72)                       :: TEXT
+     65   CHARACTER(1000)                     :: TEXT1
+     66   TYPE(DIALOG)                        :: DLG
+     67   TYPE(T_SECURITY_ATTRIBUTES),POINTER :: NULL_SA
+     68   INTERFACE
+     69     INTEGER FUNCTION CE_QUAL_W2 (H)
+     70 !DEC$ATTRIBUTES STDCALL :: CE_QUAL_W2
+     71       INTEGER :: H
+     72     END FUNCTION
+     73   END INTERFACE
+     74 
+     75   SELECT CASE (CONTROL_NAME)
+     76     CASE (RUN)
+     77       CALL BLANK_DIALOG  (DLG)
+     78       CALL DATE_AND_TIME (CDATE,CCTIME)
+     79       RESTART_PUSHED = .FALSE.
+     80       STOP_PUSHED    = .FALSE.
+     81       HTHREAD        =  CREATETHREAD (0,0,LOC(CE_QUAL_W2),LOC(DLG),0,LOC(IDTHREAD))          !Start W2 in a new thread    CR
+     81 EATETHREAD (NULL_SA,0,LOC(CE_QUAL_W2),LOC(DLG),0,LOC(IDTHREAD))
+     82       TIME           =  CCTIME(1:2)//':'//CCTIME(3:4)//':'//CCTIME(5:6)
+     83       RESULT         =  DLGSET (DLG,RUN,           .FALSE.,DLG_ENABLE)                             !Disable 'Run'     button
+     84       RESULT         =  DLGSET (DLG,CLOSE,         .FALSE.,DLG_ENABLE)                             !Disable 'Run'     button
+     85       RESULT         =  DLGSET (DLG,RESTART,       .FALSE.,DLG_ENABLE)                             !Disable 'Restart' button
+     86       RESULT         =  DLGSET (DLG,STOP_EXECUTION,.TRUE., DLG_ENABLE)                             !Enable  'Stop'    button
+     87       RESULT         =  DLGSET (DLG,STARTING_TIME,TIME)                                            !Display starting time
+     88       RESULT         =  DLGSET (DLG,STATUS,'Executing')                                            !Display execution status
+     89     CASE (OUTPUT_DIALOG)
+     90       CALL BLANK_DIALOG  (DLG)
+     91       CALL DATE_AND_TIME (CDATE,CCTIME)
+     92       RESTART_PUSHED = .FALSE.
+     93       STOP_PUSHED    = .FALSE.
+     94       HTHREAD        =  CREATETHREAD (0,0,LOC(CE_QUAL_W2),LOC(DLG),0,LOC(IDTHREAD))          !Start W2 in a new thread    CR
+     94 EATETHREAD (NULL_SA,0,LOC(CE_QUAL_W2),LOC(DLG),0,LOC(IDTHREAD))
+     95       TIME           =  CCTIME(1:2)//':'//CCTIME(3:4)//':'//CCTIME(5:6)
+     96       RESULT         =  DLGSET (DLG,RUN,           .FALSE.,DLG_ENABLE)                             !Disable 'Run'     button
+     97       RESULT         =  DLGSET (DLG,CLOSE,         .FALSE.,DLG_ENABLE)                             !Disable 'Run'     button
+     98       RESULT         =  DLGSET (DLG,RESTART,       .FALSE.,DLG_ENABLE)                             !Disable 'Restart' button
+     99       RESULT         =  DLGSET (DLG,STOP_EXECUTION,.TRUE., DLG_ENABLE)                             !Enable  'Stop'    button
+    100       RESULT         =  DLGSET (DLG,STARTING_TIME,TIME)                                            !Display starting time
+    101       RESULT         =  DLGSET (DLG,STATUS,'Executing')                                            !Display execution status
+    102     CASE (STOP_EXECUTION)
+    103       STOP_PUSHED = .TRUE.
+
+Page 6           Source Listing                  RUN_W2
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+    104       END_RUN     = .TRUE.
+    105       RESULT = DLGSET      (DLG,STOP_EXECUTION,.FALSE.,DLG_ENABLE)                                 !Disable 'Stop'    button
+    106       RESULT = DLGSET      (DLG,RUN,           .TRUE., DLG_ENABLE)                                 !Enable  'Run'     button
+    107       RESULT = CLOSEHANDLE (HTHREAD)                                                               !Close thread handle
+    108     CASE (RESTART)
+    109       STOP_PUSHED    = .FALSE.
+    110       RESTART_PUSHED = .TRUE.
+    111       END_RUN        = .FALSE.
+    112       HTHREAD        =  CREATETHREAD (0,0,LOC(CE_QUAL_W2),LOC(DLG),0,LOC(IDTHREAD))          !Start W2 in a new thread    CR
+    112 EATETHREAD (NULL_SA,0,LOC(CE_QUAL_W2),LOC(DLG),0,LOC(IDTHREAD))
+    113       RESULT         =  DLGSET       (DLG,ENDING_TIME,   ' ')
+    114       RESULT         =  DLGSET       (DLG,RUN,           .FALSE.,DLG_ENABLE)                       !Disable 'Run'     button
+    115       RESULT         =  DLGSET       (DLG,CLOSE,         .FALSE.,DLG_ENABLE)                       !Disable 'Run'     button
+    116       RESULT         =  DLGSET       (DLG,RESTART,       .FALSE.,DLG_ENABLE)                       !Disable 'Restart' button
+    117       RESULT         =  DLGSET       (DLG,STOP_EXECUTION,.TRUE., DLG_ENABLE)                       !Enable  'Stop'    button
+    118       RESULT         =  DLGSET       (DLG,STATUS,'Executing')                                      !Display execution status
+    119     CASE (HIGHEST)
+    120       CALL ENABLE (DLG)                                                                            !Enable  priority buttons
+    121       I      = SETTHREADPRIORITY (HTHREAD,THREAD_PRIORITY_HIGHEST)                                 !Set highest priority
+    122       RESULT = DLGSET            (DLG,HIGHEST,.FALSE.,DLG_ENABLE)                                  !Disable 'Highest' button
+    123     CASE (HIGH)
+    124       CALL ENABLE (DLG)                                                                            !Enable  priority buttons
+    125       I      = SETTHREADPRIORITY (HTHREAD,THREAD_PRIORITY_ABOVE_NORMAL)                            !Set high    priority
+    126       RESULT = DLGSET            (DLG,HIGH,   .FALSE.,DLG_ENABLE)                                  !Disable 'High'   button
+    127     CASE (NORMAL)
+    128       CALL ENABLE (DLG)                                                                            !Enable  priority buttons
+    129       I      = SETTHREADPRIORITY (HTHREAD,THREAD_PRIORITY_NORMAL)                                  !Set normal  priority
+    130       RESULT = DLGSET            (DLG,NORMAL, .FALSE.,DLG_ENABLE)                                  !Disable 'Normal' button
+    131     CASE (LOW)
+    132       CALL ENABLE (DLG)                                                                            !Enable  priority buttons
+    133       I      = SETTHREADPRIORITY (HTHREAD,THREAD_PRIORITY_BELOW_NORMAL)                            !Set low     priority
+    134       RESULT = DLGSET            (DLG,LOW,    .FALSE.,DLG_ENABLE)                                  !Disable 'Low'    button
+    135     CASE (LOWEST)
+    136       CALL ENABLE (DLG)                                                                            !Enable  priority buttons
+    137       I      = SETTHREADPRIORITY (HTHREAD,THREAD_PRIORITY_LOWEST)                                  !Set lowest  priority
+    138       RESULT = DLGSET            (DLG,LOWEST, .FALSE.,DLG_ENABLE)                                  !Disable 'Lowest' button
+    139     CASE (IDLE)
+    140       CALL ENABLE (DLG)                                                                            !Enable  priority buttons
+    141       I      = SETTHREADPRIORITY (HTHREAD,THREAD_PRIORITY_IDLE)                                    !Set idle priority
+    142       RESULT = DLGSET            (DLG,IDLE,   .FALSE.,DLG_ENABLE)                                  !Disable 'Idle'   button
+    143   END SELECT
+    144 RETURN
+    145 
+    146 ENTRY EXITDIALOG(DLG,TEXT)
+    147  CALL DLGEXIT(DLG)
+    148 RETURN
+    149 
+    150 ENTRY STOP_W2 (DLG,TEXT)
+
+Page 7           Source Listing                  RUN_W2
+2026-03-30 08:48 Entry Points                    ..\..\..\screen_output_intel.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name         Address      Type  Name         Address      Type  Name       
+                                                                                               
+       EXITDIALOG                      RUN_W2                          STOP_W2                 
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ACTION                     Dummy  61       I(4)            4           scalar   ARG,INOUT                                          
+ BLANK_DIALOG               Subr   77                                                             77,90                             
+ CCTIME                     Local  59       CHAR            10          scalar                    59,78,82,91,95,151,152            
+ CDATE                      Local  59       CHAR            12          scalar                    59,78,91,151                      
+ CE_QUAL_W2                 Local  69       I(4)            4           scalar                                                      
+ CLOSE                      Param  84       I(4)            4           scalar                    84,97,115,157                     
+ CLOSEHANDLE                Func   107      I(4)            4           scalar                    107                               
+ CONTROL_NAME               Dummy  61       I(4)            4           scalar   ARG,INOUT        75                                
+ CREATETHREAD               Func   81       I(8)            8           scalar                    81,94,112                         
+ DATE_AND_TIME              Intrin 78                                                             78,91,151                         
+ DIALOG                     Type   66                                   scalar                    66                                
+ DLG                        Dummy  66       DIALOG          120         scalar   ARG,INOUT,TGT    77,81,83,84,85,86,87,88,90,94,96,9
+                                                                                                  7,98,99,100,101,105,106,112,113,11
+                                                                                                  4,115,116,117,118,120,122,124,126,
+                                                                                                  128,130,132,134,136,138,140,142,14
+                                                                                                  7,153,154,155,156,157,158         
+ DLGEXIT                    Subr   147                                                            147                               
+ DLGSET                     Local  83                                   scalar                    83,84,85,86,87,88,96,97,98,99,100,
+                                                                                                  101,105,106,113,114,115,116,117,11
+                                                                                                  8,122,126,130,134,138,142,153,154,
+                                                                                                  155,156,157,158                   
+ DLGSETCHAR                 Func   87       L(4)            4           scalar                    87,88,100,101,113,118,153,154     
+ DLGSETLOG                  Func   83       L(4)            4           scalar                    83,84,85,86,96,97,98,99,105,106,11
+                                                                                                  4,115,116,117,122,126,130,134,138,
+                                                                                                  142,155,156,157,158               
+ DLG_ENABLE                 Param  83       I(4)            4           scalar                    83,84,85,86,96,97,98,99,105,106,11
+                                                                                                  4,115,116,117,122,126,130,134,138,
+                                                                                                  142,155,156,157,158               
+ ENABLE                     Subr   120                                                            120,124,128,132,136,140           
+ ENDING_TIME                Param  113      I(4)            4           scalar                    113,153                           
+ END_RUN                    Local  59       L(4)            4           scalar                    59,104,111                        
+ EXITDIALOG                 Subr   146                                                                                              
+ GLOBAL                     Module 59                                                             59                                
+ HIGH                       Param  123      I(4)            4           scalar                    123,126                           
+ HIGHEST                    Param  119      I(4)            4           scalar                    119,122                           
+ HTHREAD                    Local  81       I(8)            8           scalar                    81,94,107,112,121,125,129,133,137,
+                                                                                                  141                               
+ I                          Local  61       I(4)            4           scalar                    121,125,129,133,137,141           
+ IDLE                       Param  139      I(4)            4           scalar                    139,142                           
+ IDTHREAD                   Local  61       I(4)            4           scalar                    81,94,112                         
+ IFLOGM                     Module 59                                                             59                                
+ IFWIN                      Module 59                                                             59                                
+ LOC                        Func   81                                   scalar                    81,94,112                         
+ LOW                        Param  131      I(4)            4           scalar                    131,134                           
+
+Page 8           Source Listing                  RUN_W2
+2026-03-30 08:48 Symbol Table                    ..\..\..\screen_output_intel.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ LOWEST                     Param  135      I(4)            4           scalar                    135,138                           
+ MAIN                       Module 59                                                             59                                
+ MSCLIB                     Module 59                                                             59                                
+ NORMAL                     Param  127      I(4)            4           scalar                    127,130                           
+ NULL_SA                    Local  67       T_SECURITY_ATTRIBUTES                                                                   
+                                                            24          scalar   PTR                                                
+ OUTPUT_DIALOG              Param  89       I(4)            4           scalar                    89                                
+ RENAMED                    Param  59       I(4)            4           scalar                                                      
+ RESTART                    Param  85       I(4)            4           scalar                    85,98,108,116,158                 
+ RESTART_PUSHED             Local  79       L(4)            4           scalar                    79,92,110                         
+ RESULT                     Local  62       L(4)            4           scalar                    83,84,85,86,87,88,96,97,98,99,100,
+                                                                                                  101,105,106,107,113,114,115,116,11
+                                                                                                  7,118,122,126,130,134,138,142,153,
+                                                                                                  154,155,156,157,158               
+ RUN                        Param  76       I(4)            4           scalar                    76,83,96,106,114,156              
+ RUN_W2                     Subr   58                                                                                               
+ SETTHREADPRIORITY          Func   121      I(4)            4           scalar                    121,125,129,133,137,141           
+ STARTING_TIME              Param  87       I(4)            4           scalar                    87,100                            
+ STATUS                     Param  88       I(4)            4           scalar                    88,101,118,154                    
+ STOP_EXECUTION             Param  86       I(4)            4           scalar                    86,99,102,105,117,155             
+ STOP_PUSHED                Local  80       L(4)            4           scalar                    80,93,103,109,158                 
+ STOP_W2                    Subr   150                                                                                              
+ TEXT                       Dummy  64       CHAR            72          scalar   ARG,INOUT        154                               
+ TEXT1                      Local  65       CHAR            1000        scalar                    152,153                           
+ THREAD_PRIORITY_ABOVE_NOR                                                                                                          
+ AL                         Param  125      I(4)            4           scalar                    125                               
+ THREAD_PRIORITY_BELOW_NOR                                                                                                          
+ AL                         Param  133      I(4)            4           scalar                    133                               
+ THREAD_PRIORITY_HIGHEST    Param  121      I(4)            4           scalar                    121                               
+ THREAD_PRIORITY_IDLE       Param  141      I(4)            4           scalar                    141                               
+ THREAD_PRIORITY_LOWEST     Param  137      I(4)            4           scalar                    137                               
+ THREAD_PRIORITY_NORMAL     Param  129      I(4)            4           scalar                    129                               
+ TIME                       Local  63       CHAR            8           scalar                    82,87,95,100                      
+ T_SECURITY_ATTRIBUTES      Type   67                                   scalar                    67                                
+
+Page 9           Source Listing                  RUN_W2
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+    151   CALL DATE_AND_TIME (CDATE,CCTIME)
+    152   TEXT1  = CCTIME(1:2)//':'//CCTIME(3:4)//':'//CCTIME(5:6)
+    153   RESULT = DLGSET (DLG,ENDING_TIME,TEXT1)                                                          !Display ending time
+    154   RESULT = DLGSET (DLG,STATUS,TEXT)                                                                !Execution status
+    155   RESULT = DLGSET (DLG,STOP_EXECUTION,.FALSE.,DLG_ENABLE)                                          !Disable 'Stop'    button
+    156   RESULT = DLGSET (DLG,RUN,           .TRUE., DLG_ENABLE)                                          !Enable  'Run'     button
+    157   RESULT = DLGSET (DLG,CLOSE,         .TRUE., DLG_ENABLE)                                          !Enable  'Close'    butto
+    157 n
+    158   IF (STOP_PUSHED) RESULT = DLGSET (DLG,RESTART,.TRUE.,DLG_ENABLE)                                 !Enable  'Restart' button
+    159 END SUBROUTINE RUN_W2
+    160 
+    161 SUBROUTINE ENABLE (DLG)
+    162   USE DFWIN, RENAMED => DLT; USE DFLOGM; USE MSCLIB                                                !Rename DLT in DFWIN
+    163   LOGICAL :: RESULT                                                                                ! 9/27/07 SW
+    164   TYPE(DIALOG) :: DLG
+    165 
+    166   RESULT = DLGSET (DLG,IDLE,   .TRUE.,DLG_ENABLE)                                                  !Enable 'Idle'    button
+    167   RESULT = DLGSET (DLG,HIGHEST,.TRUE.,DLG_ENABLE)                                                  !Enable 'Highest' button
+    168   RESULT = DLGSET (DLG,HIGH,   .TRUE.,DLG_ENABLE)                                                  !Enable 'High'    button
+    169   RESULT = DLGSET (DLG,NORMAL, .TRUE.,DLG_ENABLE)                                                  !Enable 'Normal'  button
+    170   RESULT = DLGSET (DLG,LOW,    .TRUE.,DLG_ENABLE)                                                  !Enable 'Low'     button
+    171   RESULT = DLGSET (DLG,LOWEST, .TRUE.,DLG_ENABLE)                                                  !Enable 'Lowest'  button
+    172 END SUBROUTINE ENABLE
+
+
+ENTRY POINTS
+
+ Address      Type  Name   
+                           
+       ENABLE              
+
+Page 10          Source Listing                  ENABLE
+2026-03-30 08:48 Symbol Table                    ..\..\..\screen_output_intel.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DFLOGM                     Module 162                                                            162                               
+ DFWIN                      Module 162                                                            162                               
+ DIALOG                     Type   164                                  scalar                    164                               
+ DLG                        Dummy  164      DIALOG          120         scalar   ARG,INOUT        166,167,168,169,170,171           
+ DLGSET                     Local  166                                  scalar                    166,167,168,169,170,171           
+ DLGSETLOG                  Func   166      L(4)            4           scalar                    166,167,168,169,170,171           
+ DLG_ENABLE                 Param  166      I(4)            4           scalar                    166,167,168,169,170,171           
+ ENABLE                     Subr   161                                                                                              
+ HIGH                       Param  168      I(4)            4           scalar                    168                               
+ HIGHEST                    Param  167      I(4)            4           scalar                    167                               
+ IDLE                       Param  166      I(4)            4           scalar                    166                               
+ LOW                        Param  170      I(4)            4           scalar                    170                               
+ LOWEST                     Param  171      I(4)            4           scalar                    171                               
+ MSCLIB                     Module 162                                                            162                               
+ NORMAL                     Param  169      I(4)            4           scalar                    169                               
+ RENAMED                    Param  162      I(4)            4           scalar                                                      
+ RESULT                     Local  163      L(4)            4           scalar                    166,167,168,169,170,171           
+
+Page 11          Source Listing                  ENABLE
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+    173 
+    174 !***************************************************************************************************************************
+    174 ********
+    175 !*                                                E N T R Y   S C R E E N  U P D A T E                                      
+    175       **
+    176 !***************************************************************************************************************************
+    176 ********
+    177 
+    178 SUBROUTINE SCREEN_UPDATE (DLG)
+    179   USE IFLOGM; USE DFLIB; USE MSCLIB; USE GEOMC; USE GLOBAL; USE GDAYC; USE SCREENC; USE SURFHE; USE TVDC; USE LOGICC; USE NA
+    179 MESC    ! USE DFLOGM
+    180   USE STRUCTURES; USE MAIN, ONLY:TMSTRT, TMEND; USE MetFileRegion
+    181   IMPLICIT NONE
+    182   CHARACTER(8)    :: TIME
+    183   CHARACTER(3000) :: TEXT1
+    184   TYPE(DIALOG)    :: DLG
+    185   INTEGER         :: IPROG
+    186   LOGICAL         :: RESULT
+    187   TIME = CCTIME(1:2)//':'//CCTIME(3:4)//':'//CCTIME(5:6)
+    188   CALL DATE_AND_TIME (CDATE,CCTIME)
+    189   CALL CPU_TIME (CURRENT)
+    190   WRITE (TEXT1,'(A," ",I0,", ",I0)')  MONTH,GDAY,YEAR;            RESULT = DLGSET (DLG,GREGORIAN_DAY,                    TEX
+    190 T1)
+    191   WRITE (TEXT1,'(I0)')                INT(JDAY);                  RESULT = DLGSET (DLG,JULIAN_DAY,                       TEX
+    191 T1)
+    192   WRITE (TEXT1,'(F0.2)')             (JDAY-INT(JDAY))*24.0;       RESULT = DLGSET (DLG,JULIAN_HOUR,                      TEX
+    192 T1)
+    193   WRITE (TEXT1,'(I0)')                INT(ELTMJD);                RESULT = DLGSET (DLG,ELAPSED_DAY,                      TEX
+    193 T1)
+    194   WRITE (TEXT1,'(F0.2)')             (ELTMJD-INT(ELTMJD))*24.0;   RESULT = DLGSET (DLG,ELAPSED_HOUR,                     TEX
+    194 T1)
+    195   WRITE (TEXT1,'(I0)')                INT(DLTS1);                 RESULT = DLGSET (DLG,TIMESTEP,                         TEX
+    195 T1)
+    196   WRITE (TEXT1,'("(",I0,",",I0,")")') KLOC,ILOC;                  RESULT = DLGSET (DLG,TIMESTEP_LOCATION,                TEX
+    196 T1)
+    197   WRITE (TEXT1,'(I0)')                INT(MINDLT);                RESULT = DLGSET (DLG,MIN_TIMESTEP,                     TEX
+    197 T1)
+    198   WRITE (TEXT1,'("(",I0,",",I0,")")') KMIN,IMIN;                  RESULT = DLGSET (DLG,MIN_TIMESTEP_LOCATION,            TEX
+    198 T1)
+    199   WRITE (TEXT1,'(I0)')                INT(JDMIN);                 RESULT = DLGSET (DLG,MIN_TIMESTEP_DAY,                 TEX
+    199 T1)
+    200   WRITE (TEXT1,'(F0.2)')             (JDMIN-INT(JDMIN))*24.0;     RESULT = DLGSET (DLG,MIN_TIMESTEP_HOUR,                TEX
+    200 T1)
+    201   WRITE (TEXT1,'(I0)')                INT(DLTAV);                 RESULT = DLGSET (DLG,AVERAGE_TIMESTEP,                 TEX
+    201 T1)
+    202   WRITE (TEXT1,'(I0)')                NIT;                        RESULT = DLGSET (DLG,ITERATIONS,                       TEX
+    202 T1)
+    203   WRITE (TEXT1,'(I0)')                NV;                         RESULT = DLGSET (DLG,TIMESTEP_VIOLATIONS,              TEX
+    203 T1)
+    204   WRITE (TEXT1,'(F0.2)')              FLOAT(NV)/FLOAT(NIT)*100.0; RESULT = DLGSET (DLG,PERCENT,                          TEX
+    204 T1)
+    205   
+    206   if(.Not.Met_Regions)then
+    207   WRITE (TEXT1,'(F0.2)')              TAIR(JW);                   RESULT = DLGSET (DLG,AIR_TEMPERATURE,                  TEX
+    207 T1)
+    208   WRITE (TEXT1,'(F0.2)')              TDEW(JW);                   RESULT = DLGSET (DLG,DEW_POINT_TEMPERATURE,            TEX
+    208 T1)
+
+Page 12          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+    209   WRITE (TEXT1,'(F0.2)')              WIND(JW);                   RESULT = DLGSET (DLG,WIND_SPEED,                       TEX
+    209 T1)
+    210   WRITE (TEXT1,'(F0.2)')              PHI(JW);                    RESULT = DLGSET (DLG,WIND_DIRECTION,                   TEX
+    210 T1)
+    211   WRITE (TEXT1,'(F0.2)')              CLOUD(JW);                  RESULT = DLGSET (DLG,CLOUD_COVER,                      TEX
+    211 T1)
+    212   else
+    213   WRITE (TEXT1,'(F0.2)')              TAIR(1);                   RESULT = DLGSET (DLG,AIR_TEMPERATURE,                  TEXT
+    213 1)
+    214   WRITE (TEXT1,'(F0.2)')              TDEW(1);                   RESULT = DLGSET (DLG,DEW_POINT_TEMPERATURE,            TEXT
+    214 1)
+    215   WRITE (TEXT1,'(F0.2)')              WIND(1);                   RESULT = DLGSET (DLG,WIND_SPEED,                       TEXT
+    215 1)
+    216   WRITE (TEXT1,'(F0.2)')              PHI(1);                    RESULT = DLGSET (DLG,WIND_DIRECTION,                   TEXT
+    216 1)
+    217   WRITE (TEXT1,'(F0.2)')              CLOUD(1);                  RESULT = DLGSET (DLG,CLOUD_COVER,                      TEXT
+    217 1)    
+    218   endif
+    219   
+    220   
+    221   WRITE (TEXT1,'(F0.1)')              ET(DS(JBDN(JW)));           RESULT = DLGSET (DLG,EQUILIBRIUM_TEMP,                 TEX
+    221 T1)
+    222   WRITE (TEXT1,'(F0.1)')              CSHE(DS(JBDN(JW)))*RHOWCP;  RESULT = DLGSET (DLG,SURFACE_HEAT_EXCHANGE,            TEX
+    222 T1)
+    223     if(.Not.Met_Regions)then
+    224   WRITE (TEXT1,'(F0.1)')              SRON(JW);                   RESULT = DLGSET (DLG,SOLAR_RADIATION,                  TEX
+    224 T1)
+    225     else
+    226   WRITE (TEXT1,'(F0.1)')              SRON(1);                    RESULT = DLGSET (DLG,SOLAR_RADIATION,                  TEX
+    226 T1)
+    227     endif
+    228     
+    229   WRITE (TEXT1,'(A)')                 TIME;                       RESULT = DLGSET (DLG,CURRENT_TIME,                     TEX
+    229 T1)
+    230   WRITE (TEXT1,'(I0)')                KTWB(JW);                   RESULT = DLGSET (DLG,SURFACE_LAYER,                    TEX
+    230 T1)
+    231   WRITE (TEXT1,'(F0.2)')              ELKT(JW);                   RESULT = DLGSET (DLG,SURFACE_ELEVATION,                TEX
+    231 T1)
+    232   WRITE (TEXT1,'(F0.2)')              ZMIN(JW);                   RESULT = DLGSET (DLG,MIN_DEVIATION,                    TEX
+    232 T1)
+    233   WRITE (TEXT1,'(I0)')                IZMIN(JW);                  RESULT = DLGSET (DLG,MIN_DEVIATION_SEGMENT,            TEX
+    233 T1)
+    234   WRITE (TEXT1,'(*(F0.2,2X))')        QIN;                        RESULT = DLGSET (DLG,BRANCH_INFLOW,                    TEX
+    234 T1)
+    235   WRITE (TEXT1,'(*(F0.2,2X))')        TIN;                        RESULT = DLGSET (DLG,BRANCH_INFLOW_TEMPERATURE,        TEX
+    235 T1)
+    236   WRITE (TEXT1,'(*(F0.2,2X))')        QDTR;                       RESULT = DLGSET (DLG,DIST_TRIBUTARY_INFLOW,            TEX
+    236 T1)
+    237   WRITE (TEXT1,'(*(F0.2,2X))')        TDTR;                       RESULT = DLGSET (DLG,DIST_TRIBUTARY_INFLOW_TEMPERATURE,TEX
+    237 T1)
+    238   WRITE (TEXT1,'(*(F0.3,2X))')        QTR;                        RESULT = DLGSET (DLG,TRIBUTARY_INFLOW,                 TEX
+    238 T1)
+    239   WRITE (TEXT1,'(*(F0.2,2X))')        TTR;                        RESULT = DLGSET (DLG,TRIBUTARY_INFLOW_TEMPERATURE,     TEX
+    239 T1)
+    240   WRITE (TEXT1,'(*(F0.2,2X))')        QSUM;                       RESULT = DLGSET (DLG,OUTFLOW,                          TEX
+    240 T1)
+    241   WRITE (TEXT1,'(*(F0.2,2X))')        QWD;                        RESULT = DLGSET (DLG,WITHDRAWAL,                       TEX
+
+Page 13          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+    241 T1)
+    242   WRITE (TEXT1,'(*(F0.2,2X))')        QPU;                        RESULT = DLGSET (DLG,PUMPFLOW,                         TEX
+    242 T1)
+    243   WRITE (TEXT1,'(*(F0.2,2X))')        QSP;                        RESULT = DLGSET (DLG,SPILLWAYFLOW,                     TEX
+    243 T1)
+    244   WRITE (TEXT1,'(*(F0.2,2X))')        QPI;                        RESULT = DLGSET (DLG,PIPEFLOW,                         TEX
+    244 T1)
+    245   WRITE (TEXT1,'(*(F0.2,2X))')        QGT;                        RESULT = DLGSET (DLG,GATEFLOW,                         TEX
+    245 T1)
+    246   WRITE (TEXT1,'(A180)')           MODDIR;                        RESULT = DLGSET (DLG,MODELDIRECTORY,                 TEXT1
+    246 ) 
+    247 
+    248   WRITE (TEXT1,'(F0.2)')             (CURRENT)/60.0;              RESULT = DLGSET (DLG,CPU_TIMES,                        TEX
+    248 T1)
+    249   IF (MINDLT >= 1.0) WRITE (TEXT1,'(I0)') INT(MINDLT);            IF (MINDLT < 1.0) WRITE (TEXT1,'(F0.3)') MINDLT
+    250   RESULT = DLGSET (DLG,MIN_TIMESTEP,                     TEXT1)
+    251   
+    252   IPROG=INT(((JDAY-TMSTRT)/(TMEND-TMSTRT))*100)   ! range is 0 to 100
+    253   RESULT = DLGSET (DLG,PROGRESSBAR,IPROG,DLG_POSITION)
+    254 RETURN
+    255 
+    256 ENTRY BLANK_DIALOG (DLG)
+
+
+ENTRY POINTS
+
+ Address      Type  Name            Address      Type  Name          
+                                                                     
+       BLANK_DIALOG                       SCREEN_UPDATE              
+
+Page 14          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48 Symbol Table                    ..\..\..\screen_output_intel.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ AIR_TEMPERATURE            Param  207      I(4)            4           scalar                    207,213,264                       
+ AVERAGE_TIMESTEP           Param  201      I(4)            4           scalar                    201,262                           
+ BLANK_DIALOG               Subr   256                                                                                              
+ BRANCH_INFLOW              Param  234      I(4)            4           scalar                    234,271                           
+ BRANCH_INFLOW_TEMPERATURE  Param  235      I(4)            4           scalar                    235,271                           
+ CCTIME                     Local  187      CHAR            10          scalar                    187,188                           
+ CDATE                      Local  188      CHAR            12          scalar                    188                               
+ CLOUD                      Local  211      R(8)            8     1     1        ALC              211,217                           
+ CLOUD_COVER                Param  211      I(4)            4           scalar                    211,217,266                       
+ CPU_TIME                   Intrin 189                                                            189                               
+ CPU_TIMES                  Param  248      I(4)            4           scalar                    248                               
+ CSHE                       Local  222      R(8)            8     1     1        ALC              222                               
+ CURRENT                    Local  189      R(8)            8           scalar                    189,248                           
+ CURRENT_TIME               Param  229      I(4)            4           scalar                    229,268                           
+ DATE_AND_TIME              Intrin 188                                                            188                               
+ DEW_POINT_TEMPERATURE      Param  208      I(4)            4           scalar                    208,214,265                       
+ DFLIB                      Module 179                                                            179                               
+ DIALOG                     Type   184                                  scalar                    184                               
+ DIST_TRIBUTARY_INFLOW      Param  236      I(4)            4           scalar                    236,272                           
+ DIST_TRIBUTARY_INFLOW_TEM                                                                                                          
+ ERATURE                    Param  237      I(4)            4           scalar                    237,272                           
+ DLG                        Dummy  184      DIALOG          120         scalar   ARG,INOUT        190,191,192,193,194,195,196,197,19
+                                                                                                  8,199,200,201,202,203,204,207,208,
+                                                                                                  209,210,211,213,214,215,216,217,22
+                                                                                                  1,222,224,226,229,230,231,232,233,
+                                                                                                  234,235,236,237,238,239,240,241,24
+                                                                                                  2,243,244,245,246,248,250,253,257,
+                                                                                                  258,259,260,261,262,263,264,265,26
+                                                                                                  6,267,268,269,270,271,272,273,274,
+                                                                                                  275,276,277,278                   
+ DLGSET                     Local  190                                  scalar                    190,191,192,193,194,195,196,197,19
+                                                                                                  8,199,200,201,202,203,204,207,208,
+                                                                                                  209,210,211,213,214,215,216,217,22
+                                                                                                  1,222,224,226,229,230,231,232,233,
+                                                                                                  234,235,236,237,238,239,240,241,24
+                                                                                                  2,243,244,245,246,248,250,253,257,
+                                                                                                  258,259,260,261,262,263,264,265,26
+                                                                                                  6,267,268,269,270,271,272,273,274,
+                                                                                                  275,276,277,278                   
+ DLGSETCHAR                 Func   190      L(4)            4           scalar                    190,191,192,193,194,195,196,197,19
+                                                                                                  8,199,200,201,202,203,204,207,208,
+                                                                                                  209,210,211,213,214,215,216,217,22
+                                                                                                  1,222,224,226,229,230,231,232,233,
+                                                                                                  234,235,236,237,238,239,240,241,24
+                                                                                                  2,243,244,245,246,248,250,257,258,
+                                                                                                  259,260,261,262,263,264,265,266,26
+                                                                                                  7,268,269,270,271,272,273,274,275,
+                                                                                                  276,277                           
+ DLGSETINT                  Func   253      L(4)            4           scalar                    253,278                           
+ DLG_POSITION               Param  253      I(4)            4           scalar                    253,278                           
+ DLTAV                      Local  201      R(8)            8           scalar                    201                               
+
+Page 15          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48 Symbol Table                    ..\..\..\screen_output_intel.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DLTS1                      Local  195      R(8)            8           scalar                    195                               
+ DS                         Local  221      I(4)            4     1     1        ALC              221,222                           
+ ELAPSED_DAY                Param  193      I(4)            4           scalar                    193,258                           
+ ELAPSED_HOUR               Param  194      I(4)            4           scalar                    194,259                           
+ ELKT                       Local  231      R(8)            8     1     1        ALC              231                               
+ ELTMJD                     Local  193      R(8)            8           scalar                    193,194                           
+ ENDING_TIME                Param  274      I(4)            4           scalar                    274                               
+ EQUILIBRIUM_TEMP           Param  221      I(4)            4           scalar                    221,267                           
+ ET                         Local  221      R(8)            8     1     1        ALC              221                               
+ FLOAT                      Func   204                                  scalar                    204                               
+ GATEFLOW                   Param  245      I(4)            4           scalar                    245,276                           
+ GDAY                       Local  190      I(4)            4           scalar                    190                               
+ GDAYC                      Module 179                                                            179                               
+ GEOMC                      Module 179                                                            179                               
+ GLOBAL                     Module 179                                                            179                               
+ GREGORIAN_DAY              Param  190      I(4)            4           scalar                    190,257                           
+ IFLOGM                     Module 179                                                            179                               
+ ILOC                       Local  196      I(4)            4           scalar                    196                               
+ IMIN                       Local  198      I(4)            4           scalar                    198                               
+ INT                        Func   191                                  scalar                    191,192,193,194,195,197,199,200,20
+                                                                                                  1,249,252                         
+ IPROG                      Local  185      I(4)            4           scalar                    252,253                           
+ ITERATIONS                 Param  202      I(4)            4           scalar                    202,263                           
+ IZMIN                      Local  233      I(4)            4     1     1        ALC              233                               
+ JBDN                       Local  221      I(4)            4     1     1        ALC              221,222                           
+ JDAY                       Local  191      R(8)            8           scalar                    191,192,252                       
+ JDMIN                      Local  199      R(8)            8           scalar                    199,200                           
+ JULIAN_DAY                 Param  191      I(4)            4           scalar                    191,257                           
+ JULIAN_HOUR                Param  192      I(4)            4           scalar                    192,258                           
+ JW                         Local  207      I(4)            4           scalar                    207,208,209,210,211,221,222,224,23
+                                                                                                  0,231,232,233                     
+ KLOC                       Local  196      I(4)            4           scalar                    196                               
+ KMIN                       Local  198      I(4)            4           scalar                    198                               
+ KTWB                       Local  230      I(4)            4     1     1        ALC              230                               
+ LOGICC                     Module 179                                                            179                               
+ MAIN                       Module 180                                                            180                               
+ METFILEREGION              Module 180                                                            180                               
+ MET_REGIONS                Local  206      L(4)            4           scalar                    206,223                           
+ MINDLT                     Local  197      R(8)            8           scalar                    197,249                           
+ MIN_DEVIATION              Param  232      I(4)            4           scalar                    232,270                           
+ MIN_DEVIATION_SEGMENT      Param  233      I(4)            4           scalar                    233,270                           
+ MIN_TIMESTEP               Param  197      I(4)            4           scalar                    197,250,260                       
+ MIN_TIMESTEP_DAY           Param  199      I(4)            4           scalar                    199,261                           
+ MIN_TIMESTEP_HOUR          Param  200      I(4)            4           scalar                    200,262                           
+ MIN_TIMESTEP_LOCATION      Param  198      I(4)            4           scalar                    198,261                           
+ MODDIR                     Local  246      CHAR            180         scalar                    246                               
+ MODELDIRECTORY             Param  246      I(4)            4           scalar                    246,277                           
+ MONTH                      Local  190      CHAR            9           scalar                    190                               
+ MSCLIB                     Module 179                                                            179                               
+ NAMESC                     Module 179                                                            179                               
+ NIT                        Local  202      I(4)            4           scalar                    202,204                           
+ NV                         Local  203      I(4)            4           scalar                    203,204                           
+ OUTFLOW                    Param  240      I(4)            4           scalar                    240,274                           
+ PERCENT                    Param  204      I(4)            4           scalar                    204,264                           
+ PHI                        Local  210      R(8)            8     1     1        ALC              210,216                           
+
+Page 16          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48 Symbol Table                    ..\..\..\screen_output_intel.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ PIPEFLOW                   Param  244      I(4)            4           scalar                    244,275                           
+ PROGRESSBAR                Param  253      I(4)            4           scalar                    253,278                           
+ PUMPFLOW                   Param  242      I(4)            4           scalar                    242,277                           
+ QDTR                       Local  236      R(8)            8     1     1        ALC              236                               
+ QGT                        Local  245      R(8)            8     1     1        ALC              245                               
+ QIN                        Local  234      R(8)            8     1     1        ALC              234                               
+ QPI                        Local  244      R(8)            8     1     1        ALC              244                               
+ QPU                        Local  242      R(8)            8     1     1        ALC              242                               
+ QSP                        Local  243      R(8)            8     1     1        ALC              243                               
+ QSUM                       Local  240      R(8)            8     1     1        ALC              240                               
+ QTR                        Local  238      R(8)            8     1     1        ALC              238                               
+ QWD                        Local  241      R(8)            8     1     1        ALC              241                               
+ RESULT                     Local  186      L(4)            4           scalar                    190,191,192,193,194,195,196,197,19
+                                                                                                  8,199,200,201,202,203,204,207,208,
+                                                                                                  209,210,211,213,214,215,216,217,22
+                                                                                                  1,222,224,226,229,230,231,232,233,
+                                                                                                  234,235,236,237,238,239,240,241,24
+                                                                                                  2,243,244,245,246,248,250,253,257,
+                                                                                                  258,259,260,261,262,263,264,265,26
+                                                                                                  6,267,268,269,270,271,272,273,274,
+                                                                                                  275,276,277,278                   
+ RHOWCP                     Local  222      R(8)            8           scalar                    222                               
+ SCREENC                    Module 179                                                            179                               
+ SCREEN_UPDATE              Subr   178                                                                                              
+ SOLAR_RADIATION            Param  224      I(4)            4           scalar                    224,226,268                       
+ SPILLWAYFLOW               Param  243      I(4)            4           scalar                    243,276                           
+ SRON                       Local  224      R(8)            8     1     1        ALC              224,226                           
+ STRUCTURES                 Module 180                                                            180                               
+ SURFACE_ELEVATION          Param  231      I(4)            4           scalar                    231,269                           
+ SURFACE_HEAT_EXCHANGE      Param  222      I(4)            4           scalar                    222,267                           
+ SURFACE_LAYER              Param  230      I(4)            4           scalar                    230,269                           
+ SURFHE                     Module 179                                                            179                               
+ TAIR                       Local  207      R(8)            8     1     1        ALC              207,213                           
+ TDEW                       Local  208      R(8)            8     1     1        ALC              208,214                           
+ TDTR                       Local  237      R(8)            8     1     1        ALC              237                               
+ TEXT1                      Local  183      CHAR            3000        scalar                    190,191,192,193,194,195,196,197,19
+                                                                                                  8,199,200,201,202,203,204,207,208,
+                                                                                                  209,210,211,213,214,215,216,217,22
+                                                                                                  1,222,224,226,229,230,231,232,233,
+                                                                                                  234,235,236,237,238,239,240,241,24
+                                                                                                  2,243,244,245,246,248,249,250     
+ TIME                       Local  182      CHAR            8           scalar                    187,229                           
+ TIMESTEP                   Param  195      I(4)            4           scalar                    195,259                           
+ TIMESTEP_LOCATION          Param  196      I(4)            4           scalar                    196,260                           
+ TIMESTEP_VIOLATIONS        Param  203      I(4)            4           scalar                    203,263                           
+ TIN                        Local  235      R(8)            8     1     1        ALC              235                               
+ TMEND                      Local  180      R(4)            4           scalar                    180,252                           
+ TMSTRT                     Local  180      R(4)            4           scalar                    180,252                           
+ TRIBUTARY_INFLOW           Param  238      I(4)            4           scalar                    238,273                           
+ TRIBUTARY_INFLOW_TEMPERAT                                                                                                          
+ RE                         Param  239      I(4)            4           scalar                    239,273                           
+ TTR                        Local  239      R(8)            8     1     1        ALC              239                               
+ TVDC                       Module 179                                                            179                               
+ WIND                       Local  209      R(8)            8     1     1        ALC              209,215                           
+ WIND_DIRECTION             Param  210      I(4)            4           scalar                    210,216,266                       
+
+Page 17          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48 Symbol Table                    ..\..\..\screen_output_intel.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ WIND_SPEED                 Param  209      I(4)            4           scalar                    209,215,265                       
+ WITHDRAWAL                 Param  241      I(4)            4           scalar                    241,275                           
+ YEAR                       Local  190      I(4)            4           scalar                    190                               
+ ZMIN                       Local  232      R(4)            4     1     1        ALC              232                               
+
+Page 18          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+    257   RESULT = DLGSET (DLG,GREGORIAN_DAY,         ' ');               RESULT = DLGSET (DLG,JULIAN_DAY,                       ' '
+    257 )
+    258   RESULT = DLGSET (DLG,JULIAN_HOUR,           ' ');               RESULT = DLGSET (DLG,ELAPSED_DAY,                      ' '
+    258 )
+    259   RESULT = DLGSET (DLG,ELAPSED_HOUR,          ' ');               RESULT = DLGSET (DLG,TIMESTEP,                         ' '
+    259 )
+    260   RESULT = DLGSET (DLG,TIMESTEP_LOCATION,     ' ');               RESULT = DLGSET (DLG,MIN_TIMESTEP,                     ' '
+    260 )
+    261   RESULT = DLGSET (DLG,MIN_TIMESTEP_LOCATION, ' ');               RESULT = DLGSET (DLG,MIN_TIMESTEP_DAY,                 ' '
+    261 )
+    262   RESULT = DLGSET (DLG,MIN_TIMESTEP_HOUR,     ' ');               RESULT = DLGSET (DLG,AVERAGE_TIMESTEP,                 ' '
+    262 )
+    263   RESULT = DLGSET (DLG,ITERATIONS,            ' ');               RESULT = DLGSET (DLG,TIMESTEP_VIOLATIONS,              ' '
+    263 )
+    264   RESULT = DLGSET (DLG,PERCENT,               ' ');               RESULT = DLGSET (DLG,AIR_TEMPERATURE,                  ' '
+    264 )
+    265   RESULT = DLGSET (DLG,DEW_POINT_TEMPERATURE, ' ');               RESULT = DLGSET (DLG,WIND_SPEED,                       ' '
+    265 )
+    266   RESULT = DLGSET (DLG,WIND_DIRECTION,        ' ');               RESULT = DLGSET (DLG,CLOUD_COVER,                      ' '
+    266 )
+    267   RESULT = DLGSET (DLG,EQUILIBRIUM_TEMP,      ' ');               RESULT = DLGSET (DLG,SURFACE_HEAT_EXCHANGE,            ' '
+    267 )
+    268   RESULT = DLGSET (DLG,SOLAR_RADIATION,       ' ');               RESULT = DLGSET (DLG,CURRENT_TIME,                     ' '
+    268 )
+    269   RESULT = DLGSET (DLG,SURFACE_LAYER,         ' ');               RESULT = DLGSET (DLG,SURFACE_ELEVATION,                ' '
+    269 )
+    270   RESULT = DLGSET (DLG,MIN_DEVIATION,         ' ');               RESULT = DLGSET (DLG,MIN_DEVIATION_SEGMENT,            ' '
+    270 )
+    271   RESULT = DLGSET (DLG,BRANCH_INFLOW,         ' ');               RESULT = DLGSET (DLG,BRANCH_INFLOW_TEMPERATURE,        ' '
+    271 )
+    272   RESULT = DLGSET (DLG,DIST_TRIBUTARY_INFLOW, ' ');               RESULT = DLGSET (DLG,DIST_TRIBUTARY_INFLOW_TEMPERATURE,' '
+    272 )
+    273   RESULT = DLGSET (DLG,TRIBUTARY_INFLOW,      ' ');               RESULT = DLGSET (DLG,TRIBUTARY_INFLOW_TEMPERATURE,     ' '
+    273 )
+    274   RESULT = DLGSET (DLG,OUTFLOW,               ' ');               RESULT = DLGSET (DLG,ENDING_TIME,                      ' '
+    274 )
+    275   RESULT = DLGSET (DLG,WITHDRAWAL,            ' ');               RESULT = DLGSET (DLG,PIPEFLOW,                        ' ')
+    276   RESULT = DLGSET (DLG,SPILLWAYFLOW,         ' ');                RESULT = DLGSET (DLG,GATEFLOW,                        ' ')
+    277   RESULT = DLGSET (DLG,PUMPFLOW,             ' ');                RESULT = DLGSET (DLG,MODELDIRECTORY,             ' ')
+    278   RESULT = DLGSET (DLG,PROGRESSBAR,0,DLG_POSITION)
+    279 END SUBROUTINE SCREEN_UPDATE
+    280 
+
+Page 19          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48 Subprograms/Common Blocks       ..\..\..\screen_output_intel.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ CE_QUAL_W2                 Func   69       I(4)            4           scalar                    81,94,112                         
+ ENABLE                     Subr   161                                                                                              
+ RUN_W2                     Subr   58                                                                                               
+ SCREEN_UPDATE              Subr   178                                                                                              
+ W2_DIALOG                  Subr   24                                                                                               
+ WINMAIN                    Func   6        I(4)            4           scalar                    16                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+
+Page 20          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:screen_output_intel.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+
+Page 21          Source Listing                  SCREEN_UPDATE
+2026-03-30 08:48                                 ..\..\..\screen_output_intel.f90
+
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : screen_output_intel.lst
+  /object:screen_output_intel.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

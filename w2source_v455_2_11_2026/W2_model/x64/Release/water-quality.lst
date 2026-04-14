@@ -1,0 +1,3799 @@
+Page 1           Source Listing                                                                
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180884.i90
+
+..\..\..\water-quality.f90(1133): error #6317: An ENDIF occurred without a corresponding IF THEN or ELSE statement
+    End If
+----^
+
+Page 2           Source Listing                  
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180884.i90
+
+      1 # 1 "..\..\..\water-quality.f90"
+      2 
+      3 !***************************************************************************************************************************
+      3 ********
+      4 !**                                            S U B R O U T I N E   K I N E T I C S                                        
+      4       **
+      5 !***************************************************************************************************************************
+      5 ********
+      6 
+      7 SUBROUTINE KINETICS
+      8   USE SCREENC; USE GLOBAL; USE KINETIC; USE GEOMC; USE TVDC; USE LOGICC; USE SURFHE
+      9   USE MACROPHYTEC; USE ZOOPLANKTONC; USE MAIN, ONLY:NPBALC, EPIPHYTON_CALC, BOD_CALC, &
+     10       ALG_CALC, BOD_CALCN, BOD_CALCP, PO4_CALC, N_CALC, DSI_CALC, STANDING_BIOMASS_DECAY, NH3_DER, & 
+     11       CDWBC,KF_NH4_SR,KF_NH4_SD,KF_PO4_SR,KF_PO4_SD, ORGC_CALC, HCO3_DER, CO3_DER,  &
+     12       CBODU_DER,TOTSS_DER,O2DG_DER,TURB_DER,SECCHI_DER, CHLA_DER, GAS_TRANSFER_UPDATE, NFEII, NFEOOH, NMNII, NMNO2
+     13   USE ALGAE_TOXINS; USE MetFileRegion
+     14   USE AlgaeReduceGasTransfer
+     15 
+     16 ! Type declarations
+     17   IMPLICIT NONE
+     18   
+     19   REAL                                :: LAM1,   LAM2,   NH4PR,  NO3PR,  LIMIT,  LIGHT,  L, L0, L1, EA, N2SAT  ! SW 10/17/15
+     20   REAL                                :: KW,     INCR,   OH,     K1,     K2, bicart, DLT13
+     21   REAL                                :: CART,ALKT,T1K,S2,SQRS2,DH1,DH2,H2CO3T,CO3T,PHT,F,HION,HCO3T
+     22   REAL                                :: LTCOEFM, LAVG,  MACEXT, TMAC,MACEXT1         ! CB 4/20/11
+     23   REAL                                :: FETCH, U2, COEF1,COEF2,COEF3,COEF4,HS,TS,COEF,UORB,TAU
+     24   REAL                                :: EPSILON, CBODSET, DOSAT,O2EX,CO2EX,SEDSI,SEDEM, SEDSO,SEDSIP
+     25   REAL                                :: SEDSOP,SEDSON,SEDSOC,SEDSIC,SEDSIDK,SEDSUM,SEDSUMK,XDUM
+     26   REAL                                :: BLIM, SEDSIN, COLB,COLDEP,BMASS,BMASSTEST,CVOL
+     27   REAL                                :: ALGEX, SSEXT, TOTMAC, ZOOEXT, TOTSS0, FDPO4, ZMINFAC, SSR
+     28   REAL                                :: ZGZTOT,CBODCT,CBODNT,CBODPT,BODTOT  ! CB 6/6/10
+     29   REAL                                :: ALGP,ALGN,ZOOP,ZOON,XX,KHCO2
+     30   REAL                                :: RGAS=0.00008206, KH_NH3, K_NH3_NH4, K_NH3     ! atm m3/oK/mole for NH3 gas calculat
+     30 ion
+     31 ! enhanced pH buffering start
+     32   real                                :: ammt,phost,omct,dh3,dhh,po4t,ht,hpo4t,h2po4t,oht
+     33   real                                :: nh4t,nh3t,h3po4t,kamm,kp1,kp2,kp3
+     34 ! enhanced pH buffering end
+     35   REAL, ALLOCATABLE, DIMENSION(:,:)   :: OMTRM,  SODTRM, NH4TRM, NO3TRM, BIBH2
+     36   REAL, ALLOCATABLE, DIMENSION(:,:)   :: DOM,    POM,    PO4BOD, NH4BOD, TICBOD
+     37   REAL, ALLOCATABLE, DIMENSION(:,:)   :: LAM2M,  FEMN_TEMP  
+     38   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: ATRM,   ATRMR,  ATRMF
+     39   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: ETRM,   ETRMR,  ETRMF
+     40   REAL, ALLOCATABLE, DIMENSION(:,:,:) :: ASETTLE, DEN_AVG, DENP, DEN1, DEN2, ALLIM_OLD  ! CO 6/9/2019
+     41   REAL, ALLOCATABLE, DIMENSION(:,:,:,:) :: DEN  ! CO 6/9/2019
+     42   REAL, ALLOCATABLE, DIMENSION(:)     :: AMP, PHASE, C_COEFF_EXT, RAD, MIND, MAXD, DENSI, DENBI, T_DEC, C_DENINC, C_DENDEC, 
+     42 DEPTH_LIM, LOSS_FRAC  ! CO 6/3/2019
+     43   REAL, ALLOCATABLE, DIMENSION(:)     :: I_C, C_DENINC_1, C_DENINC_2, C_DENDEC_1, C_DENDEC_2, DENP_MINS, DENP_MINB, DENP_MIN
+     43 , DEN_COR, EXP_DEPTH    ! CO 6/10/2019
+     44   REAL, ALLOCATABLE, DIMENSION(:,:)   :: MIGON, MIGOFF, LOLD, TWQ    ! CO 6/12/2019
+     45   INTEGER, ALLOCATABLE, DIMENSION(:)  :: MIGRATE_GROUP, MIGRATE_MODEL, TS_DEC, DEPTH_LIM_ONOFF, NMINT, DEN_USE, DEPTH_CALC_O
+     45 NOFF    ! CO 6/3/2019
+     46   LOGICAL, ALLOCATABLE, DIMENSION(:)  :: ALGAE_SETTLING    ! CO 6/5/2019
+     47   INTEGER                             :: K, JA, JE, M, JS, JT, JJ, JJZ, JG, JCB, JBOD, LLM,J,JD,LL
+     48   INTEGER                             :: MI,JAF,N,ITER,IBOD,ISETTLE
+     49 
+     50   INTEGER                             :: ALGMIGRATION_DEBUG, NMIG, NITWQ, MIGI, KK ! CO 6/9/2019
+
+Page 3           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+     51   real                                :: ticch4, DK1_BACT, SET_BACT, PHOTO_BACT, SODTRMDDO3, OMTRMDO3                       
+     51                        !h2sex,ch4ex,ticch4
+     52   REAL                                :: AIN, AINA, AINB, AOUT, AOUTA, AOUTB, AVG_LIGHT, LAM3, LAM4, VISCK, TOLD, iday    ! 
+     52 co 6/10/2019
+     53   CHARACTER(2)                        :: MIGRATION  ! CO 6/3/2019
+     54   SAVE
+     55 
+     56 ! Allocation declarations
+     57 
+     58   ALLOCATE (OMTRM(KMX,IMX),    SODTRM(KMX,IMX),    NH4TRM(KMX,IMX),    NO3TRM(KMX,IMX), DOM(KMX,IMX), POM(KMX,IMX))
+     59   ALLOCATE (PO4BOD(KMX,IMX),   NH4BOD(KMX,IMX),    TICBOD(KMX,IMX))
+     60   ALLOCATE (ATRM(KMX,IMX,NAL), ATRMR(KMX,IMX,NAL), ATRMF(KMX,IMX,NAL))
+     61   ALLOCATE (ETRM(KMX,IMX,NEP), ETRMR(KMX,IMX,NEP), ETRMF(KMX,IMX,NEP))
+     62   ALLOCATE (lam2m(KMX,kmx),    BIBH2(KMX,IMX), ALGAE_SETTLING(NAL), FEMN_TEMP(KMX,IMX) )
+     63   ALLOCATE (FE(KMX,IMX))       
+     64   TICBOD=0.0; FE=0.0; FEMN_TEMP=1.0
+     65   
+     66         INQUIRE(FILE='W2_AlgaeGasReduction.csv',EXIST=REDUCE_GAS_TRANSFER)     ! SW 8/2024
+     67         IF(REDUCE_GAS_TRANSFER)THEN
+     68         OPEN(2450,FILE='W2_AlgaeGasReduction.csv',STATUS='OLD')
+     69         ALLOCATE(I_ALG(NAL))   ! THIS IS 0 OR 1 IF TO INCLUDE IN TOTAL ALGAE
+     70         READ(2450,*)
+     71         READ(2450,*)ICHAR2,IOUTFREQ
+     72         IF(ICHAR2=='ON')THEN
+     73             READ(2450,*)
+     74             READ(2450,*)KHS_ALG,(I_ALG(N),N=1,NAL)
+     75             OPEN(ALGRED,FILE='AlgaeRedFactorOutput.csv',status='unknown')
+     76             WRITE(ALGRED,'(A,f8.3,a,<NAL>(a,i3,a,i3,a))')'JDAY,I,AlgSum(surface)gm-3,ReductionFactor, KHS=,',khs_alg,',Activ
+     76 e algae groups(=1):,',('Group:',N,'(',i_alg(n),')',n=1,nal) 
+     77         ELSE
+     78             REDUCE_GAS_TRANSFER = .FALSE.
+     79         ENDIF
+     80         CLOSE(2450)
+     81         ENDIF
+     82 
+     83 !ZS=0.0    ! SW 1/29/2019
+     84 !ZSR=0.0
+     85 !ZOOP_SETTLING_EXIST=.FALSE.
+     86 !INQUIRE(FILE='zoop_settling.csv',EXIST=ZOOP_SETTLING_EXIST)    ! SW 1/28/2019
+     87 !IF(ZOOP_SETTLING_EXIST)THEN
+     88 !    OPEN(2450,FILE='zoop_settling.csv',STATUS='OLD')
+     89 !    READ(2450,*)  ! SKIP HEADER
+     90 !    READ(2450,*)(ZS(JZ),JZ=1,NZP)   ! zooplankton settling rate in m/day
+     91 !    DO JZ=1,NZP
+     92 !        ZS(JZ)=ZS(JZ)/86400.   ! CONVERT TO M/S
+     93 !    ENDDO
+     94 !    CLOSE(2450)
+     95 ! ENDIF
+     96 !ALGAE_SETTLING_EXIST=.FALSE.  ! CO 6/4/2019
+     97   ALGAE_SETTLING(:)=.FALSE.  ! CO 6/5/2019
+     98   NITWQ=0
+     99 !INQUIRE(FILE='w2_AlgaeMigration.csv',EXIST=ALGAE_SETTLING_EXIST)
+    100   IF(ALGAE_SETTLING_EXIST)THEN
+    101       OPEN(2450,FILE='w2_AlgaeMigration.csv',STATUS='OLD')
+    102       READ(2450,*)  ! SKIP HEADER
+    103       READ(2450,*)MIGRATION     ! '(A2)'
+    104       IF(MIGRATION /= 'ON')GO TO 100
+
+Page 4           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    105       READ(2450,*)
+    106       READ(2450,*)NMIG,ALGMIGRATION_DEBUG
+    107       IF(ALGMIGRATION_DEBUG==1)THEN
+    108           OPEN(2451,file='algae_migration_debug.csv',status='unknown')
+    109           WRITE(2451,*)'Method,K,I,JA,NITWQ,JDAY,Asettle,Dens2'
+    110       ENDIF
+    111       
+    112       READ(2450,*)
+    113       ALLOCATE(MIGRATE_GROUP(NMIG),MIGRATE_MODEL(NMIG),AMP(NMIG),PHASE(NMIG),C_COEFF_EXT(NMIG),RAD(NMIG),MIND(NMIG),MAXD(NMI
+    113 G),DENSI(NMIG),DENBI(NMIG),T_DEC(NMIG),TS_DEC(NMIG),C_DENINC(NMIG),C_DENDEC(NMIG),&
+    114           DEPTH_LIM_ONOFF(NMIG),DEPTH_LIM(NMIG),LOSS_FRAC(NMIG),I_C(NMIG),C_DENINC_1(NMIG),C_DENINC_2(NMIG),C_DENDEC_1(NMIG)
+    114 ,C_DENDEC_2(NMIG),DENP_MINS(NMIG),DENP_MINB(NMIG),DEN_COR(MIGI),&
+    115           NMINT(NMIG),MIGON(NMIG,12),MIGOFF(NMIG,12),DEPTH_CALC_ONOFF(NMIG),EXP_DEPTH(NMIG))
+    116       DO I=1,NMIG
+    117         READ(2450,*)MIGRATE_GROUP(I)
+    118         READ(2450,*)
+    119         READ(2450,*)NMINT(I)
+    120         READ(2450,*)
+    121         READ(2450,*)MIGON(I,1:NMINT(I))
+    122         READ(2450,*)
+    123         READ(2450,*)MIGOFF(I,1:NMINT(I))
+    124         READ(2450,*)
+    125         READ(2450,*)MIGRATE_MODEL(I)
+    126         READ(2450,*)
+    127         IF(MIGRATE_MODEL(I)==1 .OR. MIGRATE_MODEL(I)==2)THEN
+    128             READ(2450,*)AMP(I),PHASE(I),C_COEFF_EXT(I),DEPTH_CALC_ONOFF(I),EXP_DEPTH(I),DEPTH_LIM_ONOFF(I),DEPTH_LIM(I),LOSS
+    128 _FRAC(I)
+    129             READ(2450,*)
+    130             READ(2450,*)
+    131             READ(2450,*)
+    132             READ(2450,*)
+    133             READ(2450,*)
+    134         ELSEIF(MIGRATE_MODEL(I)==3)THEN
+    135             READ(2450,*)
+    136             READ(2450,*)
+    137             READ(2450,*)RAD(I),MIND(I),MAXD(I),DENSI(I),DENBI(I),T_DEC(I),TS_DEC(I),C_DENINC(I),C_DENDEC(I),DEPTH_LIM_ONOFF(
+    137 I),DEPTH_LIM(I),LOSS_FRAC(I)
+    138             READ(2450,*)
+    139             READ(2450,*)
+    140             READ(2450,*)
+    141         ELSE
+    142             READ(2450,*)
+    143             READ(2450,*)            
+    144             READ(2450,*)
+    145             READ(2450,*)            
+    146             READ(2450,*)RAD(I),MIND(I),MAXD(I),DENSI(I),DENBI(I),I_C(I),C_DENINC_1(I),C_DENINC_2(I),C_DENDEC_1(I),C_DENDEC_2
+    146 (I),DENP_MINS(I),DENP_MINB(I),DEN_COR(I),DEPTH_LIM_ONOFF(I),&
+    147                 DEPTH_LIM(I),LOSS_FRAC(I)
+    148             READ(2450,*)            
+    149         ENDIF
+    150         ALGAE_SETTLING(MIGRATE_GROUP(I)) = .TRUE.  ! CO 6/5/2019
+    151       ENDDO
+    152       ALLOCATE(DEN_AVG(KMX,IMX,NMIG),DEN(KMX,IMX,MAXVAL(TS_DEC),NMIG),DEN1(KMX,IMX,NMIG),DEN2(KMX,IMX,NMIG),DENP(KMX,IMX,NMI
+    152 G),DENP_MIN(KMX),ASETTLE(KMX,IMX,NAL),ALLIM_OLD(KMX,IMX,NMIG),&
+    153           TWQ(MAXVAL(TS_DEC),NMIG),LOLD(IMX,NMIG))
+    154 100   CLOSE(2450)
+    155   ENDIF
+
+Page 5           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    156 
+    157 !ALGAE_TOXIN=.FALSE.
+    158 !INQUIRE(FILE='w2_Algae_Toxin.csv',EXIST=ALGAE_TOXIN_FILE)
+    159   IF(ALGAE_TOXIN)THEN
+    160       OPEN(2450,FILE='w2_Algae_Toxin.csv',STATUS='OLD')
+    161       READ(2450,*)  ! SKIP HEADER
+    162       READ(2450,*)ATOX,ATOX_DEBUG     ! '(A2)'
+    163       IF(ATOX == 'ON')THEN
+    164       ALLOCATE(CTP(NUMATOXINS,NAL),CTB(NUMATOXINS,NAL),IN_TOXIN(KMX,IMX,NUMATOXINS))
+    165       
+    166       READ(2450,*)
+    167       READ(2450,*)(CTP(1,JA),JA=1,NAL)
+    168       READ(2450,*)(CTB(1,JA),JA=1,NAL)
+    169       READ(2450,*) CTREL(1)      !(CTL(1,JA),JA=1,NAL)
+    170 !READ(2450,*) CTDI(1)     !(CTDI(1,JA),JA=1,NAL)
+    171 !READ(2450,*) CTA(1)      !(CTA(1,JA),JA=1,NAL)
+    172       READ(2450,*) CTD(1)     !(CTDE(1,JA),JA=1,NAL)
+    173       READ(2450,*)
+    174       READ(2450,*)(CTP(2,JA),JA=1,NAL)
+    175       READ(2450,*)(CTB(2,JA),JA=1,NAL)
+    176       READ(2450,*) CTREL(2)     !(CTL(2,JA),JA=1,NAL)
+    177 !READ(2450,*) CTDI(2)    !(CTDI(2,JA),JA=1,NAL)
+    178 !READ(2450,*) CTA(2)     !(CTA(2,JA),JA=1,NAL)
+    179       READ(2450,*) CTD(2)    !(CTDE(2,JA),JA=1,NAL)
+    180       READ(2450,*)
+    181       READ(2450,*)(CTP(3,JA),JA=1,NAL)
+    182       READ(2450,*)(CTB(3,JA),JA=1,NAL)
+    183       READ(2450,*) CTREL(3)     !(CTL(3,JA),JA=1,NAL)
+    184 !READ(2450,*) CTDI(3)    !(CTDI(3,JA),JA=1,NAL)
+    185 !READ(2450,*) CTA(3)     !(CTA(3,JA),JA=1,NAL)
+    186       READ(2450,*) CTD(3)    !(CTDE(3,JA),JA=1,NAL)
+    187       READ(2450,*)
+    188       READ(2450,*)(CTP(4,JA),JA=1,NAL)
+    189       READ(2450,*)(CTB(4,JA),JA=1,NAL)
+    190       READ(2450,*) CTREL(4)     !(CTL(4,JA),JA=1,NAL)
+    191 !READ(2450,*) CTDI(4)    !(CTDI(4,JA),JA=1,NAL)
+    192 !READ(2450,*) CTA(4)     !(CTA(4,JA),JA=1,NAL)
+    193       READ(2450,*) CTD(4)    !(CTDE(4,JA),JA=1,NAL)
+    194       
+    195 !
+    196       DO JJ=1,NUMATOXINS
+    197           CTREL(JJ)=CTREL(JJ)/86400.
+    198           CTD(JJ)=CTD(JJ)/86400.
+    199       ENDDO
+    200       
+    201       ELSE
+    202       ALGAE_TOXIN=.FALSE.   
+    203       ENDIF
+    204   ENDIF
+    205       
+    206 !!**** Cyanotoxin Constants
+    207 !CTP(J) =fraction of algae concentration producing toxin
+    208 !CTB(J) =ratio of intracellular toxin to dry weight OM
+    209 !
+    210 !!**** Cyanotoxin Rates
+    211 !NOT USED CTLR(J) = CTL(J) !leakage from the cell
+    212 !CTR release of toxin from inside the cell
+
+Page 6           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    213 !NOT USED CTDIR(J) = CTDI(J) !intracellular decay
+    214 !CTD !extracellular decay
+    215 
+    216       
+    217 RETURN
+    218 
+    219 !***************************************************************************************************************************
+    219 ********
+    220 !**                                      T E M P E R A T U R E  R A T E  M U L T I P L I E R S                              
+    220       **
+    221 !***************************************************************************************************************************
+    221 ********
+    222 
+    223 ENTRY TEMPERATURE_RATES
+    224   DO I=IU,ID
+    225     DO K=KT,KB(I)
+    226       LAM1        = FR(T1(K,I),NH4T1(JW),NH4T2(JW),NH4K1(JW),NH4K2(JW))
+    227       NH4TRM(K,I) = LAM1/(1.0+LAM1-NH4K1(JW))
+    228       LAM1        = FR(T1(K,I),NO3T1(JW),NO3T2(JW),NO3K1(JW),NO3K2(JW))
+    229       NO3TRM(K,I) = LAM1/(1.0+LAM1-NO3K1(JW))
+    230       LAM1        = FR(T1(K,I),OMT1(JW),OMT2(JW),OMK1(JW),OMK2(JW))
+    231       OMTRM(K,I)  = LAM1/(1.0+LAM1-OMK1(JW))
+    232       LAM1        = FR(T1(K,I),SODT1(JW),SODT2(JW),SODK1(JW),SODK2(JW))
+    233       SODTRM(K,I) = LAM1/(1.0+LAM1-SODK1(JW))
+    234       DO JA=1,NAL
+    235         IF(ALG_CALC(JA))THEN
+    236         LAM1          = FR(T1(K,I),AT1(JA),AT2(JA),AK1(JA),AK2(JA))
+    237         LAM2          = FF(T1(K,I),AT3(JA),AT4(JA),AK3(JA),AK4(JA))
+    238         ATRMR(K,I,JA) = LAM1/(1.0+LAM1-AK1(JA))
+    239         ATRMF(K,I,JA) = LAM2/(1.0+LAM2-AK4(JA))
+    240         ATRM(K,I,JA)  = ATRMR(K,I,JA)*ATRMF(K,I,JA)
+    241         ENDIF
+    242       END DO
+    243       DO JE=1,NEP
+    244         IF (EPIPHYTON_CALC(JW,JE))then
+    245         LAM1          = FR(T1(K,I),ET1(JE),ET2(JE),EK1(JE),EK2(JE))
+    246         LAM2          = FF(T1(K,I),ET3(JE),ET4(JE),EK3(JE),EK4(JE))
+    247         ETRMR(K,I,JE) = LAM1/(1.0+LAM1-EK1(JE))
+    248         ETRMF(K,I,JE) = LAM2/(1.0+LAM2-EK4(JE))
+    249         ETRM(K,I,JE)  = ETRMR(K,I,JE)*ETRMF(K,I,JE)
+    250         endif
+    251       END DO
+    252       DO M=1,NMC
+    253       IF(MACROPHYTE_CALC(JW,M))THEN
+    254         LAM1    = FR(T1(K,I),MT1(M),MT2(M),MK1(M),MK2(M))
+    255         LAM2    = FF(T1(K,I),MT3(M),MT4(M),MK3(M),MK4(M))
+    256         MACTRMR(K,I,M) = LAM1/(1.0+LAM1-MK1(M))
+    257         MACTRMF(K,I,M) = LAM2/(1.0+LAM2-MK4(M))
+    258         MACTRM(K,I,M)  = MACTRMR(K,I,M)*MACTRMF(K,I,M)
+    259       endif
+    260       end do
+    261       IF(ZOOPLANKTON_CALC)THEN
+    262 	    DO JZ = 1, NZP
+    263           LAM1       = FR(T1(K,I),ZT1(JZ),ZT2(JZ),ZK1(JZ),ZK2(JZ))
+    264           LAM2       = FF(T1(K,I),ZT3(JZ),ZT4(JZ),ZK3(JZ),ZK4(JZ))
+    265           ZOORMR(K,I,JZ)= LAM1/(1.+LAM1-ZK1(JZ))
+    266           ZOORMF(K,I,JZ)= LAM2/(1.+LAM2-ZK4(JZ))
+
+Page 7           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    267           ZOORM(K,I,JZ) = ZOORMR(K,I,JZ)*ZOORMF(K,I,JZ)
+    268         END DO
+    269 	  end if
+    270     END DO
+    271   END DO
+    272 RETURN
+    273 
+    274 !***************************************************************************************************************************
+    274 ********
+    275 !**                                                 K I N E T I C   R A T E S                                               
+    275       **
+    276 !***************************************************************************************************************************
+    276 ********
+    277 
+    278 ENTRY KINETIC_RATES
+    279 
+    280 ! Decay rates
+    281 !!$OMP PARALLEL DO
+    282   DO I=IU,ID
+    283       
+    284 ! Gas Transfer
+    285       IF(GAS_TRANSFER_UPDATE)THEN
+    286           CALL GAS_TRANSFER
+    287           IF(REDUCE_GAS_TRANSFER)CALL ReduceReaeration
+    288       ENDIF
+    289 
+    290     DO K=KT,KB(I)
+    291       DO1(K,I)          = O2(K,I)/(O2(K,I)+KDO)                  
+    292       DO2(K,I)          = 1.0 - DO1(K,I)                         !O2(K,I)/(O2(K,I)+KDO)
+    293       DO3(K,I)          = (1.0+SIGN(1.0,O2(K,I)-1.E-10)) *0.5
+    294       SODTRMDDO3        =   SODTRM(K,I)*SDKV(K,I)*DO3(K,I)
+    295       SEDD(K,I)         =   SODTRMDDO3*SED(K,I)    !SODTRM(K,I) *SDKV(K,I)   *SED(K,I) *DO3(K,I)   !CB 10/22/06
+    296       SEDDP(K,I)        =   SODTRMDDO3*SEDP(K,I)   !SODTRM(K,I) *SDKV(K,I)   *SEDP(K,I) *DO3(K,I)
+    297       SEDDN(K,I)        =   SODTRMDDO3*SEDN(K,I)   !SODTRM(K,I) *SDKV(K,I)   *SEDN(K,I) *DO3(K,I)
+    298       SEDDC(K,I)        =   SODTRMDDO3*SEDC(K,I)   !SODTRM(K,I) *SDKV(K,I)   *SEDC(K,I) *DO3(K,I)
+    299       
+    300       IF(CAC(NFEII)=='      ON' .OR.  CAC(NFEOOH)=='      ON' .OR. CAC(NMNII)=='      ON' .OR.  CAC(NMNO2)=='      ON')THEN
+    301           FEMN_TEMP(K,I)=1.05**(T2(K,I)-20.)
+    302       ENDIF
+    303 
+    304       IF(STANDING_BIOMASS_DECAY)THEN
+    305       SEDD1(K,I)         =   SODTRM(K,I) *SDK1(jw)   *SED1(K,I) *DO3(K,I)
+    306       SEDD2(K,I)         =   SODTRM(K,I) *SDK2(jw)   *SED2(K,I) *DO3(K,I)
+    307       ENDIF
+    308 
+    309       SEDBR(K,I)         =  SEDB(JW)    *SED(K,I)                           !CB 11/30/06
+    310       SEDBRP(K,I)        =  SEDB(JW)    *SEDP(K,I)                          !CB 11/30/06
+    311       SEDBRN(K,I)        =  SEDB(JW)    *SEDN(K,I)                          !CB 11/30/06
+    312       SEDBRC(K,I)        =  SEDB(JW)    *SEDC(K,I)                          !CB 11/30/06
+    313       NH4D(K,I)         =  NH4TRM(K,I) *NH4DK(JW) *NH4(K,I) *DO1(K,I)
+    314       
+    315       IF(CDWBC(NH3_DER,JW)=='      ON')THEN              ! if nh3 is ON as a derived variable
+    316           KH_NH3= 0.00000001270002*T2(K,I)*T2(K,I) + 0.00000016769649*T2(K,I) + 0.000004794059   ! Henry's Law constant for 
+    316 ammonia, atm/m3/mole
+    317           K_NH3_NH4=10**(-0.09018-2729.92/(T2(K,I)+273.15))                                       ! Equilibrium constant [-]
+    318           F_NH3(K,I)=1./(1.+10**(-PH(K,I))/K_NH3_NH4)     ! FRACTION NH3
+    319           NH4D(K,I)    =   NH4D(K,I)*(1.-F_NH3(K,I))     ! NH4 FRACTION FOR NITRIFICATION
+
+Page 8           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    320           IF(K==KT)THEN
+    321               K_NH3=(KG_H2O_CONSTANT(JW)*WIND2(I)*KH_NH3/(RGAS*(T2(K,I)+273.15)))*1.1736E-5   !SW 11/8/2023 5.86806E-6      
+    321  !Removed the 0.5 coefficient for the wind speed such that this is now: 1.014/86400.=5.86806E-6  rather than           0.5*1
+    321 .014/86400.=5.86806E-6         ! Gas transfer coefficient for NH3: based on water vapor, gas film controls, 1.014 is ratio o
+    321 f (MW H2o/MW NH3) ^0.25, 0.5 is wind reduction based on wind measuring height, units: m/s
+    322               NH3GAS(K,I)=K_NH3*NH4(K,I)*F_NH3(K,I)*BI(KT,I)/BH2(KT,I)
+    323          ENDIF
+    324       ENDIF
+    325       
+    326       NO3D(K,I)         =  NO3TRM(K,I) *NO3DK(JW) *NO3(K,I) *DO2(K,I)
+    327       IF(ORGC_CALC)THEN
+    328         OMTRMDO3        =  OMTRM(K,I)*DO3(K,I)/ORGC(JW)
+    329         LDOMD(K,I)      =  OMTRMDO3*LDOMCDK(JW)*LDOMC(K,I) !OMTRM(K,I)  *LDOMCDK(JW)*LDOMC(K,I)/ORGC(JW)*DO3(K,I)
+    330         RDOMD(K,I)      =  OMTRMDO3*RDOMCDK(JW)*RDOMC(K,I) !OMTRM(K,I)  *RDOMCDK(JW)*RDOMC(K,I)/ORGC(JW)*DO3(K,I)
+    331         LPOMD(K,I)      =  OMTRMDO3*LPOMCDK(JW)*LPOMC(K,I) !OMTRM(K,I)  *LPOMCDK(JW)*LPOMC(K,I)/ORGC(JW)*DO3(K,I)
+    332         RPOMD(K,I)      =  OMTRMDO3*RPOMCDK(JW)*RPOMC(K,I) !OMTRM(K,I)  *RPOMCDK(JW)*RPOMC(K,I)/ORGC(JW)*DO3(K,I)
+    333         LRDOMD(K,I)     =  OMTRMDO3*LRDDK(JW) *LDOMC(K,I)  !OMTRM(K,I)  *LRDDK(JW) *LDOMC(K,I)/ORGC(JW)*DO3(K,I)
+    334         LRPOMD(K,I)     =  OMTRMDO3*LRPDK(JW) *LPOMC(K,I)  !OMTRM(K,I)  *LRPDK(JW) *LPOMC(K,I)/ORGC(JW)*DO3(K,I)
+    335         LPOMHD(K,I)     =  OMTRMDO3*LPOMHK(JW)*LPOMC(K,I)  !OMTRM(K,I)  *LPOMHK(JW)*LPOMC(K,I)/ORGC(JW)*DO3(K,I)
+    336         RPOMHD(K,I)     =  OMTRMDO3*RPOMHK(JW)*RPOMC(K,I)  !OMTRM(K,I)  *RPOMHK(JW)*RPOMC(K,I)/ORGC(JW)*DO3(K,I)
+    337       ELSE
+    338         OMTRMDO3        =  OMTRM(K,I)*DO3(K,I)
+    339         LDOMD(K,I)      =  OMTRMDO3*LDOMDK(JW)*LDOM(K,I)   !OMTRM(K,I)  *LDOMDK(JW)*LDOM(K,I)*DO3(K,I)
+    340         RDOMD(K,I)      =  OMTRMDO3*RDOMDK(JW)*RDOM(K,I)   !OMTRM(K,I)  *RDOMDK(JW)*RDOM(K,I)*DO3(K,I)
+    341         LPOMD(K,I)      =  OMTRMDO3*LPOMDK(JW)*LPOM(K,I)   !OMTRM(K,I)  *LPOMDK(JW)*LPOM(K,I)*DO3(K,I)
+    342         RPOMD(K,I)      =  OMTRMDO3*RPOMDK(JW)*RPOM(K,I)   !OMTRM(K,I)  *RPOMDK(JW)*RPOM(K,I)*DO3(K,I)
+    343         LRDOMD(K,I)     =  OMTRMDO3*LRDDK(JW) *LDOM(K,I)   !OMTRM(K,I)  *LRDDK(JW) *LDOM(K,I)*DO3(K,I)
+    344         LRPOMD(K,I)     =  OMTRMDO3*LRPDK(JW) *LPOM(K,I)   !OMTRM(K,I)  *LRPDK(JW) *LPOM(K,I)*DO3(K,I)
+    345         LPOMHD(K,I)     =  OMTRMDO3*LPOMHK(JW)*LPOM(K,I)   !OMTRM(K,I)  *LPOMHK(JW)*LPOM(K,I)*DO3(K,I)
+    346         RPOMHD(K,I)     =  OMTRMDO3*RPOMHK(JW)*RPOM(K,I)   !OMTRM(K,I)  *RPOMHK(JW)*RPOM(K,I)*DO3(K,I)
+    347       END IF
+    348 !
+    349       IF(CAC(NLDOMP) == '      ON')THEN
+    350         LDOMPD(K,I)     =  OMTRM(K,I)  *LDOMPDK(JW) *LDOMP(K,I)*DO3(K,I)
+    351         LRDOMPD(K,I)    =  OMTRM(K,I)  *LRDOMPDK(JW)*LDOMP(K,I)*DO3(K,I) 
+    352       ELSE
+    353         LDOMPD(K,I)     =  ORGP(JW)    *LDOMD(K,I)
+    354         LRDOMPD(K,I)    =  ORGP(JW)    *LRDOMD(K,I)
+    355       END IF
+    356       IF(CAC(NRDOMP) == '      ON')THEN
+    357         RDOMPD(K,I)     =  OMTRM(K,I)  *RDOMPDK(JW) *RDOMP(K,I)*DO3(K,I)
+    358       ELSE
+    359         RDOMPD(K,I)     =  ORGP(JW)    *RDOMD(K,I)
+    360       END IF
+    361       IF(CAC(NLPOMP) == '      ON')THEN
+    362         LPOMPD(K,I)     =  OMTRM(K,I)  *LPOMPDK(JW) *LPOMP(K,I)*DO3(K,I)
+    363         LRPOMPD(K,I)    =  OMTRM(K,I)  *LRPOMPDK(JW)*LPOMP(K,I)*DO3(K,I)
+    364         LPOMPHD(K,I)    =  OMTRM(K,I)  *LPOMHK(JW)  *LPOMP(K,I)
+    365       ELSE
+    366         LPOMPD(K,I)     =  ORGP(JW)    *LPOMD(K,I)
+    367         LRPOMPD(K,I)    =  ORGP(JW)    *LRPOMD(K,I)
+    368         LPOMPHD(K,I)    =  ORGP(JW)    *LPOMHD(K,I)
+    369       END IF
+    370       IF(CAC(NRPOMP) == '      ON')THEN
+    371         RPOMPD(K,I)     =  OMTRM(K,I)  *RPOMPDK(JW) *RPOMP(K,I)*DO3(K,I)
+    372         RPOMPHD(K,I)    =  OMTRM(K,I)  *RPOMHK(JW)  *RPOMP(K,I)
+    373       ELSE
+
+Page 9           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    374         RPOMPD(K,I)     =  ORGP(JW)    *RPOMD(K,I)
+    375         RPOMPHD(K,I)    =  ORGP(JW)    *RPOMHD(K,I)
+    376       END IF
+    377       IF(CAC(NLDOMN) == '      ON')THEN
+    378         LDOMND(K,I)     =  OMTRM(K,I)  *LDOMNDK(JW) *LDOMN(K,I)*DO3(K,I)
+    379         LRDOMND(K,I)    =  OMTRM(K,I)  *LRDOMNDK(JW)*LDOMN(K,I)*DO3(K,I)
+    380       ELSE
+    381         LDOMND(K,I)     =  ORGN(JW)    *LDOMD(K,I)
+    382         LRDOMND(K,I)    =  ORGN(JW)    *LRDOMD(K,I)
+    383       END IF
+    384       IF(CAC(NRDOMN) == '      ON')THEN
+    385         RDOMND(K,I)     =  OMTRM(K,I)  *RDOMNDK(JW) *RDOMN(K,I)*DO3(K,I)
+    386       ELSE
+    387         RDOMND(K,I)     =  ORGN(JW)    *RDOMD(K,I)
+    388       END IF
+    389       IF(CAC(NLPOMN) == '      ON')THEN
+    390         LPOMND(K,I)     =  OMTRM(K,I)  *LPOMNDK(JW) *LPOMN(K,I)*DO3(K,I)
+    391         LRPOMND(K,I)    =  OMTRM(K,I)  *LRPOMNDK(JW)*LPOMN(K,I)*DO3(K,I)
+    392         LPOMNHD(K,I)    =  OMTRM(K,I)  *LPOMHK(JW)  *LPOMN(K,I)
+    393       ELSE
+    394         LPOMND(K,I)     =  ORGN(JW)    *LPOMD(K,I)
+    395         LRPOMND(K,I)    =  ORGN(JW)    *LRPOMD(K,I)
+    396         LPOMNHD(K,I)    =  ORGN(JW)    *LPOMHD(K,I)
+    397       END IF
+    398       IF(CAC(NRPOMN) == '      ON')THEN
+    399         RPOMND(K,I)     =  OMTRM(K,I)  *RPOMNDK(JW) *RPOMN(K,I)*DO3(K,I)
+    400         RPOMNHD(K,I)    =  OMTRM(K,I)  *RPOMHK(JW)  *RPOMN(K,I)
+    401       ELSE
+    402         RPOMND(K,I)     =  ORGN(JW)    *RPOMD(K,I)
+    403         RPOMNHD(K,I)    =  ORGN(JW)    *RPOMHD(K,I)
+    404       END IF
+    405 !
+    406       IF(ORGC_CALC)THEN
+    407         OMTRMDO3      =  OMTRM(K,I)*DO3(K,I)
+    408         LDOMCD(K,I)   =  OMTRMDO3*LDOMCDK(JW) *LDOMC(K,I)  !OMTRM(K,I)  *LDOMCDK(JW) *LDOMC(K,I)*DO3(K,I)
+    409         LRDOMCD(K,I)  =  OMTRMDO3*LRDOMCDK(JW)*LDOMC(K,I)  !OMTRM(K,I)  *LRDOMCDK(JW)*LDOMC(K,I)*DO3(K,I)
+    410         RDOMCD(K,I)   =  OMTRMDO3*RDOMCDK(JW) *RDOMC(K,I)  !OMTRM(K,I)  *RDOMCDK(JW) *RDOMC(K,I)*DO3(K,I)
+    411         LPOMCD(K,I)   =  OMTRMDO3*LPOMCDK(JW) *LPOMC(K,I)  !OMTRM(K,I)  *LPOMCDK(JW) *LPOMC(K,I)*DO3(K,I)
+    412         LRPOMCD(K,I)  =  OMTRMDO3*LRPOMCDK(JW)*LPOMC(K,I)  !OMTRM(K,I)  *LRPOMCDK(JW)*LPOMC(K,I)*DO3(K,I)
+    413         LPOMCHD(K,I)  =  OMTRMDO3*LPOMHK(JW)  *LPOMC(K,I)  !OMTRM(K,I)  *LPOMHK(JW)  *LPOMC(K,I)*DO3(K,I)
+    414         RPOMCD(K,I)   =  OMTRMDO3*RPOMCDK(JW) *RPOMC(K,I)  !OMTRM(K,I)  *RPOMCDK(JW) *RPOMC(K,I)*DO3(K,I)
+    415         RPOMCHD(K,I)  =  OMTRMDO3*RPOMHK(JW)  *RPOMC(K,I)  !OMTRM(K,I)  *RPOMHK(JW)  *RPOMC(K,I)*DO3(K,I)
+    416       ELSE
+    417         LDOMCD(K,I)   =  ORGC(JW)    *LDOMD(K,I)
+    418         LRDOMCD(K,I)  =  ORGC(JW)    *LRDOMD(K,I)
+    419         RDOMCD(K,I)   =  ORGC(JW)    *RDOMD(K,I)
+    420         LPOMCD(K,I)   =  ORGC(JW)    *LPOMD(K,I)
+    421         LRPOMCD(K,I)  =  ORGC(JW)    *LRPOMD(K,I)
+    422         LPOMCHD(K,I)  =  ORGC(JW)    *LPOMHD(K,I)
+    423         RPOMCD(K,I)   =  ORGC(JW)    *RPOMD(K,I)
+    424         RPOMCHD(K,I)  =  ORGC(JW)    *RPOMHD(K,I)
+    425       END IF
+    426 !
+    427       CBODD(K,I,1:NBOD) =  KBOD(1:NBOD)*TBOD(1:NBOD)**(T1(K,I)-20.0)*DO3(K,I)
+    428         IF(K == KB(I))THEN     ! SW 4/18/07
+    429 	  SODD(K,I)         =  SOD(I)/BH2(K,I)*SODTRM(K,I)*BI(K,I)
+    430 	    ELSE
+
+Page 10          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    431       SODD(K,I)         =  SOD(I)/BH2(K,I)*SODTRM(K,I)*(BI(K,I)-BI(K+1,I))
+    432 	    ENDIF
+    433 
+    434 ! Inorganic suspended solids settling rates - P adsorption onto SS and Fe
+    435     IF(PARTP(JW) > 0.0)THEN    ! SW 3/2019
+    436       FPSS(K,I) = PARTP(JW)         /(PARTP(JW)*TISS(K,I)+PARTP(JW)*FE(K,I)*DO1(K,I)+1.0)
+    437         FPFE(K,I) = PARTP(JW)*FE(K,I)*DO1(K,I) /(PARTP(JW)*TISS(K,I)+PARTP(JW)*FE(K,I)*DO1(K,I)+1.0)   !8/2020 corrected
+    438     ENDIF
+    439     
+    440       IF(K.NE.KT)THEN
+    441           SSSI(K,I) = SSSO(K-1,I)                     !SW 9/22/2022 - incorrect fix *BI(K,I)/BI(K-1,I) SR 3/2019
+    442       ELSE
+    443           SSSI(K,I)=0.0                               ! SW 3/2019
+    444       ENDIF
+    445       
+    446       TOTSS0    = 0.0
+    447       DO JS=1,NSS
+    448         TOTSS0 = TOTSS0+SSS(JS)*FPSS(K,I)*SS(K,I,JS)
+    449       END DO
+    450       SSSO(K,I) =  TOTSS0 + FeSetVel(JW)*FPFE(K,I)   !8/2020 corrected                                                 !(TOT
+    450 SS0+FES(JW)*FPFE(K,I))*BI(K,I)/BH2(K,I)*DO1(K,I)                ! SW 11/7/07
+    451       FPSS(K,I) =  FPSS(K,I)*TISS(K,I)
+    452 
+    453 ! OM stoichiometry
+    454 !8/2020 add 12 temp variables
+    455         IF(CAC(NLDOMP) == '      ON')THEN
+    456       LDOP(K,I) = LDOMP(K,I)
+    457     ELSE IF(ORGC_CALC)THEN
+    458       LDOP(K,I) = LDOMC(K,I)/ORGC(JW) * ORGP(JW)
+    459     ELSE 
+    460       LDOP(K,I) = LDOM(K,I) * ORGP(JW)  
+    461         END IF
+    462         IF(CAC(NRDOMP) == '      ON')THEN
+    463       RDOP(K,I) = RDOMP(K,I)
+    464     ELSE IF(ORGC_CALC)THEN
+    465       RDOP(K,I) = RDOMC(K,I)/ORGC(JW) * ORGP(JW)  
+    466           ELSE
+    467       RDOP(K,I) = RDOM(K,I) * ORGP(JW)
+    468         END IF
+    469         IF(CAC(NLPOMP) == '      ON')THEN
+    470       LPOP(K,I) = LPOMP(K,I)
+    471     ELSE IF(ORGC_CALC)THEN
+    472       LPOP(K,I) = LPOMC(K,I)/ORGC(JW) * ORGP(JW)  
+    473         ELSE
+    474       LPOP(K,I) = LPOM(K,I) * ORGP(JW)
+    475         END IF
+    476         IF(CAC(NRPOMP) == '      ON')THEN
+    477       RPOP(K,I) = RPOMP(K,I)
+    478     ELSE IF(ORGC_CALC)THEN
+    479       RPOP(K,I) = RPOMC(K,I)/ORGC(JW) * ORGP(JW)  
+    480           ELSE
+    481       RPOP(K,I) = RPOM(K,I) * ORGP(JW)
+    482         END IF
+    483         IF(CAC(NLDOMN) == '      ON')THEN
+    484       LDON(K,I) = LDOMN(K,I)
+    485     ELSE IF(ORGC_CALC)THEN
+    486       LDON(K,I) = LDOMC(K,I)/ORGC(JW) * ORGN(JW)  
+
+Page 11          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    487           ELSE
+    488       LDON(K,I) = LDOM(K,I) * ORGN(JW)
+    489         END IF
+    490         IF(CAC(NRDOMN) == '      ON')THEN
+    491       RDON(K,I) = RDOMN(K,I)
+    492     ELSE IF(ORGC_CALC)THEN
+    493       RDON(K,I) = RDOMC(K,I)/ORGC(JW) * ORGN(JW)  
+    494         ELSE
+    495       RDON(K,I) = RDOM(K,I) * ORGN(JW)
+    496         END IF
+    497         IF(CAC(NLPOMN) == '      ON')THEN
+    498       LPON(K,I) = LPOMN(K,I)
+    499     ELSE IF(ORGC_CALC)THEN
+    500       LPON(K,I) = LPOMC(K,I)/ORGC(JW) * ORGN(JW)  
+    501           ELSE
+    502       LPON(K,I) = LPOM(K,I) * ORGN(JW)
+    503     END IF
+    504 
+    505     IF(CAC(NRPOMN) == '      ON')THEN
+    506       RPON(K,I) = RPOMN(K,I)
+    507     ELSE IF(ORGC_CALC)THEN
+    508       RPON(K,I) = RPOMC(K,I)/ORGC(JW) * ORGN(JW)  
+    509         ELSE
+    510       RPON(K,I) = RPOM(K,I) * ORGN(JW)
+    511         END IF
+    512 !
+    513     IF(ORGC_CALC)THEN  
+    514       LDOC(K,I) = LDOMC(K,I)
+    515       RDOC(K,I) = RDOMC(K,I)
+    516       LPOC(K,I) = LPOMC(K,I)
+    517       RPOC(K,I) = RPOMC(K,I)
+    518           ELSE
+    519       LDOC(K,I) = LDOM(K,I) * ORGC(JW)
+    520       RDOC(K,I) = RDOM(K,I) * ORGC(JW)
+    521       LPOC(K,I) = LPOM(K,I) * ORGC(JW)
+    522       RPOC(K,I) = RPOM(K,I) * ORGC(JW)  
+    523           END IF        
+    524 
+    525 ! Light Extinction Coefficient
+    526       IF (.NOT. READ_EXTINCTION(JW)) THEN
+    527       ALGEX = 0.0; SSEXT = 0.0; ZOOEXT = 0.0                                                     ! SW 11/8/07
+    528         DO JA=1,NAL
+    529           IF(ALG_CALC(JA))ALGEX = ALGEX+EXA(JA)*ALG(K,I,JA)
+    530         END DO
+    531         DO JS=1,NSS
+    532           SSEXT = SSEXT+EXSS(JW)*SS(K,I,JS)
+    533         END DO
+    534 !       TOTMAC=0.0                                                                ! SW 4/20/11 Delete this section?
+    535 !       DO M=1,NMC
+    536 !         IF(MACROPHYTE_CALC(JW,M))THEN
+    537 !           JT=KTI(I)
+    538 !           JE=KB(I)
+    539 !           DO JJ=JT,JE
+    540 !             TOTMAC = EXM(M)*MACRM(JJ,K,I,M)+TOTMAC
+    541 !           END DO
+    542 !         END IF
+    543 !       END DO
+
+Page 12          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    544 !       MACEXT=TOTMAC/(BH2(K,I)*DLX(I))
+    545 
+    546 	    IF(ZOOPLANKTON_CALC)THEN
+    547 	        DO JZ = 1,NZP
+    548 	        ZOOEXT = ZOOEXT + ZOO(K,I,JZ)*EXZ(JZ)
+    549 	        END DO
+    550 	    ENDIF
+    551 !
+    552       GAMMA(K,I) = EXH2O(JW)+SSEXT+ALGEX+ZOOEXT
+    553       IF(ORGC_CALC)THEN
+    554         GAMMA(K,I) = GAMMA(K,I)+EXOM(JW)*(LPOMC(K,I)+RPOMC(K,I))/ORGC(JW)
+    555       ELSE
+    556         GAMMA(K,I) = GAMMA(K,I)+EXOM(JW)*(LPOM(K,I)+RPOM(K,I))
+    557       END IF
+    558 		
+    559 	    IF(NMC>0)THEN    ! cb 4/20/11
+    560 	      MACEXT1=0.0    ! cb 4/20/11
+    561           IF(KTICOL(I))THEN
+    562             JT=KTI(I)
+    563           ELSE
+    564             JT=KTI(I)+1
+    565           END IF
+    566           JE=KB(I)
+    567           DO JJ=JT,JE
+    568             TOTMAC=0.0
+    569             DO M=1,NMC
+    570               IF(MACROPHYTE_CALC(JW,M))THEN
+    571                 TOTMAC = EXM(M)*MACRM(JJ,K,I,M)+TOTMAC
+    572               END IF
+    573             END DO
+    574             IF(CW(JJ,I).GT.0.0)THEN
+    575               MACEXT=TOTMAC/(CW(JJ,I)*DLX(I)*H2(K,I))
+    576             ELSE
+    577               MACEXT=0.0
+    578             END IF
+    579 			GAMMAJ(JJ,K,I) = GAMMA(K,I)+MACEXT       ! SW 4/20/11
+    580             MACEXT1 = MACEXT*CW(JJ,I)+MACEXT1    ! cb 4/20/11
+    581           END DO
+    582           GAMMA(K,I) = GAMMA(K,I) + MACEXT1/B(JT,I)                                      ! SW 4/21/11
+    583         end if
+    584       ELSE
+    585         GAMMA(K,I) = EXH2O(JW)
+    586       END IF
+    587 
+    588 ! Zooplankton Rates
+    589    IF(ZOOPLANKTON_CALC)THEN
+    590       DO JZ=1,NZP
+    591         IF(ORGC_CALC)THEN 
+    592           TGRAZE(K,I,JZ) = PREFP(JZ)*LPOMC(K,I)/ORGC(JW)
+    593         ELSE
+    594           TGRAZE(K,I,JZ) = PREFP(JZ)*LPOM(K,I)
+    595         END IF
+    596         DO JJZ = 1, NZP
+    597           TGRAZE(K,I,JZ) = TGRAZE(K,I,JZ) + PREFZ(JJZ,JZ)*ZOO(K,I,JJZ)          !CB 5/17/2007
+    598       END DO
+    599         DO JA=1,NAL
+    600           IF(ALG_CALC(JA))TGRAZE(K,I,JZ)=PREFA(JA,JZ)*ALG(K,I,JA)+TGRAZE(K,I,JZ)
+
+Page 13          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    601         END DO
+    602         ZMINFAC  = (1.0+SIGN(1.0,ZOO(K,I,JZ)-ZOOMIN(JZ)))*0.5
+    603         ZRT(K,I,JZ) =  ZOORMR(K,I,JZ)*ZR(JZ)*ZMINFAC*DO3(K,I)
+    604         IF (TGRAZE(K,I,JZ) <= 0.0 .OR. O2(K,I) < 2.0) THEN
+    605           ZMU(K,I,JZ)       = 0.0
+    606           AGZ(K,I,1:NAL,JZ) = 0.0
+    607 		  ZGZ(K,I,JZ,:) = 0.0
+    608           IF (O2(K,I) < 2.0) ZMINFAC = 2*ZMINFAC
+    609         ELSE
+    610           ZMU(K,I,JZ) = MAX(ZOORM(K,I,JZ)*ZG(JZ)*(TGRAZE(K,I,JZ)-ZOOMIN(JZ))/(TGRAZE(K,I,JZ)+ZS2P(JZ)), 0.0)
+    611           DO JA=1,NAL
+    612           IF(ALG_CALC(JA))AGZ(K,I,JA,JZ) = ZMU(K,I,JZ)*ZOO(K,I,JZ)*(ALG(K,I,JA)*PREFA(JA,JZ)/TGRAZE(K,I,JZ))                
+    612       !  KV 5/26/2007
+    613           END DO
+    614           DO JJZ = 1,NZP ! OMNIVOROUS ZOOPLANKTON
+    615           ZGZ(K,I,JJZ,JZ)  = ZMU(K,I,JZ)*ZOO(K,I,JZ)*(ZOO(K,I,JJZ)*PREFZ(JJZ,JZ)/TGRAZE(K,I,JZ))         !KV 5/26/2007
+    616           END DO
+    617         END IF
+    618         ZMT(K,I,JZ) = MAX(1.0-ZOORMF(K,I,JZ),0.02)*ZM(JZ)*ZMINFAC
+    619 ! zooplankton settling - adapted from SR 01/12/2004 Hagg Lake Model - in prep for dynamic vertical motion calculation SW 1/2
+    619 8/2019
+    620         IF (ZS(JZ) >= 0.0) THEN                                                                                            
+    621               IF (K == KT) THEN
+    622               ZSR(K,I,JZ) = -ZS(JZ)*ZOO(K,I,JZ)*BI(K,I)/BH2(K,I)
+    623               ELSE
+    624               ZSR(K,I,JZ) =  ZS(JZ)*(ZOO(K-1,I,JZ)-ZOO(K,I,JZ))*BI(K,I)/BH2(K,I)  
+    625               ENDIF
+    626         ELSE                                                                                                           
+    627           IF (K == KT) THEN
+    628               ZSR(K,I,JZ) = -ZS(JZ)*ZOO(K+1,I,JZ)*BI(K+1,I)*DLX(I)/VOL(K,I)   
+    629           ELSEIF(K == KB(I))THEN
+    630               ZSR(K,I,JZ) =  ZS(JZ)*ZOO(K,I,JZ)*BI(K,I)/BH2(K,I) 
+    631           ELSE
+    632               ZSR(K,I,JZ) = -ZS(JZ)*(ZOO(K+1,I,JZ)*BI(K+1,I)/BH2(K,I)-ZOO(K,I,JZ)*BI(K,I)/BH2(K,I))    
+    633           ENDIF                     
+    634         END IF                                                                                                              
+    634      
+    635       END DO   ! ZOOP LOOP
+    636    ENDIF
+    637 
+    638     END DO ! K LOOP
+    639   END DO   ! I LOOP
+    640 !!$OMP END PARALLEL DO
+    641 
+    642 ! Algal rates
+    643   if(ALGAE_SETTLING_EXIST .AND. jday>iday) NITWQ=NITWQ+1
+    644      DO JA=1,NAL
+    645       IF(ALG_CALC(JA))THEN
+    646           IF(ALGAE_SETTLING(JA))THEN           ! If there is variable velocity - call algae migration subroutine   ! COMPUTE
+    646  ALGAE MIGRATION RATE
+    647             DO MIGI=1,NMIG                             ! CO 6/5/2019
+    648                 IF(MIGRATE_GROUP(MIGI) == JA)THEN
+    649                     EXIT
+    650                 ENDIF
+    651             ENDDO
+    652             ISETTLE=0
+    653             DO KK=1,NMINT(MIGI)
+
+Page 14          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    654                 IF(JDAY >= MIGON(MIGI,KK) .AND. JDAY <= MIGOFF(MIGI,KK))THEN
+    655                     ISETTLE=1
+    656                     EXIT
+    657                 ENDIF
+    658             ENDDO
+    659         ENDIF
+    660       do i=iu,id
+    661 !**** Limiting factor
+    662       If(Met_Regions)then
+    663       LIGHT = (1.0-BETA(JW))*SRON(WB_MetRegions(JW))*SHADE(I)/ASAT(JA)
+    664       else
+    665       LIGHT = (1.0-BETA(JW))*SRON(JW)*SHADE(I)/ASAT(JA)    
+    666       endif
+    667       
+    668       LAM1  =  LIGHT
+    669       LAM2  =  LIGHT
+    670       DO K=KT,KB(I)
+    671 
+    672 !****** Limiting factor
+    673         LAM1           = LAM2
+    674         LAM2           = LAM1*EXP(-GAMMA(K,I)*H2(K,I))
+    675         FDPO4          = 1.0-FPSS(K,I)-FPFE(K,I)
+    676         ALLIM(K,I,JA)  = 2.718282*(EXP(-LAM2)-EXP(-LAM1))/(GAMMA(K,I)*H2(K,I))
+    677         IF (AHSP(JA)  /= 0.0 .and. po4_calc) APLIM(K,I,JA) =  FDPO4*PO4(K,I)/(FDPO4*PO4(K,I)+AHSP(JA)+NONZERO)       ! cb 10
+    677 /12/11
+    678         IF (AHSN(JA)  /= 0.0 .and. n_calc) ANLIM(K,I,JA) = (NH4(K,I)+NO3(K,I))/(NH4(K,I)+NO3(K,I)+AHSN(JA)+NONZERO)  ! cb 10
+    678 /12/11
+    679         IF (AHSSI(JA) /= 0.0 .and. DSI_CALC) ASLIM(K,I,JA) =  DSI(K,I)/(DSI(K,I)+AHSSI(JA)+NONZERO)                  ! cb 10
+    679 /12/11
+    680         LIMIT          = MIN(APLIM(K,I,JA),ANLIM(K,I,JA),ASLIM(K,I,JA),ALLIM(K,I,JA))
+    681 
+    682 !****** Algal rates
+    683         AGR(K,I,JA) =  ATRM(K,I,JA)*AG(JA)*LIMIT
+    684         ARR(K,I,JA) =  ATRM(K,I,JA)*AR(JA)*DO3(K,I)
+    685         AMR(K,I,JA) = (ATRMR(K,I,JA)+1.0-ATRMF(K,I,JA))*AM(JA)
+    686         AER(K,I,JA) =  MIN((1.0-ALLIM(K,I,JA))*AE(JA)*ATRM(K,I,JA),AGR(K,I,JA))
+    687                     
+    688         IF(ALGAE_SETTLING(JA) .AND. ISETTLE==1)THEN
+    689             IF(MIGRATE_MODEL(MIGI) == 1)THEN     !   TIME VARYING VELOCTY
+    690                 ASETTLE(K,I,JA) = AMP(MIGI)*(2.*PI/86400.)*COS(2.*PI*JDAY + PHASE(MIGI))
+    691                 IF(ALGMIGRATION_DEBUG==1)WRITE(2451,'("Model1:,",3(I3,","),3(F15.5,","))')K,I,JA,JDAY,ASETTLE(K,I,JA)
+    692             ELSEIF(MIGRATE_MODEL(MIGI) == 2)THEN   !  TIME AND SPACE VARYING VELOCITY
+    693                 IF(DEPTH_CALC_ONOFF(MIGI)==1)THEN  ! CALCULATE DEPTH LIMIT FOR INCREASING MIGRATION BASED ON LIGHT
+    694                     if(Met_Regions)then
+    695                     LIGHT=(1.0-BETA(JW))*SRON(WB_MetRegions(JW))*SHADE(I)
+    696                     else
+    697                     LIGHT=(1.0-BETA(JW))*SRON(JW)*SHADE(I)    
+    698                     endif
+    699                     
+    700                     LAM3=LIGHT
+    701                     KK=KT
+    702                     DO WHILE(LAM3 > 0.01*LIGHT) 
+    703                         KK=KK+1
+    704                         IF(KK==KB(I))EXIT  
+    705                         LAM3=LAM3*EXP(-GAMMA(KK,I)*H2(KK,I))
+    706                     ENDDO
+    707                     IF(DEPTHM(K,I)<=DEPTHM(KK,I))THEN
+
+Page 15          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    708                         IF(LIGHT>0.0)THEN
+    709                             ASETTLE(K,I,JA) = AMP(MIGI)*(2.*PI/86400.)*EXP(-C_COEFF_EXT(MIGI)*GAMMA(K,I)*(DEPTHM(KK,I)-DEPTH
+    709 M(K,I)))*COS(2.*PI*JDAY+PHASE(MIGI)) 
+    710                         ELSE 
+    711                             ASETTLE(K,I,JA) = AMP(MIGI)*(2.*PI/86400.)*COS(2.*PI*JDAY+PHASE(MIGI))
+    712                         ENDIF
+    713                     ELSE
+    714                         ASETTLE(K,I,JA) = AMP(MIGI)*(2.*PI/86400.)*COS(2.*PI*JDAY+PHASE(MIGI))
+    715                     ENDIF
+    716                 ELSE    ! SET DEPTH LIMIT FOR INCREASING MIGRATION
+    717                     IF(DEPTHM(K,I)<=EXP_DEPTH(MIGI))THEN
+    718                         IF(LIGHT>0.0)THEN
+    719                             ASETTLE(K,I,JA) = AMP(MIGI)*(2.*PI/86400.)*EXP(-C_COEFF_EXT(MIGI)*GAMMA(K,I)*(EXP_DEPTH(MIGI)-DE
+    719 PTHM(K,I)))*COS(2.*PI*JDAY+PHASE(MIGI)) 
+    720                         ELSE 
+    721                             ASETTLE(K,I,JA) = AMP(MIGI)*(2.*PI/86400.)*COS(2.*PI*JDAY+PHASE(MIGI))
+    722                         ENDIF
+    723                     ELSE
+    724                         ASETTLE(K,I,JA) = AMP(MIGI)*(2.*PI/86400.)*COS(2.*PI*JDAY+PHASE(MIGI))
+    725                     ENDIF  
+    726                 ENDIF
+    727                 IF(ALGMIGRATION_DEBUG==1)WRITE(2451,'("Model2:,",3(I3,","),3(F15.5,","))')K,I,JA,JDAY,ASETTLE(K,I,JA)
+    728             ELSEIF(MIGRATE_MODEL(MIGI) == 3)THEN    ! DENSITY CHANGE VELOCITY
+    729                 VISCK = DEXP((T2(K,I)+495.691)/(-37.3877)) ! dynamic viscosity of water
+    730                 IF (T2(K,I) > 30.0)  VISCK = DEXP((T2(K,I)+782.190)/(-57.7600))
+    731                 IF(NITWQ == 1)THEN ! SET INITIAL DENSITY
+    732                     IF(K==KT)THEN
+    733                         DEN(K,I,NITWQ,MIGI) = DENSI(MIGI)
+    734                         IF(I==IU) TWQ(NITWQ,MIGI)=JDAY
+    735                     ELSEIF(K==KB(I))THEN
+    736                         DEN(K,I,NITWQ,MIGI) = DENBI(MIGI)
+    737                     ELSE
+    738                         DEN(K,I,NITWQ,MIGI) = DENSI(MIGI)+(DENBI(MIGI)-DENSI(MIGI))*(1.-EXP(-DEPTHM(K,I)));
+    739                     ENDIF
+    740                     RHO(K,I) = DENSITY(T2(K,I),DMAX1(TDS(K,I),0.0D0),DMAX1(TISS(K,I),0.0D0))
+    741                     ASETTLE(K,I,JA) = 2.*G*(RAD(MIGI)**2)*(DEN(K,I,NITWQ,MIGI)/RHO(K,I)-1.)/(9.*VISCK) ! stoke's settling ve
+    741 locity
+    742                     ALLIM_OLD(K,I,MIGI) = ALLIM(K,I,JA)      
+    743                     IF(ALGMIGRATION_DEBUG==1)WRITE(2451,'("Model3:,",4(I6,","),4(F15.5,","))')K,I,JA,nitwq,JDAY,ASETTLE(K,I,
+    743 JA),DEN_avg(K,I,MIGI),den(k,i,min(nitwq,ts_dec(migi)),migi)
+    744                 ELSEIF(NITWQ <= TS_DEC(MIGI))THEN  ! STORE ALL DENSITY VALUES UNTIL MAXIMUM NUMBER IS REACHED
+    745                     IF(K==KT .AND. I==IU) TWQ(NITWQ,MIGI)=JDAY
+    746                     if(den(k,i,nitwq-1,migi)<=0)then
+    747                         den(k,i,nitwq-1,migi) = den(k+1,i,nitwq-1,migi)
+    748                         RHO(K,I) = DENSITY(T2(K,I),DMAX1(TDS(K,I),0.0D0),DMAX1(TISS(K,I),0.0D0))
+    749                         allim_old(k,i,migi)=allim(k,i,migi)
+    750                     endif
+    751                     DEN(K,I,NITWQ,MIGI) = (C_DENINC(MIGI)*ALLIM_OLD(K,I,MIGI)-C_DENDEC(MIGI))*(JDAY-TWQ(NITWQ-1,MIGI))*86400
+    751 . + DEN(K,I,NITWQ-1,MIGI) ! new colony density
+    752                     DEN(K,I,NITWQ,MIGI) = MIN(DEN(K,I,NITWQ,MIGI),MAXD(MIGI)) ! maximum allowable colony density
+    753                     DEN(K,I,NITWQ,MIGI) = MAX(DEN(K,I,NITWQ,MIGI),MIND(MIGI)) ! minimum allowable colony density
+    754                         ALLOCATE(DEN_USE(COUNT(DEN(K,I,1:NITWQ,MIGI)>0)))
+    755                         JJ=1
+    756                         DO LL=1,NITWQ
+    757                             IF (DEN(K,I,LL,MIGI).GT.0) THEN
+    758                                 DEN_USE(JJ) = LL
+    759                                 JJ = JJ+1
+
+Page 16          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    760                             END IF
+    761                         ENDDO
+    762                     DEN_AVG(K,I,MIGI) = SUM(DEN(K,I,den_use,MIGI)*EXP(-T_DEC(MIGI)*(JDAY-TWQ(den_use,MIGI))))/SUM(EXP(-T_DEC
+    762 (MIGI)*(JDAY-TWQ(den_use,MIGI))))
+    763                     ASETTLE(K,I,JA) = 2.*G*(RAD(MIGI)**2)*(DEN_AVG(K,I,MIGI)/RHO(K,I)-1.)/(9.*VISCK) ! stoke's settling velo
+    763 city
+    764                         DEALLOCATE(DEN_USE)
+    765                     ALLIM_OLD(K,I,MIGI) = ALLIM(K,I,JA)      
+    766                     IF(ALGMIGRATION_DEBUG==1)WRITE(2451,'("Model3:,",4(I6,","),4(F15.5,","))')K,I,JA,nitwq,JDAY,ASETTLE(K,I,
+    766 JA),DEN_avg(K,I,MIGI),den(k,i,min(nitwq,ts_dec(migi)),migi)
+    767                 ELSE  ! STORE SPECIFIED MAXIMUM NUMBER OF PAST DENSITY VALUES
+    768                     IF(K==KT .AND. I==IU)THEN
+    769                         TWQ(1:TS_DEC(MIGI)-1,MIGI) = TWQ(2:TS_DEC(MIGI),MIGI)
+    770                         TWQ(TS_DEC(MIGI),MIGI) = JDAY
+    771                     ENDIF
+    772                     DEN(K,I,1:TS_DEC(MIGI)-1,MIGI) = DEN(K,I,2:TS_DEC(MIGI),MIGI)                 
+    773                     if(den(k,i,ts_dec(migi)-1,migi)<=0)then
+    774                         den(k,i,ts_dec(migi)-1,migi) = den(k+1,i,ts_dec(migi)-1,migi)
+    775                         RHO(K,I) = DENSITY(T2(K,I),DMAX1(TDS(K,I),0.0D0),DMAX1(TISS(K,I),0.0D0))
+    776                         allim_old(k,i,migi)=allim(k,i,migi)
+    777                     endif
+    778                     DEN(K,I,TS_DEC(MIGI),MIGI) = (C_DENINC(MIGI)*ALLIM_OLD(K,I,MIGI)-C_DENDEC(MIGI))*(JDAY-TWQ(ts_dec(migi)-
+    778 1,MIGI))*86400. + DEN(K,I,TS_DEC(MIGI)-1,MIGI) ! new colony density
+    779                     DEN(K,I,TS_DEC(MIGI),MIGI) = MIN(DEN(K,I,TS_DEC(MIGI),MIGI),MAXD(MIGI)) ! maximum allowable colony densi
+    779 ty
+    780                     DEN(K,I,TS_DEC(MIGI),MIGI) = MAX(DEN(K,I,TS_DEC(MIGI),MIGI),MIND(MIGI)) ! minimum allowable colony densi
+    780 ty
+    781                         ALLOCATE(DEN_USE(COUNT(DEN(K,I,:,MIGI)>0)))
+    782                         JJ=1
+    783                         DO LL=1,TS_DEC(MIGI)
+    784                             IF (DEN(K,I,LL,MIGI).GT.0) THEN
+    785                                 DEN_USE(JJ) = LL
+    786                                 JJ = JJ+1
+    787                             END IF
+    788                         ENDDO
+    789                     DEN_AVG(K,I,MIGI) = SUM(DEN(K,I,DEN_USE,MIGI)*EXP(-T_DEC(MIGI)*(JDAY-TWQ(DEN_USE,MIGI))))/SUM(EXP(-T_DEC
+    789 (MIGI)*(JDAY-TWQ(DEN_USE,MIGI)))) ! weighted density with time decay
+    790                     ASETTLE(K,I,JA) = 2.*G*(RAD(MIGI)**2)*(DEN_AVG(K,I,MIGI)/RHO(K,I)-1.)/(9.*VISCK) ! stoke's settling velo
+    790 city
+    791                         DEALLOCATE(DEN_USE)
+    792                     ALLIM_OLD(K,I,MIGI) = ALLIM(K,I,JA)      
+    793                     IF(ALGMIGRATION_DEBUG==1)WRITE(2451,'("Model3:,",4(I6,","),4(F15.5,","))')K,I,JA,nitwq,JDAY,ASETTLE(K,I,
+    793 JA),DEN_avg(K,I,MIGI),den(k,i,min(nitwq,ts_dec(migi)),migi)
+    794                 ENDIF
+    795             ELSE     ! DENSITY CHANGE VELOCITY (VISSER)
+    796                 VISCK = DEXP((T2(K,I)+495.691)/(-37.3877)) ! dynamic viscosity of water
+    797                 IF (T2(K,I) > 30.0)  VISCK = DEXP((T2(K,I)+782.190)/(-57.7600))
+    798                 DENP_MIN(K) = DENP_MINS(MIGI) + (DEPTHM(K,I)/DEPTHB(KB(I),I))*(DENP_MINB(MIGI)-DENP_MINS(MIGI))
+    799                 IF(NITWQ == 1)THEN ! SET INITIAL DENSITY
+    800                     IF(K==KT)THEN
+    801                         DEN1(K,I,MIGI) = DENSI(MIGI)
+    802                     ELSEIF(K==KB(I))THEN
+    803                         DEN1(K,I,MIGI) = DENBI(MIGI)
+    804                     ELSE
+    805                         DEN1(K,I,MIGI) = DENSI(MIGI)+(DENBI(MIGI)-DENSI(MIGI))*(1-EXP(-DEPTHM(K,I)));
+    806                     ENDIF
+    807                     RHO(K,I) = DENSITY(T2(K,I),DMAX1(TDS(K,I),0.0D0),DMAX1(TISS(K,I),0.0D0))
+
+Page 17          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    808                     ASETTLE(K,I,JA) = 2.*G*(RAD(MIGI)**2)*(DEN1(K,I,MIGI)/RHO(K,I)-1.)/(9.*VISCK) ! stoke's settling velocit
+    808 y
+    809                     if(abs(asettle(k,i,ja))>1000.) asettle(k,1,ja)=0.0
+    810                     DENP(K,I,MIGI) = DENP_MIN(K)
+    811                     IF(ALGMIGRATION_DEBUG==1)WRITE(2451,'("Model4:,",4(I6,","),3(F15.5,","))')K,I,JA,NITWQ,JDAY,ASETTLE(K,I,
+    811 JA),DEN1(K,I,MIGI)
+    812                     IF(k==kb(i) .and. i==id .AND. jb==nbr .and. jw==nwb) TOLD = JDAY
+    813                     IF(K==KB(I)) LOLD(I,MIGI) = LIGHT*ASAT(JA)
+    814                 ELSE
+    815                     if(den1(k,i,migi)<=0)then
+    816                         den1(k,i,migi) = den1(k+1,i,migi)
+    817                         denp(k,i,migi) = denp(k+1,i,migi)
+    818                         RHO(K,I) = DENSITY(T2(K,I),DMAX1(TDS(K,I),0.0D0),DMAX1(TISS(K,I),0.0D0))
+    819                     endif
+    820                     LAM3=LOLD(I,MIGI)
+    821                     LAM4 = LAM3
+    822                     DO KK=KT,K
+    823                         LAM3 = LAM4
+    824                         LAM4 = LAM3*EXP(-GAMMA(KK,I)*H2(KK,I))
+    825                     ENDDO
+    826                     AVG_LIGHT = LAM3*(EXP(-GAMMA(K,I)*H2(K,I))-1.)/(-GAMMA(K,I)*H2(K,I))
+    827                     IF(AVG_LIGHT >= I_C(MIGI))THEN              
+    828                         DEN2(K,I,MIGI) = (C_DENINC_1(MIGI)*AVG_LIGHT*EXP(-AVG_LIGHT/ASAT(JA))+C_DENINC_2(MIGI))*(JDAY-TOLD)*
+    828 86400. + DEN1(K,I,MIGI) ! new colony density
+    829                         DEN2(K,I,MIGI) = MIN(DEN2(K,I,MIGI),MAXD(MIGI)) ! maximum allowable colony density
+    830                         DEN2(K,I,MIGI) = MAX(DEN2(K,I,MIGI),MIND(MIGI)) ! minimum allowable colony density
+    831                         DENP(K,I,MIGI) = MAX(DEN2(K,I,MIGI),DENP_MIN(K))
+    832                     ELSE
+    833                         DEN2(K,I,MIGI) = (-C_DENDEC_1(MIGI)*(DENP(K,I,MIGI) + DEN_COR(MIGI)) + C_DENDEC_2(MIGI))*(JDAY-TOLD)
+    833 *86400. + DEN1(K,I,MIGI) ! new colony density
+    834                         DEN2(K,I,MIGI) = MIN(DEN2(K,I,MIGI),MAXD(MIGI)) ! maximum allowable colony density
+    835                         DEN2(K,I,MIGI) = MAX(DEN2(K,I,MIGI),MIND(MIGI)) ! minimum allowable colony density
+    836                         DENP(K,I,MIGI) = MAX(DENP(K,I,MIGI),DENP_MIN(K))
+    837                     ENDIF 
+    838                     ASETTLE(K,I,JA) = 2.*G*(RAD(MIGI)**2)*(DEN2(K,I,MIGI)/RHO(K,I)-1.)/(9.*VISCK) ! stoke's settling velocit
+    838 y
+    839                     if(abs(asettle(k,i,ja))>1000.) asettle(k,1,ja)=0.
+    840                     DEN1(K,I,MIGI) = DEN2(K,I,MIGI)
+    841                     IF(ALGMIGRATION_DEBUG==1)WRITE(2451,'("Model4:,",4(I6,","),3(F15.5,","))')K,I,JA,NITWQ,JDAY,ASETTLE(K,I,
+    841 JA),DEN2(K,I,MIGI)
+    842                     IF(k==kb(i) .and. i==id .AND. jb==nbr .and. jw==nwb) TOLD = JDAY
+    843                     IF(K==KB(I)) LOLD(I,MIGI) = LIGHT*ASAT(JA)
+    844                 ENDIF
+    845             ENDIF
+    846             if(depth_lim_onoff(migi) == 1 .and. depthb(k,i)<depth_lim(migi)) asettle(k,i,ja)=0
+    847         ELSE ! ORIGINAL SETTLING EQUATIONS
+    848         IF (AS(JA) >= 0.0) THEN
+    849           IF(K == KT)THEN
+    850           ASR(K,I,JA) =  AS(JA)*(-ALG(K,I,JA))*BI(K,I)/BH2(K,I)
+    851           ELSE
+    852           ASR(K,I,JA) =  AS(JA)*(ALG(K-1,I,JA)-ALG(K,I,JA))*BI(K,I)/BH2(K,I)
+    853           ENDIF
+    854         ELSE
+    855           IF(K == KB(I))THEN
+    856             ASR(K,I,JA) = -AS(JA)*(-ALG(K,I,JA)  *BI(K,I)/BH2(K,I))                                           !SW 11/8/07
+    857           ELSEIF(K == KT)THEN
+    858             ASR(K,I,JA) = -AS(JA)* ALG(K+1,I,JA)*BI(K+1,I)*DLX(I)/VOL(K,I)                                   !SW 11/8/07
+
+Page 18          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    859           ELSE
+    860             ASR(K,I,JA) = -AS(JA)*(ALG(K+1,I,JA)*BI(K+1,I)/BH2(K,I)-ALG(K,I,JA)*BI(K,I)/BH2(K,I))             !SP 8/27/07
+    861           END IF
+    862             END IF 
+    863         ENDIF
+    864       ENDDO   ! K LOOP
+    865 
+    866       IF(ALGAE_SETTLING(JA) .AND. ISETTLE==1)THEN
+    867          do k=kt,kb(i)
+    868             IF(K==KT)THEN
+    869                 IF(ASETTLE(K+1,I,JA) >= 0)THEN    ! incoming velocity from cell below
+    870                     AIN = 0                
+    871                 ELSE 
+    872                     AIN = -ASETTLE(K+1,I,JA)
+    873                 ENDIF             
+    874                 IF(ASETTLE(K,I,JA) >= 0)THEN    ! outgoing velocity for surface layer cell
+    875                     AOUT = ASETTLE(K,I,JA)
+    876                 ELSE 
+    877                     AOUT = 0
+    878                 ENDIF             
+    879                 ASR(K,I,JA) =  -AOUT*(ALG(K,I,JA))*BI(K,I)/BH2(K,I) + AIN*ALG(K+1,I,JA)*BI(K+1,I)*DLX(I)/VOL(K,I)           
+    879        
+    880             ELSEIF(K==KB(I))THEN
+    881                 IF(ASETTLE(K-1,I,JA) >= 0)THEN    ! incoming velocity from cell ABOVE
+    882                     AIN = ASETTLE(K-1,I,JA)              
+    883                 ELSE 
+    884                     AIN = 0
+    885                 ENDIF    
+    886                 IF(ASETTLE(K,I,JA) >= 0)THEN    ! outgoing velocity for BOTTOM layer cell
+    887                     AOUTB = ASETTLE(K,I,JA)
+    888                 ELSE 
+    889                     AOUTA = -ASETTLE(K,I,JA)
+    890                 ENDIF      
+    891                 ASR(K,I,JA) = (AIN*ALG(K-1,I,JA) - (LOSS_FRAC(MIGI)*AOUTB + AOUTA)*ALG(K,I,JA))*BI(K,I)/BH2(K,I)      
+    892             ELSE
+    893                 IF(ASETTLE(K-1,I,JA) >= 0)THEN    ! incoming velocity from cell ABOVE
+    894                     AINA = ASETTLE(K-1,I,JA)              
+    895                 ELSE 
+    896                     AINA = 0
+    897                 ENDIF    
+    898                 IF(ASETTLE(K+1,I,JA) >= 0)THEN    ! incoming velocity from cell below
+    899                     AINB = 0                
+    900                 ELSE 
+    901                     AINB = -ASETTLE(K+1,I,JA)
+    902                 ENDIF  
+    903                 AOUT = ABS(ASETTLE(K,I,JA))
+    904                 ASR(K,I,JA) =  (AINA*ALG(K-1,I,JA)-AOUT*ALG(K,I,JA))*BI(K,I)/BH2(K,I) + AINB*ALG(K+1,I,JA)*BI(K+1,I)/BH2(K,I
+    904 )    ! NOT NECESSARY TO DO THE DIVISION - JUST DIVIDE BY H !SP 8/27/07
+    905             ENDIF
+    906       end do
+    907       ENDIF
+    908     end do
+    909     ENDIF
+    910   END DO    ! ALGAE LOOP
+    911    if(algae_settling_exist) iday=jday
+    912       
+    913 ! Macrophyte Light/Nutrient Limitation and kinetic rates
+
+Page 19          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    914   do m=1,nmc
+    915   mGR(:,:,iu:id,m)=0.0; mRR(:,iu:id,m)=0.0; mmR(:,iu:id,m)=0.0  ! cb 3/8/16
+    916   if(macrophyte_calc(jw,m))then
+    917     DO I=IU,ID
+    918         if(Met_Regions)then
+    919           LTCOEFm = (1.0-BETA(jw))*SRON(WB_MetRegions(JW))*SHADE(I)
+    920         else
+    921           LTCOEFm = (1.0-BETA(jw))*SRON(jw)*SHADE(I)     
+    922         endif
+    923         
+    924       if(kticol(i))then
+    925         jt=kti(i)
+    926       else
+    927         jt=kti(i)+1
+    928       end if
+    929       je=kb(i)
+    930       do jj=jt,je
+    931         lam1=ltcoefm
+    932         lam2m(jj,kt)=lam1*exp(-gammaj(jj,kt,i)*h2(kt,i))
+    933         lavg=(lam1-lam2m(jj,kt))/(GAMMAj(jj,kt,i)*H2(kt,i))
+    934         mLLIM(jj,kt,I,m) = lavg/(lavg+msat(m))
+    935         IF (mHSP(m)  /= 0.0.and.psed(m) < 1.0)then
+    936           mPLIM(kt,I,m) =  FDPO4*PO4(kt,I)/(FDPO4*PO4(kt,I)+mHSP(m)+nonzero)
+    937         else
+    938           mPLIM(kt,I,m)=1.0
+    939         end if
+    940         IF (mHSN(m)  /= 0.0.and.nsed(m) < 1.0)then
+    941           mNLIM(kt,I,m) = NH4(kt,I)/(NH4(kt,I)+mHSN(m)+nonzero)
+    942         else
+    943           mNLIM(kt,I,m)=1.0
+    944         end if
+    945         IF (mHSc(m) /= 0.0)then
+    946           mcLIM(kt,i,m) = co2(kt,I)/(co2(kt,I)+mHSc(m)+NONZERO)
+    947         end if
+    948         LIMIT          = MIN(mPLIM(kt,I,m),mNLIM(kt,I,m),mcLIM(kt,I,m),mLLIM(jj,kt,I,m))
+    949 
+    950 !************* sources/sinks
+    951 
+    952         mGR(jj,Kt,I,m) = macTRM(Kt,I,m)*mG(m)*LIMIT
+    953 
+    954       end do
+    955 
+    956       mRR(Kt,I,m) = macTRM(Kt,I,m)*mR(m)*DO3(Kt,I)
+    957       mMR(Kt,I,m) = (macTRMR(Kt,I,m)+1.0-mAcTRMF(Kt,I,m))*mM(m)
+    958 
+    959       DO K=KT+1,KB(I)
+    960         jt=k
+    961         je=kb(i)
+    962         do jj=jt,je
+    963           lam1=lam2m(jj,k-1)
+    964           lam2m(jj,k)=lam1*exp(-gammaj(jj,k,i)*h2(k,i))
+    965           lavg=(lam1-lam2m(jj,k))/(GAMMAj(jj,k,i)*H2(k,i))
+    966           mLLIM(jj,K,I,m) = lavg/(lavg+msat(m))
+    967           IF (mHSP(m)  /= 0.0.and.psed(m) < 1.0)then
+    968             mPLIM(K,I,m) =  FDPO4*PO4(K,I)/(FDPO4*PO4(K,I)+mHSP(m)+nonzero)
+    969           else
+    970             mPLIM(K,I,m)=1.0
+
+Page 20          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+    971           end if
+    972           IF (mHSN(m)  /= 0.0.and.nsed(m) < 1.0)then
+    973             mNLIM(K,I,m) = NH4(K,I)/(NH4(K,I)+mHSN(m)+nonzero)
+    974           else
+    975              mNLIM(K,I,m)=1.0
+    976           end if
+    977           IF (mHSc(m) /= 0.0)then
+    978             mcLIM(k,i,m) = co2(K,I)/(co2(K,I)+mHSc(m)+NONZERO)
+    979           end if
+    980           LIMIT          = MIN(mPLIM(K,I,m),mNLIM(K,I,m),mcLIM(K,I,m),mLLIM(jj,K,I,m))
+    981 
+    982 !************* sources/sinks
+    983 
+    984           mGR(jj,K,I,m) = macTRM(K,I,m)*mG(m)*LIMIT
+    985 
+    986         end do
+    987 
+    988         mRR(K,I,m) = macTRM(K,I,m)*mR(m)*DO3(K,I)
+    989         mMR(K,I,m) = (macTRMR(K,I,m)+1.0-mAcTRMF(K,I,m))*mM(m)
+    990       end do
+    991     END DO
+    992     ENDIF
+    993   END DO
+    994 
+    995 RETURN
+    996 
+    997 !***************************************************************************************************************************
+    997 ********
+    998 !**                                             G E N E R I C   C O N S T I T U E N T                                       
+    998       **
+    999 !***************************************************************************************************************************
+    999 ********
+   1000 
+   1001 ENTRY GENERIC_CONST (JG)
+   1002     
+   1003   XX=0.0
+   1004     DO I=IU,ID
+   1005     if(Met_Regions)then
+   1006     LIGHT =  (1.0-BETA(JW))*SRON(WB_MetRegions(JW))*SHADE(I)                  !LCJ 2/26/15
+   1007     else
+   1008     LIGHT =  (1.0-BETA(JW))*SRON(JW)*SHADE(I)      
+   1009     endif
+   1010     
+   1011     LAM1  =  LIGHT
+   1012     LAM2  =  LIGHT
+   1013 
+   1014       DO K=KT,KB(I)
+   1015         LAM1           = LAM2
+   1016         LAM2           = LAM1*EXP(-GAMMA(K,I)*H2(K,I))
+   1017         LIGHT          = LAM1*(1.-EXP(-GAMMA(K,I)*H2(K,I)))/(GAMMA(K,I)*H2(K,I))     ! SW 10/17/15
+   1018 
+   1019         IF (CGS(JG) >= 0.0) THEN
+   1020             IF(K == KT)THEN
+   1021             XX =  CGS(JG)*(-CG(K,I,JG))*BI(K,I)/BH2(K,I)    ! AS(JA)*(-ALG(K,I,JA))*BI(K,I)/BH2(K,I)
+   1022             ELSE
+   1023             XX =  CGS(JG)*(CG(K-1,I,JG)-CG(K,I,JG))*BI(K,I)/BH2(K,I)     !AS(JA)*(ALG(K-1,I,JA)-ALG(K,I,JA))*BI(K,I)/BH2(K,I
+   1023 )
+
+Page 21          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1024           END IF
+   1025         ELSE IF(CGS(JG)<0.0)then
+   1026           IF(K == KB(I))THEN
+   1027             XX = -CGS(JG)*(-CG(K,I,JG))*BI(K,I)/BH2(K,I)    !-AS(JA)*(-ALG(K,I,JA)  *BI(K,I)/BH2(K,I))                      
+   1027                      !SW 11/8/07
+   1028           ELSE IF(K == KT)THEN
+   1029             XX = -CGS(JG)*CG(K+1,I,JG)*BI(K+1,I)*DLX(I)/VOL(K,I)    !-AS(JA)* ALG(K+1,I,JA)*BI(K+1,I)*DLX(I)/VOL(K,I)       
+   1029                             !SW 11/8/07
+   1030           ELSE
+   1031             XX = -CGS(JG)*(CG(K+1,I,JG)*BI(K+1,I)/BH2(K,I)-CG(K,I,JG)*BI(K,I)/BH2(K,I))    !-AS(JA)*(ALG(K+1,I,JA)*BI(K+1,I)
+   1031 /BH2(K,I)-ALG(K,I,JA)*BI(K,I)/BH2(K,I))             !SP 8/27/07
+   1032           END IF
+   1033         END IF
+   1034 !
+   1035          IF (CGQ10(JG) /= 0.0) THEN
+   1036           CGSS(K,I,JG) = -CG0DK(JG)*CGQ10(JG)**(T1(K,I)-20.0)-CG1DK(JG)*CGQ10(JG)**(T1(K,I)-20.0)*CG(K,I,JG)-CGLDK(JG)*LIGHT
+   1036 *CG(K,I,JG)+XX
+   1037          ELSE
+   1038           CGSS(K,I,JG) = -CG0DK(JG)-CG1DK(JG)*CG(K,I,JG)-CGLDK(JG)*LIGHT*CG(K,I,JG)+XX
+   1039          ENDIF
+   1040          IF(CGR(JG) /= 0.0)CGSS(K,I,JG) = CGSS(K,I,JG) + CGR(JG)*SODD(K,I)*DO2(K,I)
+   1041      END DO
+   1042 !
+   1043      IF(CGKLF(JG) /= 0.0)THEN
+   1044          IF (.NOT. ICE(I)) THEN                                                                             ! REAER in units
+   1044  of s-1
+   1045          CGSS(KT,I,JG) = CGSS(KT,I,JG)+REAER(I)*CGKLF(JG)*(CGCS(JG)-CG(KT,I,JG))                            ! this calculati
+   1045 on performed in Gas-transfer.f90: *BI(KT,I)/BH2(KT,I)
+   1046         END IF    
+   1047      ENDIF
+   1048 !CGSS(K,I,JG) = CGSS(K,I,JG) + CGR(JG)*SODD(K,I)*DO2(K,I)
+   1049   END DO
+   1050 
+   1051 RETURN
+   1052 
+   1053 !***************************************************************************************************************************
+   1053 ********
+   1054 !**                                               S U S P E N D E D   S O L I D S                                           
+   1054       **
+   1055 !***************************************************************************************************************************
+   1055 ********
+   1056 
+   1057 ENTRY SUSPENDED_SOLIDS (J)
+   1058 
+   1059   DO I=IU,ID
+   1060     SSR = 0.0
+   1061     IF (SEDIMENT_RESUSPENSION(J)) THEN
+   1062       FETCH = FETCHD(I,JB)
+   1063       IF (COS(PHI(JW)-PHI0(I)) < 0.0) FETCH = FETCHU(I,JB)
+   1064       FETCH = MAX(FETCH,BI(KT,I),DLX(I))
+   1065        U2   = WIND2(I)*WSC(I)*WIND2(I)*WSC(I)+NONZERO               !WIND(JW)*WSC(I)*WIND(JW)*WSC(I)+NONZERO   SW 12/13/2023
+   1066       COEF1 = 0.53  *(G*DEPTHB(KT,I)/U2)**0.75
+   1067       COEF2 = 0.0125*(G*FETCH/U2)**0.42
+   1068       COEF3 = 0.833* (G*DEPTHB(KT,I)/U2)**0.375
+   1069       COEF4 = 0.077* (G*FETCH/U2)**0.25
+   1070       HS    = U2/G*0.283*TANH(COEF1)*TANH(COEF2/TANH(COEF1))    !8/2020 corrected
+   1071 !TS    = 2.0*PI*U2/G*1.2*  TANH(COEF3)*TANH(COEF4/TANH(COEF3))
+
+Page 22          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1072       TS    = 2.0*PI*sqrt(U2)/G*1.2*  TANH(COEF3)*TANH(COEF4/TANH(COEF3))   ! cb 7/15/14
+   1073       L0    = G*TS*TS/(2.0*PI)
+   1074         L1 = L0             ! SW 6/28/2018 Allow for resuspension of surface layer
+   1075         L  = L0*TANH(2.0*PI*DEPTHB(KT,I)/L1)
+   1076         DO WHILE (ABS(L-L1) > 0.001)
+   1077           L1 = L
+   1078           L  = L0*TANH(2.0*PI*DEPTHB(KT,I)/L1)
+   1079         END DO
+   1080         COEF = MIN(710.0,2.0*PI*DEPTHB(KT,I)/L)
+   1081         UORB = PI*HS/TS*100.0/SINH(COEF)
+   1082         TAU  = 0.003*UORB*UORB
+   1083         IF (TAU-TAUCR(J) > 0.0) EPSILON = MAX(0.0,0.008/49.0*(TAU-TAUCR(J))**3*10000.0/DLT)
+   1084         SSR = EPSILON*DLX(I)*(BI(KT,I)-BI(KT+1,I))/VOL(KT,I)
+   1085       END IF
+   1086     SSSS(KT,I,J) = -SSS(J)*SS(KT,I,J)*BI(KT,I)/BH2(KT,I)+SSR
+   1087 !   DO K=KT-1,KB(I)-1                                             ! SW 4/3/09   KT,KB
+   1088      DO K=KT+1,KB(I)  !-1                 ! sw 12/2020 cb 9/29/14
+   1089       IF (SEDIMENT_RESUSPENSION(J)) THEN
+   1090         L1 = L0
+   1091         L  = L0*TANH(2.0*PI*DEPTHB(K,I)/L1)
+   1092         DO WHILE (ABS(L-L1) > 0.001)
+   1093           L1 = L
+   1094           L  = L0*TANH(2.0*PI*DEPTHB(K,I)/L1)
+   1095         END DO
+   1096         COEF = MIN(710.0,2.0*PI*DEPTHB(K,I)/L)
+   1097         UORB = PI*HS/TS*100.0/SINH(COEF)
+   1098         TAU  = 0.003*UORB*UORB
+   1099         IF (TAU-TAUCR(J) > 0.0) EPSILON = MAX(0.0,0.008/49.0*(TAU-TAUCR(J))**3*10000.0/DLT)
+   1100 		if(k == kb(i))then   ! SW 4/18/07
+   1101 		SSR = EPSILON*DLX(I)*BI(K,I)/VOL(K,I)
+   1102 		else
+   1103         SSR = EPSILON*DLX(I)*(BI(K,I)-BI(K+1,I))/VOL(K,I)
+   1104 		endif
+   1105       END IF
+   1106       SSSS(K,I,J) = SSS(J)*(SS(K-1,I,J)-SS(K,I,J))*BI(K,I)/BH2(K,I)+SSR
+   1107     END DO
+   1108 !IF (SEDIMENT_RESUSPENSION(J)) SSR = EPSILON*DLX(I)*BI(KB(I),I)/VOL(KB(I),I)
+   1109 
+   1110        SSSS(KB(I),I,J) = SSS(J)*(SS(KB(I)-1,I,J)-SS(KB(I),I,J))/H(KB(I),JW)+SSR
+   1111 ! Flocculation              !SR                                                      !New section on flocculation          !
+   1111 SR 04/21/13
+   1112 !DO K=KT,KB(I)
+   1113 !  SSF = 0.0
+   1114 !  IF (J > 1 .AND. SSFLOC(J-1) > 0.0) THEN
+   1115 !    IF (FLOCEQN(J-1) == 0) THEN
+   1116 !      SSF = MIN(SSFLOC(J-1), SS(K,I,J-1)/DLT)
+   1117 !    ELSE IF (FLOCEQN(J-1) == 1) THEN
+   1118 !      SSF = SSFLOC(J-1)*SS(K,I,J-1)
+   1119 !    ELSE IF (FLOCEQN(J-1) == 2) THEN
+   1120 !      SSF = SSFLOC(J-1)*SS(K,I,J-1)*SS(K,I,J-1)
+   1121 !    END IF
+   1122 !  END IF
+   1123 !  IF (J < NSS .AND. SSFLOC(J) > 0.0) THEN
+   1124 !    IF (FLOCEQN(J) == 0) THEN
+   1125 !      SSF = SSF - MIN(SSFLOC(J), SS(K,I,J)/DLT)
+   1126 !    ELSE IF (FLOCEQN(J) == 1) THEN
+   1127 !      SSF = SSF - SSFLOC(J)*SS(K,I,J)
+
+Page 23          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1128 !    ELSE IF (FLOCEQN(J) == 2) THEN
+   1129 !      SSF = SSF - SSFLOC(J)*SS(K,I,J)*SS(K,I,J)
+   1130 !    END IF
+   1131 !  END IF
+   1132 !  SSSS(K,I,J) = SSSS(K,I,J) + SSF
+   1133 !END DO                                                                        !End new section on flocculation      !SR 04/
+   1133 21/13
+   1134     End If
+	....1      
+(1) An ENDIF occurred without a corresponding IF THEN or ELSE statement.
+
+   1135     
+   1136   END DO
+   1137 RETURN
+   1138 
+   1139 !***************************************************************************************************************************
+   1139 ********
+   1140 !**                                               WATER AGE                                                                 
+   1140       **
+   1141 !***************************************************************************************************************************
+   1141 ********
+   1142 ENTRY WATER_AGE
+   1143   DO I=IU,ID
+   1144     DO K=KT,KB(I)
+   1145       AGESS(K,I) = 1.0/DAY
+   1146     END DO
+   1147   END DO
+   1148 RETURN
+   1149 
+   1150 !***************************************************************************************************************************
+   1150 ********
+   1151 !**                                               BACTERIA                                                                  
+   1151       **
+   1152 !***************************************************************************************************************************
+   1152 ********
+   1153 ENTRY BACTERIA
+   1154   DO I=IU,ID
+   1155     if(Met_regions)then
+   1156     LIGHT = (1.0-BETA(JW))*SRON(WB_MetRegions(JW))*SHADE(I) 
+   1157     else
+   1158     LIGHT = (1.0-BETA(JW))*SRON(JW)*SHADE(I)     
+   1159     endif
+   1160     
+   1161     LAM1  = LIGHT
+   1162     LAM2  = LIGHT
+   1163     DO K=KT,KB(I)
+   1164       LAM1  = LAM2
+   1165       LAM2  = LAM1*EXP(-GAMMA(K,I)*H2(K,I))
+   1166       LIGHT = LAM1*(1.-EXP(-GAMMA(K,I)*H2(K,I)))/(GAMMA(K,I)*H2(K,I))  
+   1167 ! SETTELING
+   1168       IF(BACTS(JW) >= 0.0)THEN   
+   1169         IF(K == KT)THEN
+   1170           SET_BACT =  BACTS(JW)*(-BACT(K,I))*BI(K,I)/BH2(K,I) 
+   1171         ELSE
+   1172           SET_BACT =  BACTS(JW)*(BACT(K-1,I)-BACT(K,I))*BI(K,I)/BH2(K,I)
+   1173         END IF
+   1174       ELSE IF(BACTS(JW)<0.0)THEN
+
+Page 24          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1175         IF(K == KB(I))THEN
+   1176           SET_BACT = -BACTS(JW)*(-BACT(K,I))*BI(K,I)/BH2(K,I)                                         
+   1177         ELSE IF(K == KT)THEN
+   1178           SET_BACT = -BACTS(JW)*BACT(K+1,I)*BI(K+1,I)*DLX(I)/VOL(K,I)                                    
+   1179         ELSE
+   1180           SET_BACT = -BACTS(JW)*(BACT(K+1,I)*BI(K+1,I)/BH2(K,I)-BACT(K,I)*BI(K,I)/BH2(K,I))   
+   1181         END IF
+   1182       END IF
+   1183 !FIRST-ORDER DECAY
+   1184       IF(BACTQ10(JW) /= 0.0)THEN
+   1185         DK1_BACT = -BACT1DK(JW)*BACTQ10(JW)**(T1(K,I)-20.0)*BACT(K,I)*DO3(K,I) 
+   1186       ELSE
+   1187         DK1_BACT = -BACT1DK(JW)*BACT(K,I)*DO3(K,I) 
+   1188       END IF
+   1189 !PHOTODEGRADATION
+   1190       PHOTO_BACT = -BACTLDK(JW) * LIGHT * BACT(K,I) 
+   1191 !
+   1192       BACTSS(K,I) = SET_BACT + DK1_BACT + PHOTO_BACT
+   1193     END DO
+   1194   END DO
+   1195 RETURN
+   1196 
+   1197 !***************************************************************************************************************************
+   1197 ********
+   1198 !**                                                  DISSOLVED GAS PRESSURE (atm)                                           
+   1198       **
+   1199 !***************************************************************************************************************************
+   1199 ********
+   1200 ENTRY DISSOLVED_GAS
+   1201   DISGSS(:,IU:ID)=0.0
+   1202   DO I=IU,ID
+   1203     IF (.NOT. ICE(I)) THEN
+   1204 ! REAER in units of s-1
+   1205       DISGSS(KT,I) = -REAER(I)*DGPO2(JW)*(DGP(KT,I)-PALT(I))      ! this computation done in gas-transfer.f90 :*BI(KT,I)/BH2
+   1205 (KT,I)
+   1206     END IF
+   1207 !
+   1208     DO K=KT,KB(I)
+   1209       TDG(K,I) = 100.*DGP(K,I)/PALT(I)
+   1210     END DO 
+   1211   END DO
+   1212 RETURN
+   1213 
+   1214 !***************************************************************************************************************************
+   1214 ********
+   1215 !**                                                      DISSOLVED NITROGEN GAS (N2)                                        
+   1215       **
+   1216 !***************************************************************************************************************************
+   1216 ********
+   1217 ENTRY DISSOLVED_N2
+   1218   N2SS(:,IU:ID)=0.0
+   1219   DO I=IU,ID
+   1220      IF(.NOT. ICE(I))THEN
+   1221       EA = DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))*0.001316   ! EA (atm)   0.0098692atm=7.5006151mmHg
+   1222       N2SAT = 1.5568D06*0.79*(PALT(I)-EA)*(1.8816D-5 - 4.116D-7 * T1(KT,I) + 4.6D-9 * T1(KT,I)**2)
+   1223       N2SS(KT,I) = 1.034*REAER(I)*(N2SAT-N2(KT,I))      !This computation is done in gas-transfer.f90 *BI(KT,I)/BH2(KT,I)   
+   1223           ! KLN2=1.034*KLO2    ! ! REAER in units of s-1
+
+Page 25          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1224 !
+   1225       DO K=KT,KB(I)
+   1226         DOSAT = SATO(T1(K,I),TDS(K,I),PALT(I),SALT_WATER(JW))
+   1227         TDG(K,I) = 100.*((0.79*N2(K,I)/N2SAT) + O2(K,I)/DOSAT*0.21)
+   1228       END DO 
+   1229     END IF
+   1230   END DO
+   1231 RETURN
+   1232 
+   1233 !***************************************************************************************************************************
+   1233 ********
+   1234 !**                                                      SULFIDE (H2S)                                                      
+   1234       **
+   1235 !***************************************************************************************************************************
+   1235 ********
+   1236 ENTRY SULFIDE
+   1237   H2SD(:,IU:ID) = 0.0; H2SREAER(:,IU:ID) = 0.0; H2SSR(:,IU:ID) = 0.0
+   1238   DO I=IU,ID
+   1239     DO K=KT,KB(I) 
+   1240       IF(H2SQ10(JW) /= 0.0)THEN
+   1241         H2SD(K,I) = -H2S1DK(JW)*H2SQ10(JW)**(T1(K,I)-20.0)*H2S(K,I)*DO3(K,I) 
+   1242       ELSE
+   1243         H2SD(K,I) = -H2S1DK(JW)*H2S(K,I)*DO3(K,I) 
+   1244       END IF
+   1245       H2SSR(K,I)  = H2SR(JW)*SODD(K,I)*DO2(K,I)
+   1246       H2SSS(K,I)  = H2SD(K,I) + H2SSR(K,I)
+   1247     END DO
+   1248 !
+   1249     IF(.NOT. ICE(I))THEN
+   1250       H2SREAER(KT,I) = 0.984*REAER(I)*(-H2S(KT,I))                  !This computation is done in gas-transfer.f90: *BI(KT,I)
+   1250 /BH2(KT,I)      REAER in units of s-1
+   1251       H2SSS(KT,I) = H2SSS(KT,I)+H2SREAER(KT,I)
+   1252     END IF
+   1253   END DO
+   1254 RETURN
+   1255 
+   1256 !***************************************************************************************************************************
+   1256 ********
+   1257 !**                                                      METHANE (CH4)                                                      
+   1257       **
+   1258 !***************************************************************************************************************************
+   1258 ********
+   1259 ENTRY METHANE
+   1260   CH4D(:,IU:ID) = 0.0; CH4REAER(:,IU:ID) = 0.0; CH4SR(:,IU:ID) = 0.0
+   1261   DO I=IU,ID
+   1262     DO K=KT,KB(I)
+   1263       IF(CH4Q10(JW) /= 0.0)THEN
+   1264         CH4D(K,I) = -CH41DK(JW)*CH4Q10(JW)**(T1(K,I)-20.0)*CH4(K,I)  *DO3(K,I) 
+   1265       ELSE
+   1266         CH4D(K,I) = -CH41DK(JW)*CH4(K,I) *DO3(K,I) 
+   1267       END IF
+   1268       CH4SR(K,I)  = CH4R(JW)*SODD(K,I)*DO2(K,I)
+   1269       CH4SS(K,I)  = CH4D(K,I) + CH4SR(K,I)
+   1270     END DO
+   1271 !
+   1272     IF(.NOT. ICE(I))THEN
+   1273       CH4REAER(KT,I) = 1.188*REAER(I)*(-CH4(KT,I))              !This computation is done in gas-transfer.f90:*BI(KT,I)/BH2(
+
+Page 26          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1273 KT,I)      REAER in units of s-1
+   1274       CH4SS(KT,I) = CH4SS(KT,I)+CH4REAER(KT,I)
+   1275     END IF
+   1276   END DO
+   1277 RETURN
+   1278 
+   1279 !***************************************************************************************************************************
+   1279 ********
+   1280 !**                                                      SULFATE (SO4)                                                      
+   1280       **
+   1281 !***************************************************************************************************************************
+   1281 ********
+   1282 ENTRY SULFATE
+   1283   DO I=IU,ID
+   1284     DO K=KT,KB(I)
+   1285       SO4SS(K,I) = -H2SD(K,I) + SO4R(JW)*SODD(K,I)*DO2(K,I)   ! sulfate production from sulfide decay
+   1286     END DO
+   1287   END DO
+   1288 RETURN
+   1289 
+   1290 !***************************************************************************************************************************
+   1290 ********
+   1291 !**                                                      FERROUS (FEII)                                                     
+   1291       **
+   1292 !***************************************************************************************************************************
+   1292 ********
+   1293 ENTRY FERROUS
+   1294   FE2D(:,IU:ID) = 0.0; FEIISR(:,IU:ID) = 0.0
+   1295   DO I=IU,ID
+   1296     DO K=KT,KB(I)
+   1297       
+   1298       IF(FEII(K,I) > 1.0E-7)THEN   ! skip calculations if FE2 is negligible anyway
+   1299       IF(.NOT. PH_CALC(JW))THEN
+   1300           FE2D(K,I)    = -KFE_OXID(JW)*O2(K,I)*FEII(K,I)*FEMN_TEMP(K,I)    ! assuming pH(K,I) = 7.0
+   1301       ELSEIF(PH(K,I) <= 4.0)THEN
+   1302           FE2D(K,I)    = -KFE_OXID(JW)*O2(K,I)*(1.0E-6)*FEII(K,I)*FEMN_TEMP(K,I) 
+   1303       ELSEIF(PH(K,I) >= 8.0)THEN
+   1304           FE2D(K,I)    = -KFE_OXID(JW)*O2(K,I)*(1.0E+2)*FEII(K,I)*FEMN_TEMP(K,I) 
+   1305       ELSE   
+   1306           FE2D(K,I)    = -KFE_OXID(JW)*O2(K,I)*10**(2.0*(pH(K,I)-7.0))*FEII(K,I)*FEMN_TEMP(K,I) 
+   1307       ENDIF
+   1308       ENDIF
+   1309       
+   1310       FEIISR(K,I)  = FEIIR(JW)*SODD(K,I)*DO2(K,I)
+   1311 
+   1312       FEIISS(K,I)  = FEIISR(K,I) + FE2D(K,I) + KFE_RED(JW)*FEMN_TEMP(K,I)*(KFEOOH_HalfSat(JW)/(O2(K,I)+KFEOOH_HalfSat(JW)))*
+   1312 FEOOH(K,I)
+   1313     END DO 
+   1314   END DO
+   1315 RETURN
+   1316 
+   1317 !***************************************************************************************************************************
+   1317 ********
+   1318 !**                                                      OXIDIZEDFE (FEOOH)                                                 
+   1318       **
+   1319 !***************************************************************************************************************************
+   1319 ********
+
+Page 27          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1320 ENTRY OXIDIZEDFE
+   1321   SDINFEOOH(:,IU:ID)=0.0
+   1322   DO I=IU,ID
+   1323     DO K=KT,KB(I)  
+   1324       IF(K == KT)THEN
+   1325         SDINFEOOH(K,I) = FeSetVel(JW)*(-FEOOH(K,I))*BI(K,I)/BH2(K,I)      !(FEOOH(K-1,I)-FEOOH(K,I))*BI(K,I)/BH2(K,I)
+   1326       ELSE
+   1327         SDINFEOOH(K,I) = FeSetVel(JW)*(FEOOH(K-1,I)-FEOOH(K,I))*BI(K,I)/BH2(K,I)              ! g/m3/s
+   1328       END IF
+   1329       FEOOHSS(K,I) = -FE2D(K,I) - KFE_RED(JW)*FEMN_TEMP(K,I)*(KFEOOH_HalfSat(JW)/(O2(K,I)+KFEOOH_HalfSat(JW)))*FEOOH(K,I) + 
+   1329 SDINFEOOH(K,I)
+   1330     END DO 
+   1331   END DO
+   1332 RETURN
+   1333 
+   1334 !***************************************************************************************************************************
+   1334 ********
+   1335 !**                                                     BIVALENTMN (MNII)                                                   
+   1335       **
+   1336 !***************************************************************************************************************************
+   1336 ********
+   1337 ENTRY BIVALENTMN
+   1338   MN2D(:,IU:ID) = 0.0; MNIISR(:,IU:ID) = 0.0
+   1339   DO I=IU,ID
+   1340     DO K=KT,KB(I)
+   1341       IF(MNII(K,I) > 1.0E-7) THEN   ! SKIP CALCS IF MNII IS NEGLIGIBLE ANYWAY
+   1342       IF(.NOT. PH_CALC(JW))THEN
+   1343           MN2D(K,I)   = -KMN_OXID(JW)*O2(K,I)*MNII(K,I)*FEMN_TEMP(K,I)    ! assuming pH(K,I) = 7.0
+   1344       ELSEIF(PH(K,I) <= 4.0)THEN
+   1345           MN2D(K,I)   =  -KMN_OXID(JW)*O2(K,I)*(1.0E-6)*MNII(K,I)*FEMN_TEMP(K,I)
+   1346       ELSEIF(PH(K,I) >= 8.0)THEN
+   1347           MN2D(K,I)   =   -KMN_OXID(JW)*O2(K,I)*(1.0E+2)*MNII(K,I)*FEMN_TEMP(K,I)
+   1348       ELSE   
+   1349           MN2D(K,I)   = -KMN_OXID(JW)*O2(K,I)*10**(2.0*(pH(K,I)-7.0))*MNII(K,I)*FEMN_TEMP(K,I)
+   1350       ENDIF
+   1351       ENDIF
+   1352       MNIISR(K,I) = MNIIR(JW)*SODD(K,I)*DO2(K,I)
+   1353       MNIISS(K,I) = MNIISR(K,I) + MN2D(K,I) + KMN_RED(JW)*FEMN_TEMP(K,I)*(KMNO2_HalfSat(JW)/(O2(K,I)+KMNO2_HalfSat(JW)))*MNO
+   1353 2(K,I)
+   1354     END DO
+   1355   END DO
+   1356 RETURN
+   1357 
+   1358 !***************************************************************************************************************************
+   1358 ********
+   1359 !**                                                      OXIDIZEDMN (MNO2)                                                  
+   1359       **
+   1360 !***************************************************************************************************************************
+   1360 ********
+   1361 ENTRY OXIDIZEDMN
+   1362   SDINMNO2(:,IU:ID)=0.0
+   1363   DO I=IU,ID
+   1364     DO K=KT,KB(I)
+   1365       IF(K == KT)THEN
+   1366         SDINMNO2(K,I) = MnSetVel(JW)*(-MNO2(K,I))*BI(K,I)/BH2(K,I)                 ! g/m3/s
+   1367       ELSE
+   1368         SDINMNO2(K,I) = MnSetVel(JW)*(MNO2(K-1,I)-MNO2(K,I))*BI(K,I)/BH2(K,I) 
+
+Page 28          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1369       END IF
+   1370       MNO2SS(K,I) = -MN2D(K,I) - KMN_RED(JW)*FEMN_TEMP(K,I)*(KMNO2_HalfSat(JW)/(O2(K,I)+KMNO2_HalfSat(JW)))*MNO2(K,I) + SDIN
+   1370 MNO2(K,I)     
+   1371     END DO
+   1372   END DO
+   1373 RETURN
+   1374 
+   1375 !***************************************************************************************************************************
+   1375 ********
+   1376 !**                                                      P H O S P H O R U S                                                
+   1376       **
+   1377 !***************************************************************************************************************************
+   1377 ********
+   1378 
+   1379 ENTRY PHOSPHORUS
+   1380   PO4AR(:,IU:ID) = 0.0; PO4AG(:,IU:ID) = 0.0; PO4ER(:,IU:ID) = 0.0; PO4EG(:,IU:ID) = 0.0; PO4BOD(:,IU:ID) = 0.0
+   1381   PO4MR(:,IU:ID) = 0.0; PO4MG(:,IU:ID) = 0.0; PO4ZR(:,IU:ID)=0.0  
+   1382 
+   1383   DO I=IU,ID
+   1384     DO K=KT,KB(I)
+   1385       DO JCB=1,NBOD
+   1386 !        IF(BOD_CALC(JCB))PO4BOD(K,I) = PO4BOD(K,I)+CBODD(K,I,JCB)*CBOD(K,I,JCB)*BODP(JCB)
+   1387          IF(BOD_CALCp(JCB))then                                                ! cb 5/19/11
+   1388            PO4BOD(K,I) = PO4BOD(K,I)+CBODD(K,I,JCB)*CBODp(K,I,JCB)    
+   1389          else
+   1390            PO4BOD(K,I) = PO4BOD(K,I)+CBODD(K,I,JCB)*CBOD(K,I,JCB)*BODP(JCB)
+   1391          end if
+   1392       END DO
+   1393       DO JA=1,NAL
+   1394         IF(ALG_CALC(JA))THEN
+   1395         PO4AG(K,I) = PO4AG(K,I)+AGR(K,I,JA)*ALG(K,I,JA)*AP(JA)
+   1396         PO4AR(K,I) = PO4AR(K,I)+ARR(K,I,JA)*ALG(K,I,JA)*AP(JA)
+   1397         ENDIF
+   1398       END DO
+   1399       DO JE=1,NEP
+   1400       IF (EPIPHYTON_CALC(JW,JE))then
+   1401         PO4EG(K,I) = PO4EG(K,I)+EGR(K,I,JE)*EPC(K,I,JE)*EP(JE)
+   1402         PO4ER(K,I) = PO4ER(K,I)+ERR(K,I,JE)*EPC(K,I,JE)*EP(JE)
+   1403       endif
+   1404       END DO
+   1405       PO4EP(K,I)  = PO4ER(K,I)-PO4EG(K,I)
+   1406       PO4AP(K,I)  = PO4AR(K,I)-PO4AG(K,I)
+   1407 !
+   1408       PO4POM(K,I) = LPOMPD(K,I)+RPOMPD(K,I)     
+   1409       PO4DOM(K,I) = LDOMPD(K,I)+RDOMPD(K,I)     
+   1410       PO4OM(K,I)  = PO4POM(K,I)+PO4DOM(K,I)
+   1411             IF(STANDING_BIOMASS_DECAY)THEN  ! SW 5/26/15
+   1412 ! PO4SD(K,I)  = SEDDp(K,I)+sedd1(k,i)*orgp(jw) + sedd2(k,i)*orgp(jw)   ! Amaila
+   1413             PO4SD(K,I)  = SEDDp(K,I)+sedd1(k,i)*pbiom(jw) + sedd2(k,i)*pbiom(jw)   ! Amaila, cb 6/7/17
+   1414             ELSE
+   1415             PO4SD(K,I)  = SEDDp(K,I)
+   1416             ENDIF
+   1417       PO4SR(K,I)  = PO4R(JW)*SODD(K,I)*DO2(K,I)
+   1418       PO4NS(K,I)  = (SSSI(K,I)*PO4(K-1,I)-SSSO(K,I)*PO4(K,I))*BI(K,I)/BH2(K,I)   !8/2020 corrected
+   1419       
+   1420       DO M=1,NMC
+   1421         IF(MACROPHYTE_CALC(JW,M))THEN
+
+Page 29          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1422           IF(K.EQ.KT)THEN
+   1423             JT=KTI(I)
+   1424           ELSE
+   1425             JT=K
+   1426           END IF
+   1427           JE=KB(I)
+   1428           DO JJ=JT,JE
+   1429             PO4MG(K,I)= PO4MG(K,I)+MGR(JJ,K,I,M)*MACRM(JJ,K,I,M)*MP(M)*(1.0-PSED(M))
+   1430             PO4MR(K,I)= PO4MR(K,I)+MRR(K,I,M)*MACRM(JJ,K,I,M)*MP(M)
+   1431           END DO
+   1432         END IF
+   1433       END DO
+   1434       PO4MR(K,I) = PO4MR(K,I)/(DLX(I)*BH2(K,I)) !8/2020 corrected
+   1435       PO4MG(K,I) = PO4MG(K,I)/(DLX(I)*BH2(K,I)) !
+   1436       IF(ZOOPLANKTON_CALC)THEN
+   1437       DO JZ = 1,NZP
+   1438         PO4ZR(K,I) = PO4ZR(K,I) + ZRT(K,I,JZ)*ZOO(K,I,JZ)*ZP(JZ)
+   1439 	  END DO
+   1440 	  ENDIF
+   1441 
+   1442       PO4SS(K,I)  = PO4AP(K,I)+PO4EP(K,I)+PO4OM(K,I)+PO4SD(K,I)+PO4SR(K,I)+PO4NS(K,I)+PO4BOD(K,I)  &
+   1443                     +PO4MR(K,I)-PO4MG(K,I) +PO4ZR(K,I)    
+   1444 
+   1445     END DO
+   1446   END DO
+   1447 RETURN
+   1448 
+   1449 !***************************************************************************************************************************
+   1449 ********
+   1450 !**                                                        A M M O N I U M                                                  
+   1450       **
+   1451 !***************************************************************************************************************************
+   1451 ********
+   1452 
+   1453 ENTRY AMMONIUM
+   1454   NH4AG(:,IU:ID) = 0.0; NH4AR(:,IU:ID) = 0.0; NH4ER(:,IU:ID) = 0.0; NH4EG(:,IU:ID) = 0.0; NH4BOD(:,IU:ID) = 0.0
+   1455   NH4MG(:,IU:ID) = 0.0; NH4MR(:,IU:ID) = 0.0; NH4ZR(:,IU:ID)=0.0   
+   1456   DO I=IU,ID
+   1457     DO K=KT,KB(I)
+   1458       DO JCB=1,NBOD
+   1459 !        IF(BOD_CALC(JCB))NH4BOD(K,I) =  NH4BOD(K,I)+CBODD(K,I,JCB)*CBOD(K,I,JCB)*BODN(JCB)
+   1460          IF(BOD_CALCn(JCB))then                                                ! cb 5/19/11
+   1461            NH4BOD(K,I) =  NH4BOD(K,I)+CBODD(K,I,JCB)*CBODn(K,I,JCB)
+   1462          else
+   1463            NH4BOD(K,I) =  NH4BOD(K,I)+CBODD(K,I,JCB)*CBOD(K,I,JCB)*BODN(JCB)
+   1464          end if
+   1465       END DO
+   1466       DO JA=1,NAL
+   1467       IF(ALG_CALC(JA))THEN
+   1468         IF (ANEQN(JA).EQ.2) THEN
+   1469         NH4PR      = NH4(K,I)*NO3(K,I)/((ANPR(JA)+NH4(K,I))*(ANPR(JA)+NO3(K,I)))+NH4(K,I)*ANPR(JA)/((NO3(K,I)  &
+   1470                                         +NH4(K,I)+NONZERO)*(ANPR(JA)+NO3(K,I)))
+   1471         ELSE
+   1472         NH4PR = NH4(K,I)/(NH4(K,I)+NO3(K,I)+NONZERO)
+   1473         ENDIF
+   1474         IF (AHSN(JA) > 0.0) NH4AG(K,I) = NH4AG(K,I)+AGR(K,I,JA)*ALG(K,I,JA)*AN(JA)*NH4PR
+   1475         NH4AR(K,I) = NH4AR(K,I)+ARR(K,I,JA)*ALG(K,I,JA)*AN(JA)
+
+Page 30          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1476       ENDIF
+   1477       END DO
+   1478       DO JE=1,NEP
+   1479         IF (EPIPHYTON_CALC(JW,JE))then
+   1480         IF (ENEQN(JE) == 2)THEN
+   1481         NH4PR = NH4(K,I)*NO3(K,I)/((ENPR(JE)+NH4(K,I))*(ENPR(JE)+NO3(K,I)))+NH4(K,I)*ENPR(JE)/((NO3(K,I)  &
+   1482                                         +NH4(K,I)+NONZERO)*(ENPR(JE)+NO3(K,I)))
+   1483         ELSE
+   1484         NH4PR = NH4(K,I)/(NH4(K,I)+NO3(K,I)+NONZERO)
+   1485         ENDIF
+   1486         IF (EHSN(JE) > 0.0) NH4EG(K,I) = NH4EG(K,I)+EGR(K,I,JE)*EPC(K,I,JE)*EN(JE)*NH4PR
+   1487         NH4ER(K,I) = NH4ER(K,I)+ERR(K,I,JE)*EPC(K,I,JE)*EN(JE)
+   1488         endif
+   1489       END DO
+   1490       NH4EP(K,I)  =  NH4ER(K,I) -NH4EG(K,I)
+   1491       NH4AP(K,I)  =  NH4AR(K,I) -NH4AG(K,I)
+   1492 !
+   1493       NH4DOM(K,I) = LDOMND(K,I)+RDOMND(K,I)  
+   1494       NH4POM(K,I) = LPOMND(K,I)+RPOMND(K,I)  
+   1495       NH4OM(K,I)  =  NH4DOM(K,I)+NH4POM(K,I)
+   1496 
+   1497             IF(STANDING_BIOMASS_DECAY)THEN  ! SW 5/26/15
+   1498 !NH4SD(K,I)  =  SEDDn(K,I) +sedd1(k,i)*orgn(jw) + sedd2(k,i)*orgn(jw)   ! Amaila
+   1499             NH4SD(K,I)  =  SEDDn(K,I) +sedd1(k,i)*nbiom(jw) + sedd2(k,i)*nbiom(jw)   ! Amaila, cb 6/7/17
+   1500             ELSE
+   1501             NH4SD(K,I)  =  SEDDn(K,I)
+   1502             ENDIF
+   1503 
+   1504       NH4SR(K,I)  =  NH4R(JW) *SODD(K,I)*DO2(K,I)
+   1505 
+   1506       DO M=1,NMC
+   1507         IF(MACROPHYTE_CALC(JW,M))THEN
+   1508           IF(K.EQ.KT)THEN
+   1509             JT=KTI(I)
+   1510           ELSE
+   1511             JT=K
+   1512           END IF
+   1513           JE=KB(I)
+   1514           DO JJ=JT,JE
+   1515             NH4MR(K,I)= NH4MR(K,I)+MRR(K,I,M)*MACRM(JJ,K,I,M)*MN(M)
+   1516             NH4MG(K,I)= NH4MG(K,I)+MGR(JJ,K,I,M)*MACRM(JJ,K,I,M)*MN(M)*(1.0-NSED(M))
+   1517           END DO
+   1518         END IF
+   1519       END DO
+   1520       NH4MR(K,I) = NH4MR(K,I)/(DLX(I)*BH2(K,I))  !8/2020 corrected
+   1521       NH4MG(K,I) = NH4MG(K,I)/(DLX(I)*BH2(K,I))  !
+   1522 	  IF(ZOOPLANKTON_CALC)THEN
+   1523 	  DO JZ = 1,NZP
+   1524 	    NH4ZR(K,I) = NH4ZR(K,I) + ZRT(K,I,JZ)*ZOO(K,I,JZ)*ZN(JZ) 
+   1525 	  END DO
+   1526 	  ENDIF
+   1527       NH4SS(K,I)  =  NH4AP(K,I)+NH4EP(K,I)+NH4OM(K,I)+NH4SD(K,I)+NH4SR(K,I)+NH4BOD(K,I)-NH4D(K,I)  &
+   1528          +NH4MR(K,I)-NH4MG(K,I) +NH4ZR(K,I)     
+   1529       IF(K==KT.AND.CDWBC(NH3_DER,JW)=='      ON')NH4SS(K,I)  = NH4SS(K,I)  - NH3GAS(K,I)     ! NH3 VOLATILIZATION IF PH IS O
+   1529 N AND NH3 DER ON
+   1530     END DO
+   1531   END DO
+
+Page 31          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1532 RETURN
+   1533 
+   1534 !***************************************************************************************************************************
+   1534 ********
+   1535 !**                                                          N I T R A T E                                                  
+   1535       **
+   1536 !***************************************************************************************************************************
+   1536 ********
+   1537 
+   1538 ENTRY NITRATE
+   1539   NO3AG(:,IU:ID) = 0.0; NO3EG(:,IU:ID) = 0.0
+   1540   DO I=IU,ID
+   1541     DO K=KT,KB(I)
+   1542       DO JA=1,NAL
+   1543       IF(ALG_CALC(JA))THEN
+   1544         NO3PR = 1.0-NH4(K,I)/(NH4(K,I)+NO3(K,I)+NONZERO)
+   1545         IF (ANEQN(JA).EQ.2)  NO3PR      = 1.0-(NH4(K,I)*NO3(K,I)/((ANPR(JA)+NH4(K,I))*(ANPR(JA)+NO3(K,I)))+NH4(K,I)*ANPR(JA)
+   1545        &
+   1546                                           /((NO3(K,I)+NH4(K,I)+NONZERO)*(ANPR(JA)+NO3(K,I))))
+   1547         IF (AHSN(JA).GT.0.0) NO3AG(K,I) = NO3AG(K,I)+AGR(K,I,JA)*ALG(K,I,JA)*NO3PR*AN(JA)
+   1548       ENDIF
+   1549       END DO
+   1550       DO JE=1,NEP
+   1551         IF (EPIPHYTON_CALC(JW,JE))then
+   1552         NO3PR = 1.0-NH4(K,I)/(NH4(K,I)+NO3(K,I)+NONZERO)
+   1553         IF (ENEQN(JE).EQ.2)  NO3PR      = 1.0-(NH4(K,I)*NO3(K,I)/((ENPR(JE)+NH4(K,I))*(ENPR(JE)+NO3(K,I)))+NH4(K,I)*ENPR(JE)
+   1553        &
+   1554                                           /((NO3(K,I)+NH4(K,I)+NONZERO)*(ENPR(JE)+NO3(K,I))))
+   1555         IF (EHSN(JE).GT.0.0) NO3EG(K,I) = NO3EG(K,I)+EGR(K,I,JE)*EPC(K,I,JE)*NO3PR*EN(JE)
+   1556         ENDIF
+   1557       END DO
+   1558       IF(K == KB(I)) THEN      ! SW 4/18/07
+   1559       NO3SED(K,I) = NO3(K,I)*NO3S(JW)*NO3TRM(K,I)*(BI(K,I))/BH2(K,I)
+   1560 	  ELSE
+   1561       NO3SED(K,I) = NO3(K,I)*NO3S(JW)*NO3TRM(K,I)*(BI(K,I)-BI(K+1,I))/BH2(K,I)
+   1562 	  ENDIF
+   1563       NO3SS(K,I)  = NH4D(K,I)-NO3D(K,I)-NO3AG(K,I)-NO3EG(K,I)-NO3SED(K,I)
+   1564     END DO
+   1565   END DO
+   1566 RETURN
+   1567 
+   1568 !***************************************************************************************************************************
+   1568 ********
+   1569 !**                                                  D I S S O L V E D   S I L I C A                                        
+   1569       **
+   1570 !***************************************************************************************************************************
+   1570 ********
+   1571 
+   1572 ENTRY DISSOLVED_SILICA
+   1573   DSIAG(:,IU:ID) = 0.0; DSIEG(:,IU:ID) = 0.0                          !; DSIBOD = 0.0
+   1574   DO I=IU,ID
+   1575     DO K=KT,KB(I)
+   1576       DO JA=1,NAL
+   1577       IF(ALG_CALC(JA))THEN
+   1578         DSIAG(K,I) = DSIAG(K,I)+AGR(K,I,JA)*ALG(K,I,JA)*ASI(JA)
+   1579       ENDIF
+   1580       END DO
+
+Page 32          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1581       DO JE=1,NEP
+   1582         IF (EPIPHYTON_CALC(JW,JE))DSIEG(K,I) = DSIEG(K,I)+EGR(K,I,JE)*EPC(K,I,JE)*ESI(JE)
+   1583       END DO
+   1584       DSID(K,I)  =  PSIDK(JW)*PSI(K,I)
+   1585       DSISD(K,I) =  SEDD(K,I)*ORGSI(JW)
+   1586       DSISR(K,I) =  DSIR(JW)*SODD(K,I)*DO2(K,I)
+   1587       DSIS(K,I)  = (SSSI(K,I)*DSI(K-1,I)-SSSO(K,I)*DSI(K,I))*BI(K,I)/BH2(K,I)*PARTSI(JW)    !8/2020 corrected
+   1588       DSISS(K,I) =  DSID(K,I)+DSISD(K,I)+DSISR(K,I)+DSIS(K,I)-DSIAG(K,I)-DSIEG(K,I)    !+DSIBOD
+   1589     END DO
+   1590   END DO
+   1591 RETURN
+   1592 
+   1593 !***************************************************************************************************************************
+   1593 ********
+   1594 !**                                                P A R T I C U L A T E   S I L I C A                                      
+   1594       **
+   1595 !***************************************************************************************************************************
+   1595 ********
+   1596 
+   1597 ENTRY PARTICULATE_SILICA
+   1598   PSIAM(:,IU:ID) = 0.0; PSIEM(:,IU:ID)=0.0   ! SR 8/2023
+   1599   DO I=IU,ID
+   1600     DO K=KT,KB(I)
+   1601       DO JA=1,NAL
+   1602       IF(ALG_CALC(JA))THEN
+   1603         PSIAM(K,I) = PSIAM(K,I)+AMR(K,I,JA)*ALG(K,I,JA)*ASI(JA)     !   PSI(K,I)   HA-Z  12/2016
+   1604       ENDIF
+   1605       END DO
+   1606       DO JE=1,NEP
+   1607         IF (EPIPHYTON_CALC(JW,JE)) PSIEM(K,I) = PSIEM(K,I)+EMR(K,I,JE)*EPC(K,I,JE)*ESI(JE)                  
+   1608       END DO
+   1609       PSID(K,I)  = PSIDK(JW)*PSI(K,I)
+   1610       PSINS(K,I) = PSIS(JW)*(PSI(K-1,I)*DO1(K-1,I)-PSI(K,I)*DO1(K,I))*BI(K,I)/BH2(K,I)
+   1611       PSISS(K,I) = PSIAM(K,I)-PSID(K,I)+PSINS(K,I) + PSIEM(K,I)   !8/2020 corrected
+   1612     END DO
+   1613   END DO
+   1614 RETURN
+   1615 
+   1616 !***************************************************************************************************************************
+   1616 ********
+   1617 !**                                                       L A B I L E   D O M                                               
+   1617       **
+   1618 !***************************************************************************************************************************
+   1618 ********
+   1619 
+   1620 ENTRY LABILE_DOM
+   1621   LDOMAP(:,IU:ID) = 0.0; LDOMEP(:,IU:ID) = 0.0; LDOMMAC(:,IU:ID)= 0.0  
+   1622   DO I=IU,ID
+   1623     DO K=KT,KB(I)
+   1624       DO JA=1,NAL
+   1625         IF(ALG_CALC(JA))LDOMAP(K,I) = LDOMAP(K,I)+(AER(K,I,JA)+(1.0-APOM(JA))*AMR(K,I,JA))*ALG(K,I,JA)
+   1626       END DO
+   1627       DO JE=1,NEP
+   1628         IF (EPIPHYTON_CALC(JW,JE))LDOMEP(K,I) = LDOMEP(K,I)+(EER(K,I,JE)+(1.0-EPOM(JE))*EMR(K,I,JE))*EPC(K,I,JE)
+   1629       END DO
+   1630 
+   1631       DO M=1,NMC
+
+Page 33          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1632         IF(MACROPHYTE_CALC(JW,M))THEN
+   1633           IF(K.EQ.KT)THEN
+   1634             JT=KTI(I)
+   1635           ELSE
+   1636             JT=K
+   1637           END IF
+   1638           JE=KB(I)
+   1639           DO JJ=JT,JE
+   1640             LDOMMAC(K,I)=LDOMMAC(K,I)+(1.0-MPOM(M))*MMR(K,I,M)*MACRM(JJ,K,I,M)
+   1641           END DO
+   1642         END IF
+   1643       END DO
+   1644       LDOMMAC(K,I) = LDOMMAC(K,I)/(DLX(I)*BH2(K,I))               !8/2020
+   1645       LDOMSS(K,I) = LDOMAP(K,I)+LDOMEP(K,I)-LDOMD(K,I)-LRDOMD(K,I)+LDOMMAC(K,I)+LPOMHD(K,I)
+   1646 
+   1647     END DO
+   1648   END DO
+   1649 RETURN
+   1650 
+   1651 !***************************************************************************************************************************
+   1651 ********
+   1652 !**                                                  R E F R A C T O R Y   D O M                                            
+   1652       **
+   1653 !***************************************************************************************************************************
+   1653 ********
+   1654 
+   1655 ENTRY REFRACTORY_DOM
+   1656   DO I=IU,ID
+   1657     DO K=KT,KB(I)
+   1658       RDOMSS(K,I) = LRDOMD(K,I)-RDOMD(K,I)+RPOMHD(K,I)
+   1659     END DO
+   1660   END DO
+   1661 RETURN
+   1662 
+   1663 !***************************************************************************************************************************
+   1663 ********
+   1664 !**                                                      L A B I L E   P O M                                                
+   1664       **
+   1665 !***************************************************************************************************************************
+   1665 ********
+   1666 
+   1667 ENTRY LABILE_POM
+   1668   LPOMAP(:,IU:ID) = 0.0; LPOMEP(:,IU:ID) = 0.0;   LPOMMAC(:,IU:ID) = 0.0; LPZOOIN(:,IU:ID)=0.0;LPZOOOUT(:,IU:ID)=0.0   ! cb 
+   1668 5/19/06
+   1669   DO I=IU,ID
+   1670     DO K=KT,KB(I)
+   1671       DO JA=1,NAL
+   1672         IF(ALG_CALC(JA))LPOMAP(K,I) = LPOMAP(K,I)+APOM(JA)*(AMR(K,I,JA)*ALG(K,I,JA))
+   1673       END DO
+   1674       DO JE=1,NEP                                                          ! cb 5/19/06
+   1675         IF (EPIPHYTON_CALC(JW,JE))LPOMEP(K,I) = LPOMEP(K,I)+EPOM(JE)*(EMR(K,I,JE)*EPC(K,I,JE))       ! cb 5/19/06
+   1676       END DO                                                               ! cb 5/19/06
+   1677       LPOMNS(K,I) = POMS(JW)*(LPOM(K-1,I)-LPOM(K,I))*BI(K,I)/BH2(K,I)
+   1678       DO M=1,NMC
+   1679         IF(MACROPHYTE_CALC(JW,M))THEN
+   1680           JT=K
+   1681           JE=KB(I)
+
+Page 34          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1682           DO JJ=JT,JE
+   1683             LPOMMAC(K,I)=LPOMMAC(K,I)+MPOM(M)*LRPMAC(M)*MMR(K,I,M)*MACRM(JJ,K,I,M)
+   1684           END DO
+   1685         END IF
+   1686       END DO
+   1687       LPOMMAC(K,I) = LPOMMAC(K,I)/(DLX(I)*BH2(K,I))          !8/2020
+   1688       IF(ZOOPLANKTON_CALC)THEN
+   1689       DO JZ = 1,NZP
+   1690         IF(TGRAZE(K,I,JZ) > 0.0)THEN
+   1691           LPZOOOUT(K,I)=LPZOOOUT(K,I)+ZOO(K,I,JZ)*(ZMT(K,I,JZ)+(ZMU(K,I,JZ)-(ZMU(K,I,JZ)*ZEFF(JZ))))
+   1692           LPZOOIN(K,I)=LPZOOIN(K,I)+ZOO(K,I,JZ)*PREFP(JZ)*ZMU(K,I,JZ)*LPOM(K,I)/TGRAZE(K,I,JZ)
+   1693         ELSE
+   1694           LPZOOOUT(K,I)=LPZOOOUT(K,I)+ZOO(K,I,JZ)*(ZMT(K,I,JZ)+(ZMU(K,I,JZ)-(ZMU(K,I,JZ)*ZEFF(JZ))))
+   1695           LPZOOIN(K,I)=0.0
+   1696         END IF
+   1697       END DO
+   1698       ENDIF
+   1699       LPOMSS(K,I) = LPOMAP(K,I)+LPOMEP(K,I)-LPOMD(K,I)+LPOMNS(K,I)-LRPOMD(K,I)+LPOMMAC(K,I)+LPZOOOUT(K,I)-LPZOOIN(K,I)-LPOMH
+   1699 D(K,I)
+   1700     END DO
+   1701   END DO
+   1702 RETURN
+   1703 
+   1704 !***************************************************************************************************************************
+   1704 ********
+   1705 !**                                                  R E F R A C T O R Y   P O M                                            
+   1705       **
+   1706 !***************************************************************************************************************************
+   1706 ********
+   1707 
+   1708 ENTRY REFRACTORY_POM
+   1709   RPOMMAC(:,IU:ID) = 0.0
+   1710   DO I=IU,ID
+   1711     DO K=KT,KB(I)
+   1712       RPOMNS(K,I) = POMS(JW)*(RPOM(K-1,I)-RPOM(K,I))*BI(K,I)/BH2(K,I)
+   1713       DO M=1,NMC
+   1714         IF(MACROPHYTE_CALC(JW,M))THEN
+   1715           JT=K
+   1716           JE=KB(I)
+   1717           DO JJ=JT,JE
+   1718             RPOMMAC(K,I)=RPOMMAC(K,I)+MPOM(M)*(1.0-LRPMAC(M))*MMR(K,I,M)*MACRM(JJ,K,I,M)
+   1719           END DO
+   1720         END IF
+   1721       END DO
+   1722       RPOMMAC(K,I) = RPOMMAC(K,I)/(DLX(I)*BH2(K,I))              !8/2020
+   1723       RPOMSS(K,I) = LRPOMD(K,I)+RPOMNS(K,I)-RPOMD(K,I)+RPOMMAC(K,I)-RPOMHD(K,I)
+   1724     END DO
+   1725   END DO
+   1726 RETURN
+   1727 
+   1728 !***************************************************************************************************************************
+   1728 ********
+   1729 !**                                                         A L G A E                                                       
+   1729       **
+   1730 !***************************************************************************************************************************
+   1730 ********
+   1731 
+
+Page 35          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1732 ENTRY ALGAE (J)
+   1733   AGZT(:,IU:ID,J) = 0.0
+   1734   DO I=IU,ID
+   1735     DO K=KT,KB(I)
+   1736       IF(ZOOPLANKTON_CALC)THEN
+   1737       DO JZ = 1,NZP
+   1738 	  AGZT(K,I,J) = AGZT(K,I,J) + AGZ(K,I,J,JZ)                       ! CB 5/26/07
+   1739 	  END DO
+   1740 	  ENDIF
+   1741       ASS(K,I,J) = ASR(K,I,J)+(AGR(K,I,J)-AER(K,I,J)-AMR(K,I,J)-ARR(K,I,J))*ALG(K,I,J)-AGZT(K,I,J)	
+   1742     END DO
+   1743   END DO
+   1744 RETURN
+   1745 
+   1746 ENTRY INTRACELLULAR_TOXIN (J)
+   1747 IN_TOXIN(KT:KMX-1,IU:ID,J)=0.0
+   1748   DO I=IU,ID
+   1749     DO K=KT,KB(I)
+   1750       DO JA=1,NAL 
+   1751        IF(ALG_CALC(JA))THEN
+   1752        IN_TOXIN(K,I,J)=IN_TOXIN(K,I,J) + CTP(J,JA)*CTB(J,JA)*ALG(K,I,JA)                               !CTISS(K,I,J) = CTISS
+   1752 (K,I,J) + CTP(J,JA)*CTB(J,JA)*(AGR(K,I,JA)-AER(K,I,JA)-AMR(K,I,JA)-ARR(K,I,JA))*ALG(K,I,JA)
+   1753        END IF
+   1754       END DO
+   1755 !CTISS(K,I,J) = CTISS(K,I,J) + (-CTL(J)-CTA(J)-CTDI(J))*INTOXIN(K,I,J)
+   1756     END DO
+   1757   END DO
+   1758 RETURN
+   1759 
+   1760         
+   1761 ENTRY EXTRACELLULAR_TOXIN (J)
+   1762 CTESS(KT:KMX-1,IU:ID,J)=0.0
+   1763   DO I=IU,ID
+   1764     DO K=KT,KB(I)
+   1765       DO JA=1,NAL
+   1766         IF(ALG_CALC(JA))THEN
+   1767         CTESS(K,I,J) = CTESS(K,I,J) + CTP(J,JA)*CTB(J,JA)*AMR(K,I,JA)*ALG(K,I,JA) 
+   1768         END IF
+   1769       END DO
+   1770       CTESS(K,I,J) = CTESS(K,I,J) + CTREL(J)*IN_TOXIN(K,I,J)-CTD(J)*EX_TOXIN(K,I,J) 
+   1771     END DO
+   1772   END DO
+   1773 RETURN
+   1774 
+   1775 
+   1776 !***************************************************************************************************************************
+   1776 ********
+   1777 !**                                            B I O C H E M I C A L   O 2   D E M A N D                                    
+   1777       **
+   1778 !***************************************************************************************************************************
+   1778 ********
+   1779 
+   1780 ENTRY BIOCHEMICAL_O2_DEMAND(JBOD)
+   1781   IF(JBOD == 1)CBODNS(:,IU:ID) = 0.0
+   1782   DO I=IU,ID
+   1783     DO K=KT,KB(I)
+   1784       CBODSET = CBODS(JBOD)*(CBOD(K-1,I,JBOD)-CBOD(K,I,JBOD))*BI(K,I)/BH2(K,I)
+
+Page 36          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1785       CBODNS(K,I)=CBODNS(K,I)+CBODSET
+   1786       CBODSS(K,I,JBOD) = -CBODD(K,I,JBOD)*CBOD(K,I,JBOD)+CBODSET
+   1787     END DO
+   1788   END DO
+   1789 RETURN
+   1790 
+   1791 ! VARIABLE STOCHIOMETRY FOR CBOD SECTION ! CB 6/6/10
+   1792 !***************************************************************************************************************************
+   1792 ********
+   1793 !**                                            B I O C H E M I C A L   O 2   D E M A N D   P H O S P H O R U S              
+   1793       **
+   1794 !***************************************************************************************************************************
+   1794 ********
+   1795 
+   1796 ENTRY BIOCHEMICAL_O2_DEMAND_P(JBOD)
+   1797   IF(JBOD == 1)CBODNSP(:,IU:ID) = 0.0
+   1798   DO I=IU,ID
+   1799     DO K=KT,KB(I)
+   1800       CBODSET = CBODS(JBOD)*(CBODP(K-1,I,JBOD)-CBODP(K,I,JBOD))*BI(K,I)/BH2(K,I)
+   1801       CBODNSP(K,I)=CBODNSP(K,I)+CBODSET
+   1802       CBODPSS(K,I,JBOD) = -CBODD(K,I,JBOD)*CBODP(K,I,JBOD)+CBODSET
+   1803     END DO
+   1804   END DO
+   1805 RETURN
+   1806 
+   1807 !***************************************************************************************************************************
+   1807 ********
+   1808 !**                                            B I O C H E M I C A L   O 2   D E M A N D   N I T R O G E N                  
+   1808       **
+   1809 !***************************************************************************************************************************
+   1809 ********
+   1810 
+   1811 ENTRY BIOCHEMICAL_O2_DEMAND_N(JBOD)
+   1812   IF(JBOD == 1)CBODNSN(:,IU:ID) = 0.0
+   1813   DO I=IU,ID
+   1814     DO K=KT,KB(I)
+   1815       CBODSET = CBODS(JBOD)*(CBODN(K-1,I,JBOD)-CBODN(K,I,JBOD))*BI(K,I)/BH2(K,I)
+   1816       CBODNSN(K,I)=CBODNSN(K,I)+CBODSET
+   1817       CBODNSS(K,I,JBOD) = -CBODD(K,I,JBOD)*CBODN(K,I,JBOD)+CBODSET
+   1818     END DO
+   1819   END DO
+   1820 RETURN
+   1821 
+   1822 !***************************************************************************************************************************
+   1822 ********
+   1823 !**                                                D I S S O L V E D   O X Y G E N                                          
+   1823       **
+   1824 !***************************************************************************************************************************
+   1824 ********
+   1825 
+   1826 ENTRY DISSOLVED_OXYGEN
+   1827   DOAP(:,IU:ID) = 0.0; DOAR(:,IU:ID) = 0.0; DOEP(:,IU:ID) = 0.0; DOER(:,IU:ID) = 0.0; DOBOD(:,IU:ID) = 0.0
+   1828   DOMP(:,IU:ID) = 0.0; DOMR(:,IU:ID) = 0.0; DOZR(:,IU:ID)=0.0    
+   1829   DOH2S(:,IU:ID)= 0.0; DOCH4(:,IU:ID)= 0.0; DOFE2(:,IU:ID) = 0.0; DOMN2(:,IU:ID) = 0.0 
+   1830   
+   1831   DO I=IU,ID
+   1832     DOSS(KT,I) = 0.0
+
+Page 37          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1833     DO K=KT,KB(I)
+   1834       DO JCB=1,NBOD
+   1835         IF(BOD_CALC(JCB))DOBOD(K,I) = DOBOD(K,I)+RBOD(JCB)*CBODD(K,I,JCB)*CBOD(K,I,JCB)
+   1836       END DO
+   1837       DO JA=1,NAL
+   1838       IF(ALG_CALC(JA))THEN
+   1839         DOAP(K,I) = DOAP(K,I)+AGR(K,I,JA)*ALG(K,I,JA)*O2AG(JA)
+   1840         DOAR(K,I) = DOAR(K,I)+ARR(K,I,JA)*ALG(K,I,JA)*O2AR(JA)
+   1841       ENDIF
+   1842       END DO
+   1843       DO JE=1,NEP
+   1844         IF (EPIPHYTON_CALC(JW,JE))THEN
+   1845         DOEP(K,I) = DOEP(K,I)+EGR(K,I,JE)*EPC(K,I,JE)*O2EG(JE)
+   1846         DOER(K,I) = DOER(K,I)+ERR(K,I,JE)*EPC(K,I,JE)*O2ER(JE)
+   1847         ENDIF
+   1848       END DO
+   1849 
+   1850       DO M=1,NMC
+   1851         IF(MACROPHYTE_CALC(JW,M))THEN
+   1852           IF(K.EQ.KT)THEN
+   1853             JT=KTI(I)
+   1854           ELSE
+   1855             JT=K
+   1856           END IF
+   1857           JE=KB(I)
+   1858           DO JJ=JT,JE
+   1859             DOMP(K,I)=DOMP(K,I)+MGR(JJ,K,I,M)*MACRM(JJ,K,I,M)*O2MG(M)
+   1860             DOMR(K,I)=DOMR(K,I)+MRR(K,I,M)*MACRM(JJ,K,I,M)*O2MR(M)
+   1861           END DO
+   1862         END IF
+   1863       END DO
+   1864       DOMP(K,I)=DOMP(K,I)/(DLX(I)*BH2(K,I))
+   1865       DOMR(K,I)=DOMR(K,I)/(DLX(I)*BH2(K,I))
+   1866       DOPOM(K,I) = (LPOMD(K,I)+RPOMD(K,I))*O2OM(JW)
+   1867       DODOM(K,I) = (LDOMD(K,I)+RDOMD(K,I))*O2OM(JW)
+   1868       DOOM(K,I)  =  DOPOM(K,I)+DODOM(K,I)+DOBOD(K,I)      
+   1869       DONIT(K,I) =  NH4D(K,I)*O2NH4(JW)
+   1870             IF(STANDING_BIOMASS_DECAY)THEN  ! SW 5/26/15
+   1871             DOSED(K,I) =  SEDD(K,I)*O2OM(JW) +SEDD1(K,I)*O2OM(JW)+SEDD2(K,I)*O2OM(JW)   !Amaila
+   1872             ELSE
+   1873             DOSED(K,I) =  SEDD(K,I)*O2OM(JW)
+   1874             ENDIF
+   1875       DOSOD(K,I) =  SODD(K,I)*DO3(K,I)
+   1876       
+   1877       DOCH4(K,I) = CH4D(K,I)*O2CH4      
+   1878       DOH2S(K,I) = H2SD(K,I)*O2H2S
+   1879       DOFE2(K,I) = FE2D(K,I)*O2FE2
+   1880       DOMN2(K,I) = MN2D(K,I)*O2MN2
+   1881 
+   1882      IF(ZOOPLANKTON_CALC)THEN
+   1883      DO JZ = 1, NZP
+   1884       DOZR(K,I)  = DOZR(K,I)+ZRT(K,I,JZ)*ZOO(K,I,JZ)*O2ZR(JZ)
+   1885 	 END DO
+   1886 	 ENDIF
+   1887     DOSS(K,I)  =  DOAP(K,I)+DOEP(K,I)-DOAR(K,I)-DOER(K,I)-DOOM(K,I)-DONIT(K,I)-DOSOD(K,I)-DOSED(K,I)+DOMP(K,I)-DOMR(K,I)-DOZ
+   1887 R(K,I)+doch4(k,i)+doh2s(k,i)+dofe2(k,i)+doMn2(k,i)     ! doch4, doh2s,dofe2 already negative...
+   1888     END DO
+
+Page 38          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1889     IF (.NOT. ICE(I)) THEN
+   1890       DOSAT = SATO(T1(KT,I),TDS(KT,I),PALT(I),SALT_WATER(JW))
+   1891       O2EX       =  REAER(I)                     ! in s-1
+   1892       DOAE(KT,I) = (DOSAT-O2(KT,I))*O2EX         !*BI(KT,I)/BH2(KT,I)  THIS IS NOW DONE IN gas-transfer.f90 - used to conver
+   1892 t from m/d to 1/d then to 1/s
+   1893       DOSS(KT,I) =  DOSS(KT,I)+DOAE(KT,I)
+   1894     END IF
+   1895   END DO
+   1896 RETURN
+   1897 
+   1898 !***************************************************************************************************************************
+   1898 ********
+   1899 !**                                              I N O R G A N I C   C A R B O N                                            
+   1899       **
+   1900 !***************************************************************************************************************************
+   1900 ********
+   1901 
+   1902 ENTRY INORGANIC_CARBON
+   1903   TICAP(:,IU:ID) = 0.0; TICEP(:,IU:ID) = 0.0; TICBOD(:,IU:ID) = 0.0
+   1904   ticmc(:,iu:id) = 0.0; ticzr(:,iu:id)=0.0  !v3.5
+   1905   ticch4=0.0  ! CEMA
+   1906   DO I=IU,ID
+   1907     DO K=KT,KB(I)
+   1908       DO JCB=1,NBOD
+   1909         IF(BOD_CALC(JCB))TICBOD(K,I) = TICBOD(K,I)+CBODD(K,I,JCB)*CBOD(K,I,JCB)*BODC(JCB)
+   1910       END DO
+   1911       DO JA=1,NAL
+   1912         IF(ALG_CALC(JA))TICAP(K,I) = TICAP(K,I)+AC(JA)*(ARR(K,I,JA)-AGR(K,I,JA))*ALG(K,I,JA)
+   1913       END DO
+   1914       DO JE=1,NEP
+   1915         IF (EPIPHYTON_CALC(JW,JE))TICEP(K,I) = TICEP(K,I)+EC(JE)*(ERR(K,I,JE)-EGR(K,I,JE))*EPC(K,I,JE)
+   1916       END DO
+   1917       DO M=1,NMC
+   1918         IF(MACROPHYTE_CALC(JW,M))THEN
+   1919           IF(K.EQ.KT)THEN
+   1920             JT=KTI(I)
+   1921           ELSE
+   1922             JT=K
+   1923           END IF
+   1924           JE=KB(I)
+   1925           DO JJ=JT,JE
+   1926             TICMC(K,I)=TICMC(K,I)+(MRR(K,I,M)-MGR(JJ,K,I,M))*MACRM(JJ,K,I,M)*MC(M)
+   1927           END DO
+   1928         END IF
+   1929       END DO
+   1930       TICMC(K,I) = TICMC(K,I)/(DLX(I)*BH2(K,I))              !8/2020
+   1931       IF(ZOOPLANKTON_CALC)THEN
+   1932       DO JZ = 1,NZP
+   1933         TICZR(K,I)=TICZR(K,I)+ZRT(K,I,JZ)*ZOO(K,I,JZ)*ZC(JZ) !MLM
+   1934       END DO
+   1935       
+   1936       ticCH4=ch4d(k,i)
+   1937       
+   1938       ENDIF
+   1939 
+   1940             IF(STANDING_BIOMASS_DECAY)THEN  ! SW 5/26/15
+   1941                TICSS(K,I) = TICAP(K,I)+TICEP(K,I)+SEDDC(K,I)+ORGC(JW)*(LPOMD(K,I)+RPOMD(K,I)+LDOMD(K,I)+RDOMD(K,I))         
+
+Page 39          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1941                  &
+   1942                    +CO2R(JW)*SODD(K,I)*DO3(K,I)+TICBOD(K,I)+TICMC(K,I)+TICZR(K,I)  + ticch4               &
+   1943                    +sedd1(k,i)*cbiom(jw) + sedd2(k,i)*cbiom(jw)             ! Amaila, cb 6/7/17
+   1944 
+   1945             ELSE
+   1946                 TICSS(K,I) = TICAP(K,I)+TICEP(K,I)+SEDDC(K,I)+ORGC(JW)*(LPOMD(K,I)+RPOMD(K,I)+LDOMD(K,I)+RDOMD(K,I))        
+   1946                   &
+   1947               +CO2R(JW)*SODD(K,I)*DO3(K,I)+TICBOD(K,I)+TICMC(K,I)+TICZR(K,I) + ticch4      !!8/2020
+   1948             ENDIF
+   1949       
+   1950     END DO
+   1951     IF (.NOT. ICE(I)) THEN
+   1952 ! IF (REAER(I) == 0.0) CALL GAS_TRANSFER
+   1953       CO2EX       = REAER(I)*0.923
+   1954       KHCO2=12000.*10**(2385.73/(T2(KT,I)+273.15)-14.0184+0.0152642*(T2(KT,I)+273.15))   ! KH CO2 in mg/l/atm as C    SW 8/1
+   1954 6/2020
+   1955 
+   1956 ! CO2REAER(KT,I)=CO2EX*(0.286*EXP(-0.0314*(T2(KT,I))*PALT(I))-CO2(KT,I))*BI(KT,I)/BH2(KT,I)     ! SW 8/16/2020
+   1957       
+   1958       CO2REAER(KT,I)=CO2EX*(PCO2*KHCO2-CO2(KT,I))         !This computation is done in gas-transfer.f90: *BI(KT,I)/BH2(KT,I)
+   1958    REAER in units of s-1
+   1959       
+   1960       TICSS(KT,I) = TICSS(KT,I)+CO2REAER(KT,I)
+   1961     END IF
+   1962   END DO
+   1963 RETURN
+   1964 
+   1965 !***************************************************************************************************************************
+   1965 ********
+   1966 !**                                                      S E D I M E N T                                                    
+   1966       **
+   1967 !***************************************************************************************************************************
+   1967 ********
+   1968 
+   1969 ENTRY SEDIMENT
+   1970   SEDAS(:,IU:ID) = 0.0; LPOMEP(:,IU:ID) = 0.0; SEDCB(:,IU:ID) = 0.0
+   1971   DO I=IU,ID
+   1972     SEDSI=0.0
+   1973     DO K=KT,KB(I)
+   1974     IF(K == KB(I))THEN
+   1975     BIBH2(K,I)=BI(K,I)/BH2(K,I)
+   1976     ELSE
+   1977     BIBH2(K,I)=BI(K,I)/BH2(K,I)*(1.0-BI(K+1,I)/BI(K,I))
+   1978     ENDIF
+   1979       DO JA=1,NAL
+   1980         IF(ALG_CALC(JA))SEDAS(K,I) = SEDAS(K,I)+MAX(AS(JA),0.0)*ALG(K,I,JA)*BIBH2(K,I)                !BI(K,I)/BH2(K,I)*(1.0
+   1980 -BI(K+1,I)/BI(K,I))
+   1981       END DO
+   1982       SEDEM = 0.0   ! CB 5/19/06
+   1983       DO JE=1,NEP
+   1984 !        LPOMEP(K,I) = LPOMEP(K,I)+EPOM(JE)*(EMR(K,I,JE)*EPC(K,I,JE))
+   1985         IF (EPIPHYTON_CALC(JW,JE))SEDEM = SEDEM+EBR(K,I,JE)*EPC(K,I,JE)    ! SW 3/2019 SEDEM = SEDEM+EBR(K,I,JE)/H1(K,I)*EPC
+   1985 (K,I,JE)    ! cb 5/19/06
+   1986       END DO
+   1987       DO JD=1,NBOD
+   1988         IF(BOD_CALC(JD))SEDCB(K,I) = SEDCB(K,I)+MAX(CBODS(JD),0.0)*CBOD(K,I,JD)*BIBH2(K,I)/O2OM(JW)           !BI(K,I)/BH2(K
+   1988 ,I)*(1.0-BI(K+1,I)/BI(K,I))
+
+Page 40          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   1989       END DO
+   1990 !
+   1991       IF(ORGC_CALC)THEN
+   1992         SEDOMS(K,I) = POMS(JW)*LPOMC(K,I)/ORGC(JW)*BIBH2(K,I)+POMS(JW)*RPOMC(K,I)/ORGC(JW)*BIBH2(K,I) 
+   1993       ELSE
+   1994         SEDOMS(K,I) = POMS(JW)*LPOM(K,I)*BIBH2(K,I)+POMS(JW)*RPOM(K,I)*BIBH2(K,I)
+   1995       END IF  
+   1996       IF(K==KB(I))THEN
+   1997       SEDSO       = 0.0
+   1998       ELSE
+   1999       SEDSO       = SEDS(JW)*SED(K,I)*BI(K+1,I)/BH2(K,I)*(1.0-BI(K+1,I)/BI(K,I))
+   2000       ENDIF
+   2001       SEDNS(K,I)  = SEDSI-SEDSO
+   2002       SEDSI       = SEDSO
+   2003       if(k < kb(i))then
+   2004         SED(K,I)    = MAX(SED(K,I)+(SEDEM+SEDAS(K,I)+SEDCB(K,I)+SEDOMS(K,I)+SEDNS(K,I)-SEDD(K,I)-SEDBR(K,I))*DLT,0.0)   ! cb
+   2004  11/30/06
+   2005       else if(k == kb(i))then
+   2006         SED(K,I)    = MAX(SED(K,I)+(SEDEM+SEDAS(K,I)+SEDCB(K,I)+SEDOMS(K,I)+SEDNS(K,I)-SEDD(K,I)-SEDBR(K,I))*DLT,0.0)
+   2007       end if
+   2008     END DO
+   2009   END DO
+   2010 RETURN
+   2011 
+   2012 
+   2013 !***************************************************************************************************************************
+   2013 ********
+   2014 !**                                                      S E D I M E N T   P H O S P H O R U S                              
+   2014       **
+   2015 !***************************************************************************************************************************
+   2015 ********
+   2016 
+   2017 ENTRY SEDIMENTP
+   2018   SEDASP(:,IU:ID) = 0.0; LPOMEPP(:,IU:ID) = 0.0; SEDCBP(:,IU:ID) = 0.0
+   2019   DO I=IU,ID
+   2020     SEDSIP=0.0
+   2021     DO K=KT,KB(I)
+   2022       DO JA=1,NAL
+   2023         IF(ALG_CALC(JA))then 
+   2024           SEDASP(K,I) = SEDASP(K,I)+MAX(AS(JA),0.0)*AP(JA)*ALG(K,I,JA)*BIBH2(K,I)          !BI(K,I)/BH2(K,I)*(1.0-BI(K+1,I)/
+   2024 BI(K,I))
+   2025         end if
+   2026       END DO
+   2027       SEDEM = 0.0   
+   2028       DO JE=1,NEP
+   2029         IF (EPIPHYTON_CALC(JW,JE))then
+   2030 !LPOMEPP(K,I) = LPOMEPP(K,I)+EPOM(JE)*EP(JE)*(EMR(K,I,JE)*EPC(K,I,JE))
+   2031           SEDEM = SEDEM+EBR(K,I,JE)*EPC(K,I,JE)*EP(JE)   ! SW 3/2019
+   2032         end if
+   2033       END DO
+   2034       DO JD=1,NBOD
+   2035 !        IF(BOD_CALC(JD))SEDCBP(K,I)=SEDCBP(K,I)+MAX(CBODS(JD),0.0)*BODP(JD)*CBOD(K,I,JD)*BIBH2(K,I)      !BI(K,I)/BH2(K,I)*
+   2035 (1.0-BI(K+1,I)/BI(K,I))
+   2036 !IF(BOD_CALC(JD))then
+   2037 !    SEDCBP(K,I)=SEDCBP(K,I)+MAX(CBODS(JD),0.0)*CBODP(K,I,JD)*BIBH2(K,I)    ! CB 6/6/10
+   2038 !end if
+   2039         IF(BOD_CALCP(JD))THEN
+
+Page 41          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2040           SEDCBP(K,I) = SEDCBP(K,I) + MAX(CBODS(JD), 0.0)*CBODP(K,I,JD)*RBOD(JD)*BIBH2(K,I)
+   2041         ELSE
+   2042           SEDCBP(K,I) = SEDCBP(K,I) + MAX(CBODS(JD), 0.0)*CBOD(K,I,JD)*RBOD(JD)*BODP(JD)*BIBH2(K,I)
+   2043         END IF  
+   2044       END DO
+   2045 !SEDOMSP(K,I) = POMS(JW)*(LPOMP(K,I)+RPOMP(K,I))*BIBH2(K,I)
+   2046       SEDOMSP(K,I) = POMS(JW)*(LPOP(K,I)+RPOP(K,I))*BIBH2(K,I)
+   2047 !
+   2048       IF(K == KB(I))THEN
+   2049       SEDSOP       = 0.0
+   2050       ELSE
+   2051       SEDSOP       = SEDS(JW)*SEDP(K,I)*BI(K+1,I)/BH2(K,I)*(1.0-BI(K+1,I)/BI(K,I))
+   2052       ENDIF
+   2053       SEDNSP(K,I)  = SEDSIP-SEDSOP
+   2054       SEDSIP       = SEDSOP
+   2055       SEDPINFLUX(K,I)=(SEDEM+SEDASP(K,I)+SEDOMSP(K,I)+SEDCBP(K,I))*DLT
+   2056       if(k < kb(i))then
+   2057         SEDP(K,I)    = MAX(SEDP(K,I)+SEDPINFLUX(K,I)+(SEDNSP(K,I)-SEDDP(K,I)   &
+   2058                      -SEDBRP(K,I))*DLT,0.0)
+   2059       else if(k == kb(i))then
+   2060         SEDP(K,I)    = MAX(SEDP(K,I)+SEDPINFLUX(K,I)+(SEDNSP(K,I)-SEDDP(K,I)   &
+   2061                      -SEDBRP(K,I))*DLT,0.0)
+   2062       end if
+   2063     END DO
+   2064   END DO
+   2065 RETURN
+   2066 
+   2067 !***************************************************************************************************************************
+   2067 ********
+   2068 !**                                                      S E D I M E N T   N I T R O G E N                                  
+   2068       **
+   2069 !***************************************************************************************************************************
+   2069 ********
+   2070 
+   2071 ENTRY SEDIMENTN
+   2072   SEDASN(:,IU:ID) = 0.0; LPOMEPN(:,IU:ID) = 0.0; SEDCBN(:,IU:ID) = 0.0
+   2073   DO I=IU,ID
+   2074     SEDSIN=0.0
+   2075     DO K=KT,KB(I)
+   2076       DO JA=1,NAL
+   2077         IF(ALG_CALC(JA))then 
+   2078             SEDASN(K,I) = SEDASN(K,I)+MAX(AS(JA),0.0)*AN(JA)*ALG(K,I,JA)*BIBH2(K,I)            !BI(K,I)/BH2(K,I)*(1.0-BI(K+1
+   2078 ,I)/BI(K,I))
+   2079         end if
+   2080       END DO
+   2081       SEDEM=0.0
+   2082       DO JE=1,NEP
+   2083         IF (EPIPHYTON_CALC(JW,JE))then
+   2084 !LPOMEPN(K,I) = LPOMEPN(K,I)+EPOM(JE)*EN(JE)*(EMR(K,I,JE)*EPC(K,I,JE))
+   2085             SEDEM = SEDEM+EBR(K,I,JE)*EPC(K,I,JE)*EN(JE)   ! SW 3/2019
+   2086         end if
+   2087       END DO
+   2088       DO JD=1,NBOD
+   2089 !        IF(BOD_CALC(JD))SEDCBN(K,I)=SEDCBN(K,I)+MAX(CBODS(JD),0.0)*BODN(JD)*CBOD(K,I,JD)*BIBH2(K,I)        !BI(K,I)/BH2(K,I
+   2089 )*(1.0-BI(K+1,I)/BI(K,I))
+   2090 !IF(BOD_CALC(JD))then
+   2091 !    SEDCBN(K,I)=SEDCBN(K,I)+MAX(CBODS(JD),0.0)*CBODN(K,I,JD)*BIBH2(K,I)    ! CB 6/6/10
+
+Page 42          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2092 !end if
+   2093         IF(BOD_CALCN(JD))then
+   2094           SEDCBN(K,I) = SEDCBN(K,I) + MAX(CBODS(JD), 0.0)*CBODN(K,I,JD)*RBOD(JD)*BIBH2(K,I)    
+   2095         ELSE
+   2096           SEDCBN(K,I) = SEDCBN(K,I) + MAX(CBODS(JD), 0.0)*CBOD(K,I,JD)*BODN(JD)*RBOD(JD)*BIBH2(K,I)     
+   2097         END IF  
+   2098       END DO 
+   2099 !SEDOMSN(K,I) = POMS(JW)*(LPOMN(K,I)+RPOMN(K,I))*BIBH2(K,I)                           !BI(K,I)/BH2(K,I)*(1.0-BI(K+1,I)/BI(K,
+   2099 I))  !CB 10/22/06
+   2100       SEDOMSN(K,I) = POMS(JW)*(LPON(K,I) + RPON(K,I))*BIBH2(K,I)
+   2101       IF(K == KB(I)) THEN      ! SW 12/16/07
+   2102       SEDSON       = 0.0
+   2103 	  ELSE
+   2104       SEDNO3(K,I)  = FNO3SED(JW)*NO3(K,I)*NO3S(JW)*NO3TRM(K,I)*(BI(K,I)-BI(K+1,I))/BH2(K,I)
+   2105       SEDSON       = SEDS(JW)*SEDN(K,I)*BI(K+1,I)/BH2(K,I)*(1.0-BI(K+1,I)/BI(K,I))
+   2106 	  ENDIF
+   2107       SEDNSN(K,I)  = SEDSIN-SEDSON
+   2108       SEDSIN       = SEDSON
+   2109       SEDNINFLUX(K,I)=(SEDEM+SEDASN(K,I)+SEDOMSN(K,I)+SEDCBN(K,I))*DLT
+   2110       if(k < kb(i))then
+   2111       SEDN(K,I)    = MAX(SEDN(K,I)+SEDNINFLUX(K,I)+(SEDNSN(K,I)+SEDNO3(K,I)   &
+   2112                      -SEDDN(K,I)-SEDBRN(K,I))*DLT,0.0)
+   2113       else if(k == kb(i))then
+   2114         SEDN(K,I)    = MAX(SEDN(K,I)+SEDNINFLUX(K,I)+(SEDNSN(K,I)+SEDNO3(K,I)   &
+   2115                      -SEDDN(K,I)-SEDBRN(K,I))*DLT,0.0)
+   2116       end if
+   2117     END DO
+   2118   END DO
+   2119 RETURN
+   2120 
+   2121 !***************************************************************************************************************************
+   2121 ********
+   2122 !**                                                      S E D I M E N T   C A R B O N                                      
+   2122       **
+   2123 !***************************************************************************************************************************
+   2123 ********
+   2124 
+   2125 ENTRY SEDIMENTC
+   2126   SEDASC(:,IU:ID) = 0.0; LPOMEPC(:,IU:ID) = 0.0; SEDCBC(:,IU:ID) = 0.0
+   2127   DO I=IU,ID
+   2128     DO K=KT,KB(I)
+   2129       DO JA=1,NAL
+   2130         IF(ALG_CALC(JA))then
+   2131           SEDASC(K,I) = SEDASC(K,I)+MAX(AS(JA),0.0)*AC(JA)*ALG(K,I,JA)*BIBH2(K,I)             !BI(K,I)/BH2(K,I)*(1.0-BI(K+1,
+   2131 I)/BI(K,I))
+   2132         end if
+   2133       END DO
+   2134       SEDEM=0.0
+   2135       DO JE=1,NEP
+   2136         IF (EPIPHYTON_CALC(JW,JE))then
+   2137 ! LPOMEPC(K,I) = LPOMEPC(K,I)+EPOM(JE)*EC(JE)*(EMR(K,I,JE)*EPC(K,I,JE))
+   2138             SEDEM=SEDEM+EBR(K,I,JE)*EPC(K,I,JE)*EC(JE)   ! SW 3/2019
+   2139         end if
+   2140       END DO
+   2141       DO JD=1,NBOD
+   2142         IF(BOD_CALC(JD))then
+   2143           SEDCBC(K,I)=SEDCBC(K,I)+MAX(CBODS(JD),0.0)*BODC(JD)*CBOD(K,I,JD)*BIBH2(K,I)         !BI(K,I)/BH2(K,I)*(1.0-BI(K+1,
+
+Page 43          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2143 I)/BI(K,I))
+   2144         end if
+   2145       END DO
+   2146 !SEDOMSC(K,I) = POMS(JW)*ORGC(JW)*(LPOM(K,I)+RPOM(K,I))*BIBH2(K,I)                     !BI(K,I)/BH2(K,I)*(1.0-BI(K+1,I)/BI(K
+   2146 ,I))   !CB 10/22/06
+   2147       SEDOMSC(K,I) = POMS(JW)*(LPOC(K,I) + RPOC(K,I))*BIBH2(K,I)
+   2148       IF(K == KB(I))THEN
+   2149       SEDSOC       = 0.0
+   2150       ELSE
+   2151       SEDSOC       = SEDS(JW)*SEDC(K,I)*BI(K+1,I)/BH2(K,I)*(1.0-BI(K+1,I)/BI(K,I))
+   2152       ENDIF
+   2153       SEDNSC(K,I)  = SEDSIC-SEDSOC
+   2154       SEDSIC       = SEDSOC
+   2155       if(k < kb(i))then
+   2156       SEDC(K,I)    = MAX(SEDC(K,I)+(SEDEM+SEDASC(K,I)+SEDOMSC(K,I)+SEDCBC(K,I)+SEDNSC(K,I)-SEDDC(K,I)    &
+   2157                      -SEDBRC(K,I))*DLT,0.0)
+   2158       else if(k == kb(i))then
+   2159         SEDC(K,I)    = MAX(SEDC(K,I)+(SEDEM+SEDASC(K,I)+SEDOMSC(K,I)+SEDCBC(K,I)+SEDNSC(K,I)-SEDDC(K,I)    &
+   2160                      -SEDBRC(K,I))*DLT,0.0)
+   2161       end if
+   2162     END DO
+   2163   END DO
+   2164 RETURN
+   2165 
+   2166 !***************************************************************************************************************************
+   2166 ********
+   2167 !**                                                      S E D I M E N T   D E C A Y    R A T E                             
+   2167       **
+   2168 !***************************************************************************************************************************
+   2168 ********
+   2169 
+   2170 ENTRY SEDIMENT_DECAY_RATE
+   2171   DO I=IU,ID
+   2172     SEDSIDK=0.0
+   2173     DO K=KT,KB(I)
+   2174       SEDSUM=0.0
+   2175       SEDSUMK=0.0
+   2176       
+   2177       DO JA=1,NAL
+   2178         IF(ALG_CALC(JA))THEN
+   2179         XDUM=MAX(AS(JA),0.0)*ALG(K,I,JA)*BIBH2(K,I)
+   2180         IF(ORGC_CALC)THEN
+   2181             SEDSUMK = SEDSUMK + XDUM * LPOMCDK(JW)
+   2182         ELSE
+   2183             SEDSUMK = SEDSUMK + XDUM * LPOMDK(JW)
+   2184         END IF
+   2185         SEDSUM  = SEDSUM  + XDUM
+   2186         ENDIF
+   2187       END DO
+   2188       
+   2189       DO JE=1,NEP
+   2190         IF (EPIPHYTON_CALC(JW,JE))THEN
+   2191         XDUM=EPOM(JE)*(EMR(K,I,JE)*EPC(K,I,JE))
+   2192             IF(ORGC_CALC)THEN
+   2193             SEDSUMK = SEDSUMK + XDUM * LPOMCDK(JW)
+   2194             ELSE
+   2195             SEDSUMK = SEDSUMK + XDUM * LPOMDK(JW)
+
+Page 44          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2196             ENDIF
+   2197         SEDSUM  = SEDSUM  + XDUM
+   2198         ENDIF
+   2199       END DO
+   2200       
+   2201       DO JD=1,NBOD
+   2202         IF(BOD_CALC(JD))THEN
+   2203         XDUM=MAX(CBODS(JD),0.0)*CBOD(K,I,JD)*BIBH2(K,I)*RBOD(JD)/O2OM(JW)
+   2204         SEDSUMK = SEDSUMK+XDUM*CBODD(K,I,JD)               
+   2205         SEDSUM  = SEDSUM + XDUM
+   2206         ENDIF
+   2207       END DO
+   2208 !
+   2209       IF(ORGC_CALC)THEN
+   2210           SEDSUMK = SEDSUMK + POMS(JW)*LPOMC(K,I)/ORGC(JW)*LPOMCDK(JW)*BIBH2(K,I)+POMS(JW)*RPOMC(K,I)/ORGC(JW)*RPOMCDK(JW)*B
+   2210 IBH2(K,I)
+   2211           SEDSUM  = SEDSUM  + POMS(JW)*LPOMC(K,I)/ORGC(JW)*BIBH2(K,I)+POMS(JW)*RPOMC(K,I)/ORGC(JW)*BIBH2(K,I)      
+   2212       ELSE
+   2213           SEDSUMK = SEDSUMK + POMS(JW)*LPOM(K,I)*LPOMDK(JW)*BIBH2(K,I)+POMS(JW)*RPOM(K,I)*RPOMDK(JW)*BIBH2(K,I)
+   2214           SEDSUM  = SEDSUM  + POMS(JW)*LPOM(K,I)*BIBH2(K,I)+POMS(JW)*RPOM(K,I)*BIBH2(K,I)
+   2215       END IF
+   2216       
+   2217       SEDSUMK = SEDSUMK*DLT
+   2218       SEDSUM  = SEDSUM*DLT  
+   2219     
+   2220       IF((SEDSUM+SED(K,I)) > 0.0)THEN
+   2221       SDKV(K,I)    = (SEDSUMK+SED(K,I) * SDKV(K,I))/(SEDSUM+ SED(K,I))
+   2222       ELSE
+   2223       SDKV(K,I)=0.0
+   2224       ENDIF
+   2225             
+   2226     END DO
+   2227   END DO
+   2228 RETURN
+   2229 
+   2230 !
+   2231 ! additional sediment compartments simulate slow and fast decaying OM left in standing trees
+   2232 !***************************************************************************************************************************
+   2232 ********
+   2233 !**                                                      S E D I M E N T  1                                                 
+   2233       **
+   2234 !***************************************************************************************************************************
+   2234 ********
+   2235 
+   2236 ENTRY SEDIMENT1  
+   2237   DO I=IU,ID    
+   2238     DO K=KT,KB(I)    
+   2239       SED1(K,I)    = MAX(SED1(K,I)+(-SEDD1(K,I))*DLT,0.0)      
+   2240     END DO
+   2241   END DO
+   2242 RETURN
+   2243 
+   2244 !***************************************************************************************************************************
+   2244 ********
+   2245 !**                                                      S E D I M E N T  2                                                 
+   2245       **
+   2246 !***************************************************************************************************************************
+
+Page 45          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2246 ********
+   2247 
+   2248 ENTRY SEDIMENT2  
+   2249   DO I=IU,ID    
+   2250     DO K=KT,KB(I)    
+   2251       SED2(K,I)    = MAX(SED2(K,I)+(-SEDD2(K,I))*DLT,0.0)      
+   2252     END DO
+   2253   END DO
+   2254 RETURN
+   2255 
+   2256 
+   2257 !***************************************************************************************************************************
+   2257 ********
+   2258 !*                                                         E P I P H Y T O N                                                
+   2258       **
+   2259 !***************************************************************************************************************************
+   2259 ********
+   2260 
+   2261 ENTRY EPIPHYTON (J)
+   2262   DO I=IU,ID
+   2263 
+   2264 !** Limiting factor
+   2265     if(Met_regions)then
+   2266     LIGHT = (1.0-BETA(JW))*SRON(WB_MetRegions(JW))*SHADE(I)/ESAT(J)
+   2267     else
+   2268     LIGHT = (1.0-BETA(JW))*SRON(JW)*SHADE(I)/ESAT(J)    
+   2269     endif
+   2270     
+   2271     LAM2  =  LIGHT
+   2272     LAM1  =  LIGHT
+   2273     DO K=KT,KB(I)
+   2274 
+   2275 !**** Limiting factor
+   2276 
+   2277       LAM1          = LAM2
+   2278       LAM2          = LAM1*EXP(-GAMMA(K,I)*H1(K,I))
+   2279       FDPO4         = 1.0-FPSS(K,I)-FPFE(K,I)
+   2280       ELLIM(K,I,J)  = 2.718282*(EXP(-LAM2)-EXP(-LAM1))/(GAMMA(K,I)*H1(K,I))
+   2281       IF (EHSP(J)  /= 0.0) EPLIM(K,I,J) =  FDPO4*PO4(K,I)/(FDPO4*PO4(K,I)+EHSP(J)+NONZERO)
+   2282       IF (EHSN(J)  /= 0.0) ENLIM(K,I,J) = (NH4(K,I)+NO3(K,I))/(NH4(K,I)+NO3(K,I)+EHSN(J)+NONZERO)
+   2283       IF (EHSSI(J) /= 0.0) ESLIM(K,I,J) =  DSI(K,I)/(DSI(K,I)+EHSSI(J)+NONZERO)
+   2284       LIMIT         =  MIN(EPLIM(K,I,J),ENLIM(K,I,J),ESLIM(K,I,J),ELLIM(K,I,J))
+   2285       BLIM          =  1.0-(EPD(K,I,J)/(EPD(K,I,J)+EHS(J)))
+   2286 
+   2287 !**** Sources/sinks
+   2288 
+   2289       EGR(K,I,J) =  MIN(ETRM(K,I,J)*EG(J)*LIMIT*BLIM,PO4(K,I)/(EP(J)*DLT*EPD(K,I,J)/H1(K,I)+NONZERO),(NH4(K,I)+NO3(K,I))/(EN
+   2289 (J)   &
+   2290                     *DLT*EPD(K,I,J)/H1(K,I)+NONZERO))
+   2291       ERR(K,I,J) =  ETRM(K,I,J)*ER(J)*DO3(K,I)
+   2292       EMR(K,I,J) = (ETRMR(K,I,J)+1.0-ETRMF(K,I,J))*EM(J)
+   2293       EER(K,I,J) =  MIN((1.0-ELLIM(K,I,J))*EE(J)*ETRM(K,I,J),EGR(K,I,J))
+   2294 !      EPD(K,I,J) =  MAX(EPD(K,I,J)+EPD(K,I,J)*(EGR(K,I,J)-ERR(K,I,J)-EMR(K,I,J)-EER(K,I,J)-EBR(K,I,J)/(H1(K,I)*0.0025))*DLT
+   2294 ,0.0)
+   2295 !      EPD(K,I,J) =  MAX(EPD(K,I,J)+EPD(K,I,J)*(EGR(K,I,J)-ERR(K,I,J)-EMR(K,I,J)-EER(K,I,J)-EBR(K,I,J)/H1(K,I))*DLT,0.00)   
+   2295 ! cb 5/18/06
+   2296       EPD(K,I,J) =  MAX(EPD(K,I,J)+EPD(K,I,J)*(EGR(K,I,J)-ERR(K,I,J)-EMR(K,I,J)-EER(K,I,J)-EBR(K,I,J))*DLT,0.00)   ! SW 3/20
+
+Page 46          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2296 19
+   2297       if(k == kb(i)) then      ! SW 12/16/07
+   2298       EPM(K,I,J) =  EPD(K,I,J)*(BI(K,I)+2.0*H1(K,I))*DLX(I)
+   2299 	  else
+   2300       EPM(K,I,J) =  EPD(K,I,J)*(BI(K,I)-BI(K+1,I)+2.0*H1(K,I))*DLX(I)
+   2301 	  endif
+   2302       EPC(K,I,J) =  EPM(K,I,J)/VOL(K,I)
+   2303     END DO
+   2304   END DO
+   2305 RETURN
+   2306 
+   2307 !***************************************************************************************************************************
+   2307 ********
+   2308 !**                                                       L A B I L E   D O M   P H O S P H O R U S                         
+   2308       **
+   2309 !***************************************************************************************************************************
+   2309 ********
+   2310 
+   2311 ENTRY LABILE_DOM_P
+   2312   LDOMPAP(:,IU:ID) = 0.0; LDOMPEP(:,IU:ID) = 0.0; LDOMPMP(:,IU:ID)=0.0
+   2313   DO I=IU,ID
+   2314     DO K=KT,KB(I)
+   2315       DO JA=1,NAL
+   2316         IF(ALG_CALC(JA))LDOMPAP(K,I) = LDOMPAP(K,I)+(AER(K,I,JA)+(1.0-APOM(JA))*AMR(K,I,JA))*ALG(K,I,JA)*AP(JA)
+   2317       END DO
+   2318       DO JE=1,NEP
+   2319         IF (EPIPHYTON_CALC(JW,JE))LDOMPEP(K,I) = LDOMPEP(K,I)+(EER(K,I,JE)+(1.0-EPOM(JE))*EMR(K,I,JE))*EPC(K,I,JE)*EP(JE)
+   2320       END DO
+   2321       DO M=1,NMC
+   2322         IF(MACROPHYTE_CALC(JW,M))THEN
+   2323           IF(K.EQ.KT)THEN
+   2324             JT=KTI(I)
+   2325           ELSE
+   2326             JT=K
+   2327           END IF
+   2328           JE=KB(I)
+   2329           DO JJ=JT,JE
+   2330             LDOMPMP(K,I)=LDOMPMP(K,I)+(1.0-MPOM(M))*MMR(K,I,M)*MACRM(JJ,K,I,M)*MP(M)
+   2331           END DO
+   2332         END IF
+   2333       END DO
+   2334       LDOMPMP(K,I) = LDOMPMP(K,I)/(DLX(I)*BH2(K,I))       !8/2020
+   2335       LDOMPSS(K,I) = LDOMPAP(K,I)+LDOMPEP(K,I)+LDOMPMP(K,I)- LDOMPD(K,I) - LRDOMPD(K,I) + LPOMPHD(K,I)
+   2336     END DO
+   2337   END DO
+   2338 RETURN
+   2339 
+   2340 !***************************************************************************************************************************
+   2340 ********
+   2341 !**                                                  R E F R A C T O R Y   D O M   P H O S P H O R U S                      
+   2341       **
+   2342 !***************************************************************************************************************************
+   2342 ********
+   2343 
+   2344 ENTRY REFRACTORY_DOM_P
+   2345   DO I=IU,ID
+   2346     DO K=KT,KB(I)
+
+Page 47          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2347       RDOMPSS(K,I) = LRDOMPD(K,I) - RDOMPD(K,I) + RPOMPHD(K,I)
+   2348     END DO
+   2349   END DO
+   2350 RETURN
+   2351 
+   2352 !***************************************************************************************************************************
+   2352 ********
+   2353 !**                                                      L A B I L E   P O M   P H O S P H O R U S                          
+   2353       **
+   2354 !***************************************************************************************************************************
+   2354 ********
+   2355 
+   2356 ENTRY LABILE_POM_P
+   2357   LPOMPAP(:,IU:ID) = 0.0;LPOMPMP(:,IU:ID)=0.0;LPZOOINP(:,IU:ID)=0.0; LPZOOOUTP(:,IU:ID)=0.0; LPOMEPP(:,IU:ID) = 0.0
+   2358   DO I=IU,ID
+   2359     DO K=KT,KB(I)
+   2360       DO JA=1,NAL
+   2361         IF(ALG_CALC(JA))LPOMPAP(K,I) = LPOMPAP(K,I)+APOM(JA)*(AMR(K,I,JA)*ALG(K,I,JA))*AP(JA)
+   2362       END DO
+   2363       DO JE=1,NEP                                                          
+   2364         IF (EPIPHYTON_CALC(JW,JE))LPOMEPP(K,I) = LPOMEPP(K,I)+EPOM(JE)*EP(JE)*(EMR(K,I,JE)*EPC(K,I,JE))    
+   2365       END DO                                                              
+   2366 
+   2367       DO M=1,NMC
+   2368         IF(MACROPHYTE_CALC(JW,M))THEN
+   2369           JT=K
+   2370           JE=KB(I)
+   2371           DO JJ=JT,JE
+   2372             LPOMPMP(K,I)=LPOMPMP(K,I)+MPOM(M)*LRPMAC(M)*MMR(K,I,M)*MACRM(JJ,K,I,M)*MP(M)
+   2373           END DO
+   2374         END IF
+   2375       END DO
+   2376       LPOMPMP(K,I) = LPOMPMP(K,I)/(DLX(I)*BH2(K,I))          !8/2020
+   2377 	IF(ZOOPLANKTON_CALC)THEN
+   2378 	DO JZ = 1,NZP
+   2379       IF(TGRAZE(K,I,JZ) > 0.0)THEN
+   2380         LPZOOOUTP(K,I)=LPZOOOUTP(K,I) + ZOO(K,I,JZ)*(ZMT(K,I,JZ)+(ZMU(K,I,JZ)-(ZMU(K,I,JZ)*ZEFF(JZ))))*ZP(JZ)
+   2381         IF(ORGC_CALC)THEN
+   2382           LPZOOINP(K,I) = LPZOOINP(K,I) + ZOO(K,I,JZ)*ZMU(K,I,JZ)*PREFP(JZ)*LPOMC(K,I)/ORGC(JW)/TGRAZE(K,I,JZ)*ZP(JZ)
+   2383         ELSE    
+   2384           LPZOOINP(K,I) = LPZOOINP(K,I) + ZOO(K,I,JZ)*ZMU(K,I,JZ)*PREFP(JZ)*LPOM(K,I)/TGRAZE(K,I,JZ)*ZP(JZ)
+   2385         END IF 
+   2386       ELSE
+   2387         LPZOOOUTP(K,I)=LPZOOOUTP(K,I)+ZOO(K,I,JZ)*(ZMT(K,I,JZ)+(ZMU(K,I,JZ)-(ZMU(K,I,JZ)*ZEFF(JZ))))*ZP(JZ)
+   2388         LPZOOINP(K,I)=0.0
+   2389       END IF
+   2390     END DO
+   2391     ENDIF
+   2392 	  LPOMPNS(K,I) = POMS(JW) * (LPOMP(K-1,I)-LPOMP(K,I)) *BI(K,I)/BH2(K,I)                                             
+   2392    
+   2393     LPOMPSS(K,I) = LPOMPAP(K,I) + LPOMPEP(K,I) + LPOMPMP(K,I) - LPOMPD(K,I) + LPOMPNS(K,I) - LRPOMPD(K,I) - LPOMPHD(K,I)    
+   2394 	  IF(ZOOPLANKTON_CALC)THEN
+   2395 !  DO JZ = 1,NZP                                           ! KV 4/24/12
+   2396 	   LPOMPSS(K,I) =LPOMPSS(K,I) + LPZOOOUTP(K,I)-LPZOOINP(K,I)
+   2397 !  END DO                                                  ! KV 4/24/12
+   2398 	  ENDIF
+   2399 
+
+Page 48          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2400 	END DO
+   2401   END DO
+   2402 RETURN
+   2403 
+   2404 !***************************************************************************************************************************
+   2404 ********
+   2405 !**                                                  R E F R A C T O R Y   P O M   P H O S P H O R U S                      
+   2405       **
+   2406 !***************************************************************************************************************************
+   2406 ********
+   2407 
+   2408 ENTRY REFRACTORY_POM_P
+   2409   RPOMPMP(:,IU:ID)=0.0
+   2410   DO I=IU,ID
+   2411     DO K=KT,KB(I)
+   2412       DO M=1,NMC
+   2413         IF(MACROPHYTE_CALC(JW,M))THEN
+   2414           JT=K
+   2415           JE=KB(I)
+   2416           DO JJ=JT,JE
+   2417             RPOMPMP(K,I)=RPOMPMP(K,I)+MPOM(M)*(1.0-LRPMAC(M))*MMR(K,I,M)*MACRM(JJ,K,I,M)*MP(M)
+   2418           END DO
+   2419         END IF
+   2420       END DO
+   2421       RPOMPMP(K,I) = RPOMPMP(K,I)/(DLX(I)*BH2(K,I))       !8/2020
+   2422       RPOMPNS(K,I) = POMS(JW) * (RPOMP(K-1,I) - RPOMP(K,I)) * BI(K,I)/BH2(K,I)     
+   2423       RPOMPSS(K,I) = LRPOMPD(K,I) + RPOMPNS(K,I) - RPOMPD(K,I) + RPOMPMP(K,I) - RPOMPHD(K,I)  
+   2424     END DO
+   2425   END DO
+   2426 RETURN
+   2427 
+   2428 !***************************************************************************************************************************
+   2428 ********
+   2429 !**                                                       L A B I L E   D O M   N I T R O G E N                             
+   2429       **
+   2430 !***************************************************************************************************************************
+   2430 ********
+   2431 
+   2432 ENTRY LABILE_DOM_N
+   2433   LDOMNAP(:,IU:ID) = 0.0; LDOMNEP(:,IU:ID) = 0.0; LDOMNMP(:,IU:ID)=0.0
+   2434   DO I=IU,ID
+   2435     DO K=KT,KB(I)
+   2436       DO JA=1,NAL
+   2437         IF(ALG_CALC(JA))LDOMNAP(K,I) = LDOMNAP(K,I)+(AER(K,I,JA)+(1.0-APOM(JA))*AMR(K,I,JA))*ALG(K,I,JA)*AN(JA)
+   2438       END DO
+   2439       DO JE=1,NEP
+   2440         IF (EPIPHYTON_CALC(JW,JE))LDOMNEP(K,I) = LDOMNEP(K,I)+(EER(K,I,JE)+(1.0-EPOM(JE))*EMR(K,I,JE))*EPC(K,I,JE)*EN(JE)
+   2441       END DO
+   2442       DO M=1,NMC
+   2443         IF(MACROPHYTE_CALC(JW,M))THEN
+   2444           IF(K.EQ.KT)THEN
+   2445             JT=KTI(I)
+   2446           ELSE
+   2447             JT=K
+   2448           END IF
+   2449           JE=KB(I)
+   2450           DO JJ=JT,JE
+
+Page 49          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2451             LDOMNMP(K,I)=LDOMNMP(K,I)+(1.0-MPOM(M))*MMR(K,I,M)*MACRM(JJ,K,I,M)*MN(M)
+   2452           END DO
+   2453         END IF
+   2454       END DO
+   2455       LDOMNMP(K,I) = LDOMNMP(K,I)/(DLX(I)*BH2(K,I))        !8/2020
+   2456       LDOMNSS(K,I) = LDOMNAP(K,I) + LDOMNEP(K,I) + LDOMNMP(K,I) - LDOMND(K,I) - LRDOMND(K,I) + LPOMNHD(K,I) 
+   2457     END DO
+   2458   END DO
+   2459 RETURN
+   2460 
+   2461 !***************************************************************************************************************************
+   2461 ********
+   2462 !**                                                  R E F R A C T O R Y   D O M   N I T R O G E N                          
+   2462       **
+   2463 !***************************************************************************************************************************
+   2463 ********
+   2464 
+   2465 ENTRY REFRACTORY_DOM_N
+   2466   DO I=IU,ID
+   2467     DO K=KT,KB(I)
+   2468 !RDOMNSS(K,I) = LRDOMD(K,I)*ORGNLD(K,I)-RDOMD(K,I)*ORGNRD(K,I)
+   2469        RDOMNSS(K,I) = LRDOMND(K,I) - RDOMND(K,I) + RPOMNHD(K,I)
+   2470     END DO
+   2471   END DO
+   2472 RETURN
+   2473 
+   2474 !***************************************************************************************************************************
+   2474 ********
+   2475 !**                                                      L A B I L E   P O M   N I T R O G E N                              
+   2475       **
+   2476 !***************************************************************************************************************************
+   2476 ********
+   2477 
+   2478 ENTRY LABILE_POM_N
+   2479   LPOMNAP(:,IU:ID) = 0.0;LPOMNMP(:,IU:ID)=0.0;LPZOOINN(:,IU:ID)=0.0; LPZOOOUTN(:,IU:ID)=0.0; LPOMEPN(:,IU:ID)=0.0
+   2480   DO I=IU,ID
+   2481     DO K=KT,KB(I)
+   2482       DO JA=1,NAL
+   2483         IF(ALG_CALC(JA))LPOMNAP(K,I) = LPOMNAP(K,I)+APOM(JA)*(AMR(K,I,JA)*ALG(K,I,JA))*AN(JA)
+   2484       END DO
+   2485        DO JE=1,NEP                                                          
+   2486         IF (EPIPHYTON_CALC(JW,JE))LPOMEPN(K,I) = LPOMEPN(K,I)+EPOM(JE)*EN(JE)*(EMR(K,I,JE)*EPC(K,I,JE))    
+   2487       END DO                                                              
+   2488 
+   2489       DO M=1,NMC
+   2490         IF(MACROPHYTE_CALC(JW,M))THEN
+   2491           JT=K
+   2492           JE=KB(I)
+   2493           DO JJ=JT,JE
+   2494             LPOMNMP(K,I)=LPOMNMP(K,I)+MPOM(M)*LRPMAC(M)*MMR(K,I,M)*MACRM(JJ,K,I,M)*MN(M)
+   2495           END DO
+   2496         END IF
+   2497       END DO
+   2498       LPOMNMP(K,I)=LPOMNMP(K,I)/(DLX(I)*BH2(K,I))
+   2499 	IF(ZOOPLANKTON_CALC)THEN
+   2500 	DO JZ = 1,NZP
+   2501       IF(TGRAZE(K,I,JZ) > 0.0)THEN
+
+Page 50          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2502         LPZOOOUTN(K,I)=LPZOOOUTN(K,I)+ZOO(K,I,JZ)*(ZMT(K,I,JZ)+(ZMU(K,I,JZ)-(ZMU(K,I,JZ)*ZEFF(JZ))))*ZN(JZ)
+   2503         IF(ORGC_CALC)THEN
+   2504             LPZOOINN(K,I)=LPZOOINN(K,I)+ZOO(K,I,JZ)*PREFP(JZ)*ZMU(K,I,JZ)*LPOMC(K,I)/ORGC(JW)/TGRAZE(K,I,JZ)*ZN(JZ)
+   2505         ELSE
+   2506         LPZOOINN(K,I)=LPZOOINN(K,I)+ZOO(K,I,JZ)*PREFP(JZ)*ZMU(K,I,JZ)*LPOM(K,I)/TGRAZE(K,I,JZ)*ZN(JZ)
+   2507         END IF
+   2508       ELSE
+   2509         LPZOOOUTN(K,I)=LPZOOOUTN(K,I)+ZOO(K,I,JZ)*(ZMT(K,I,JZ)+(ZMU(K,I,JZ)-(ZMU(K,I,JZ)*ZEFF(JZ))))*ZN(JZ)
+   2510         LPZOOINN(K,I)=0.0
+   2511       END IF
+   2512 	END DO
+   2513 	ENDIF
+   2514     LPOMNNS(K,I) = POMS(JW) * (LPOMN(K-1,I) - LPOMN(K,I)) * BI(K,I)/BH2(K,I)      
+   2515     LPOMNSS(K,I) = LPOMNAP(K,I) + LPOMNEP(K,I) + LPOMNMP(K,I) - LPOMND(K,I) + LPOMNNS(K,I) - LRPOMND(K,I) - LPOMNHD(K,I)   &
+   2516                    + LPZOOOUTN(K,I) - LPZOOINN(K,I)
+   2517     END DO
+   2518   END DO
+   2519 RETURN
+   2520 
+   2521 !***************************************************************************************************************************
+   2521 ********
+   2522 !**                                                  R E F R A C T O R Y   P O M   N I T R O G E N                          
+   2522       **
+   2523 !***************************************************************************************************************************
+   2523 ********
+   2524 
+   2525 ENTRY REFRACTORY_POM_N
+   2526   RPOMNMP(:,IU:ID)=0.0
+   2527   DO I=IU,ID
+   2528     DO K=KT,KB(I)
+   2529       DO M=1,NMC
+   2530         IF(MACROPHYTE_CALC(JW,M))THEN
+   2531           JT=K
+   2532           JE=KB(I)
+   2533           DO JJ=JT,JE
+   2534             RPOMNMP(K,I)=RPOMNMP(K,I)+MPOM(M)*(1.0-LRPMAC(M))*MMR(K,I,M)*MACRM(JJ,K,I,M)*MN(M)
+   2535           END DO
+   2536         END IF
+   2537       END DO
+   2538       RPOMNMP(K,I) = RPOMNMP(K,I)/(DLX(I)*BH2(K,I))
+   2539       RPOMNNS(K,I) = POMS(JW) * (RPOMN(K-1,I) - RPOMN(K,I)) * BI(K,I)/BH2(K,I)             
+   2540       RPOMNSS(K,I) = LRPOMND(K,I) + RPOMNNS(K,I) - RPOMND(K,I) + RPOMNMP(K,I) - RPOMNHD(K,I)   
+   2541     END DO
+   2542   END DO
+   2543 RETURN
+   2544 
+   2545 !***************************************************************************************************************************
+   2545 ********
+   2546 !**                                                       L A B I L E   D O C
+   2547 !***************************************************************************************************************************
+   2547 ********
+   2548 ENTRY LABILE_DOM_C
+   2549   LDOMCAP(:,IU:ID) = 0.0; LDOMCEP(:,IU:ID) = 0.0; LDOMCMP(:,IU:ID)=0.0
+   2550   DO I=IU,ID
+   2551     DO K=KT,KB(I)
+   2552       DO JA=1,NAL
+   2553         IF(ALG_CALC(JA)) LDOMCAP(K,I) = LDOMCAP(K,I) + (AER(K,I,JA)+(1.0-APOM(JA))*AMR(K,I,JA))*ALG(K,I,JA)*AC(JA)
+
+Page 51          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2554       END DO
+   2555       DO JE=1,NEP
+   2556         IF (EPIPHYTON_CALC(JW,JE)) LDOMCEP(K,I) = LDOMCEP(K,I) + (EER(K,I,JE)+(1.0-EPOM(JE))*EMR(K,I,JE))*EPC(K,I,JE)*EC(JE)
+   2557       END DO
+   2558       DO M=1,NMC
+   2559         IF(MACROPHYTE_CALC(JW,M))THEN
+   2560           IF(K.EQ.KT)THEN
+   2561             JT=KTI(I)
+   2562           ELSE
+   2563             JT=K
+   2564           END IF
+   2565           JE=KB(I)
+   2566           DO JJ=JT,JE
+   2567             LDOMCMP(K,I) = LDOMCMP(K,I) + (1.0-MPOM(M))*MMR(K,I,M)*MACRM(JJ,K,I,M)*MC(M)
+   2568           END DO
+   2569         END IF
+   2570       END DO
+   2571       LDOMCMP(K,I) = LDOMCMP(K,I) / (DLX(I)*BH2(K,I)) 
+   2572       LDOMCSS(K,I) = LDOMCAP(K,I) + LDOMCEP(K,I) + LDOMCMP(K,I) - LDOMCD(K,I) - LRDOMCD(K,I) + LPOMCHD(K,I) 
+   2573     END DO
+   2574   END DO
+   2575 RETURN
+   2576 
+   2577 !***************************************************************************************************************************
+   2577 ********
+   2578 !**                                                  R E F R A C T O R Y   D O C
+   2579 !***************************************************************************************************************************
+   2579 ********
+   2580 ENTRY REFRACTORY_DOM_C
+   2581   DO I=IU,ID
+   2582     DO K=KT,KB(I)
+   2583       RDOMCSS(K,I) = LRDOMCD(K,I) - RDOMCD(K,I) + RPOMCHD(K,I)
+   2584     END DO
+   2585   END DO
+   2586 RETURN
+   2587 
+   2588 !***************************************************************************************************************************
+   2588 ********
+   2589 !**                                                      L A B I L E   P O C
+   2590 !***************************************************************************************************************************
+   2590 ********
+   2591 ENTRY LABILE_POM_C
+   2592   LPOMCAP(:,IU:ID) = 0.0; LPOMCEP(:,IU:ID)=0.0; LPOMCMP(:,IU:ID)=0.0; LPZOOINC(:,IU:ID)=0.0; LPZOOOUTC(:,IU:ID)=0.0
+   2593   DO I=IU,ID
+   2594     DO K=KT,KB(I)
+   2595       DO JA=1,NAL
+   2596         IF(ALG_CALC(JA)) LPOMCAP(K,I) = LPOMCAP(K,I) + APOM(JA)*(AMR(K,I,JA)*ALG(K,I,JA))*AC(JA)
+   2597       END DO
+   2598       DO JE=1,NEP
+   2599         IF(EPIPHYTON_CALC(JW,JE)) LPOMCEP(K,I) = LPOMCEP(K,I) + EPOM(JE)*EMR(K,I,JE)*EPC(K,I,JE)*EC(JE)
+   2600       END DO
+   2601       DO M=1,NMC
+   2602         IF(MACROPHYTE_CALC(JW,M))THEN
+   2603           IF(K.EQ.KT)THEN
+   2604             JT=KTI(I)
+   2605           ELSE
+   2606             JT=K
+
+Page 52          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2607           END IF
+   2608           JE=KB(I)
+   2609           DO JJ=JT,JE
+   2610             LPOMCMP(K,I) = LPOMCMP(K,I) + MPOM(M)*LRPMAC(M)*MMR(K,I,M)*MACRM(JJ,K,I,M)*MC(M)
+   2611           END DO
+   2612         END IF
+   2613       END DO
+   2614       LPOMCMP(K,I) = LPOMCMP(K,I)/(DLX(I)*BH2(K,I))
+   2615 	    IF(ZOOPLANKTON_CALC)THEN
+   2616 	      DO JZ = 1,NZP
+   2617           IF(TGRAZE(K,I,JZ) > 0.0)THEN
+   2618             LPZOOOUTC(K,I) = LPZOOOUTC(K,I) + ZOO(K,I,JZ)*(ZMT(K,I,JZ)+(ZMU(K,I,JZ)-(ZMU(K,I,JZ)*ZEFF(JZ))))*ZC(JZ)
+   2619             IF(.NOT.ORGC_CALC)THEN     ! SW 7/8/2024
+   2620 !IF(CAC(NLPOM) == '      ON')THEN
+   2621               LPZOOINC(K,I) = LPZOOINC(K,I) + ZOO(K,I,JZ)*PREFP(JZ)*ZMU(K,I,JZ)*LPOM(K,I)/TGRAZE(K,I,JZ)*ZC(JZ)
+   2622             ELSE
+   2623               LPZOOINC(K,I) = LPZOOINC(K,I) + ZOO(K,I,JZ)*PREFP(JZ)*ZMU(K,I,JZ)*LPOMC(K,I)/ORGC(JW)/TGRAZE(K,I,JZ)*ZC(JZ)
+   2624             END IF
+   2625           ELSE
+   2626             LPZOOOUTC(K,I) = LPZOOOUTC(K,I) + ZOO(K,I,JZ)*(ZMT(K,I,JZ)+(ZMU(K,I,JZ)-(ZMU(K,I,JZ)*ZEFF(JZ))))*ZC(JZ)
+   2627             LPZOOINC(K,I) = 0.0
+   2628           END IF
+   2629 	      END DO
+   2630 	    ENDIF
+   2631       LPOMCNS(K,I) = POMS(JW) * (LPOMC(K-1,I)-LPOMC(K,I)) * BI(K,I)/BH2(K,I)
+   2632       LPOMCSS(K,I) = LPOMCAP(K,I) + LPOMCEP(K,I) + LPOMCMP(K,I) - LPOMCD(K,I) + LPOMCNS(K,I) - LRPOMCD(K,I) - LPOMCHD(K,I)  
+   2632  &
+   2633                    + LPZOOOUTC(K,I) - LPZOOINC(K,I)
+   2634     END DO
+   2635   END DO
+   2636 RETURN
+   2637 
+   2638 !***************************************************************************************************************************
+   2638 ********
+   2639 !**                                                  R E F R A C T O R Y   P O C
+   2640 !***************************************************************************************************************************
+   2640 ********
+   2641 ENTRY REFRACTORY_POM_C
+   2642   RPOMCMP(:,IU:ID)=0.0
+   2643   DO I=IU,ID
+   2644     DO K=KT,KB(I)
+   2645       DO M=1,NMC
+   2646         IF(MACROPHYTE_CALC(JW,M))THEN
+   2647           IF(K.EQ.KT)THEN
+   2648             JT=KTI(I)
+   2649           ELSE
+   2650             JT=K
+   2651           END IF
+   2652           JE=KB(I)
+   2653           DO JJ=JT,JE
+   2654             RPOMCMP(K,I) = RPOMCMP(K,I) + MPOM(M)*(1.0-LRPMAC(M))*MMR(K,I,M)*MACRM(JJ,K,I,M)*MC(M)
+   2655           END DO
+   2656         END IF
+   2657       END DO
+   2658       RPOMCMP(K,I) = RPOMCMP(K,I) / (DLX(I)*BH2(K,I))
+   2659       RPOMCNS(K,I) = POMS(JW) * (RPOMC(K-1,I)-RPOMC(K,I)) * BI(K,I)/BH2(K,I)
+   2660       RPOMCSS(K,I) = LRPOMCD(K,I) + RPOMCNS(K,I) - RPOMCD(K,I) + RPOMCMP(K,I) - RPOMCHD(K,I) 
+
+Page 53          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2661     END DO
+   2662   END DO
+   2663 RETURN
+   2664 
+   2665 !************************************************************************
+   2666 !**                          M A C R O P H Y T E                       **
+   2667 !************************************************************************
+   2668 
+   2669 ENTRY MACROPHYTE(LLM)
+   2670   M=LLM
+   2671   DO I=IU,ID
+   2672     IF(KTICOL(I))THEN
+   2673       JT=KTI(I)
+   2674     ELSE
+   2675       JT=KTI(I)+1
+   2676     END IF
+   2677     JE=KB(I)
+   2678     DO JJ=JT,JE
+   2679       IF(JJ.LT.KT)THEN
+   2680         COLB=EL(JJ+1,I)
+   2681       ELSE
+   2682         COLB=EL(KT+1,I)
+   2683       END IF
+   2684 !COLDEP=ELWS(I)-COLB
+   2685        coldep=EL(KT,i)-Z(i)*COSA(JB)-colb  ! cb 3/7/16
+   2686       IF(MACRC(JJ,KT,I,M).GT.MMAX(M))THEN
+   2687         MGR(JJ,KT,I,M)=0.0
+   2688       END IF
+   2689       MACSS(JJ,KT,I,M) = (MGR(JJ,KT,I,M)-MMR(KT,I,M)-MRR(KT,I,M))*MACRC(JJ,KT,I,M)
+   2690       MACRM(JJ,KT,I,M)   = MACRM(JJ,KT,I,M)+MACSS(JJ,KT,I,M)*DLT*COLDEP*CW(JJ,I)*DLX(I)
+   2691     END DO
+   2692 
+   2693     DO K=KT+1,KB(I)
+   2694       JT=K
+   2695       JE=KB(I)
+   2696       DO JJ=JT,JE
+   2697         IF(MACRC(JJ,K,I,M).GT.MMAX(M))THEN
+   2698           MGR(JJ,K,I,M)=0.0
+   2699         END IF
+   2700         MACSS(JJ,K,I,M) = (MGR(JJ,K,I,M)-MMR(K,I,M)-MRR(K,I,M))*MACRC(JJ,K,I,M)
+   2701         IF(MACT(JJ,K,I).GT.MBMP(M).AND.MACT(JJ,K-1,I).LT.MBMP(M).AND.MACSS(JJ,K,I,M).GT.0.0)THEN
+   2702           IF(K-1.EQ.KT)THEN
+   2703             BMASS=MACSS(JJ,K,I,M)*DLT*H2(K,I)*CW(JJ,I)*DLX(I)
+   2704             MACRM(JJ,K-1,I,M)=MACRM(JJ,K-1,I,M)+BMASS
+   2705             COLB=EL(KT+1,I)
+   2706 !COLDEP=ELWS(I)-COLB
+   2707              coldep=EL(KT,i)-Z(i)*COSA(JB)-colb  ! cb 3/7/16
+   2708             MACSS(JJ,K-1,I,M)=BMASS/DLT/(COLDEP*CW(JJ,I)*DLX(I)) + MACSS(JJ,K-1,I,M)
+   2709           ELSE
+   2710             BMASS=MACSS(JJ,K,I,M)*DLT*H2(K,I)*CW(JJ,I)*DLX(I)
+   2711             MACRM(JJ,K-1,I,M)=MACRM(JJ,K-1,I,M)+BMASS
+   2712             MACSS(JJ,K-1,I,M)=BMASS/DLT/(H2(K-1,I)*CW(JJ,I)*DLX(I))+ MACSS(JJ,K-1,I,M)
+   2713           END IF
+   2714           MACSS(JJ,K,I,M)=0.0
+   2715         ELSE
+   2716           BMASSTEST=MACRM(JJ,K,I,M)+MACSS(JJ,K,I,M)*DLT*H2(K,I)*CW(JJ,I)*DLX(I)
+   2717           IF(BMASSTEST.GE.0.0)THEN
+
+Page 54          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2718             MACRM(JJ,K,I,M)   = BMASSTEST
+   2719           ELSE
+   2720             MACSS(JJ,K,I,M)=-MACRM(JJ,K,I,M)/DLT/(H2(K,I)*CW(JJ,I)*DLX(I))
+   2721             MACRM(JJ,K,I,M)=0.0
+   2722           END IF
+   2723         END IF
+   2724       END DO
+   2725     END DO
+   2726   END DO
+   2727   DO I=IU,ID
+   2728     TMAC=0.0
+   2729     CVOL=0.0
+   2730     IF(KTICOL(I))THEN
+   2731       JT=KTI(I)
+   2732     ELSE
+   2733       JT=KTI(I)+1
+   2734     END IF
+   2735     JE=KB(I)
+   2736 
+   2737     DO JJ=JT,JE
+   2738       IF(JJ.LT.KT)THEN
+   2739         COLB=EL(JJ+1,I)
+   2740       ELSE
+   2741         COLB=EL(KT+1,I)
+   2742       END IF
+   2743 !COLDEP=ELWS(I)-COLB
+   2744        coldep=EL(KT,i)-Z(i)*COSA(JB)-colb  ! cb 3/7/16
+   2745       IF(CW(JJ,I).GT.0.0)THEN
+   2746         MACRC(JJ,KT,I,M)=MACRM(JJ,KT,I,M)/(CW(JJ,I)*COLDEP*DLX(I))
+   2747       ELSE
+   2748         MACRC(JJ,KT,I,M)=0.0
+   2749       END IF
+   2750       TMAC=TMAC+MACRM(JJ,KT,I,M)
+   2751       CVOL=CVOL+CW(JJ,I)*COLDEP*DLX(I)
+   2752     END DO
+   2753 
+   2754     MAC(KT,I,M)=TMAC/CVOL
+   2755 
+   2756     DO K=KT+1,KB(I)
+   2757       JT=K
+   2758       JE=KB(I)
+   2759       TMAC=0.0
+   2760       CVOL=0.0
+   2761       DO JJ=JT,JE
+   2762         IF(CW(JJ,I).GT.0.0)THEN
+   2763           MACRC(JJ,K,I,M)=MACRM(JJ,K,I,M)/(CW(JJ,I)*H2(K,I)*DLX(I))
+   2764         ELSE
+   2765           MACRC(JJ,K,I,M)=0.0
+   2766         END IF
+   2767         TMAC=TMAC+MACRM(JJ,K,I,M)
+   2768         CVOL=CVOL+CW(JJ,I)*H2(K,I)*DLX(I)
+   2769       END DO
+   2770       MAC(K,I,M)=TMAC/CVOL
+   2771     END DO
+   2772   END DO
+   2773 
+   2774   DO I=IU,ID
+
+Page 55          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2775     TMAC=0.0
+   2776     CVOL=0.0
+   2777     DO K=KT,KB(I)
+   2778       IF(K.EQ.KT)THEN
+   2779         JT=KTI(I)
+   2780       ELSE
+   2781         JT=K
+   2782       END IF
+   2783       JE=KB(I)
+   2784       DO JJ=JT,JE
+   2785         MACT(JJ,K,I)=0.0
+   2786         DO MI=1,NMC
+   2787           IF(MACROPHYTE_CALC(JW,MI))THEN
+   2788             MACT(JJ,K,I)=MACRC(JJ,K,I,MI)+MACT(JJ,K,I)
+   2789           END IF
+   2790         END DO
+   2791       END DO
+   2792     END DO
+   2793   END DO
+   2794   RETURN
+   2795 
+   2796 !***************************************************************************************************************************
+   2796 ********
+   2797 !*                                                  K I N E T I C   F L U X E S                                             
+   2797       **
+   2798 !***************************************************************************************************************************
+   2798 ********
+   2799 
+   2800 ENTRY KINETIC_FLUXES
+   2801   DO JAF=1,NAF(JW)
+   2802     DO JB=BS(JW),BE(JW)                ! SW 3/9/16
+   2803     DO I=CUS(JB),DS(JB)
+   2804       DO K=KT,KB(I)
+   2805         KFS(K,I,KFCN(JAF,JW)) = KFS(K,I,KFCN(JAF,JW))+KF(K,I,KFCN(JAF,JW))*VOL(K,I)*DLT      ! KF IN G/M3/S x VOL M3 x DT S 
+   2805 == G
+   2806       END DO
+   2807     END DO
+   2808     END DO
+   2809   ENDDO
+   2810 
+   2811   IF(NPBALC=='      ON') THEN      
+   2812     DLT13=DLT*0.001     !/1000.
+   2813     DO JB=BS(JW),BE(JW)                ! SW 3/9/16
+   2814     DO I=CUS(JB),DS(JB)
+   2815       DO K=KT,KB(I)
+   2816             TN_SEDSOD_NH4(JW)= TN_SEDSOD_NH4(JW)+KF(K,I,KF_NH4_SR)*VOL(K,I)*DLT13+KF(K,I,KF_NH4_SD)*VOL(K,I)*DLT13
+   2817             TP_SEDSOD_PO4(JW)= TP_SEDSOD_PO4(JW)+KF(K,I,KF_PO4_SR)*VOL(K,I)*DLT13+KF(K,I,KF_PO4_SD)*VOL(K,I)*DLT13 
+   2818             IF(K==KT.AND.CDWBC(NH3_DER,JW)=='      ON')NH3GASLOSS(JW)=NH3GASLOSS(JW)+NH3GAS(K,I)*VOL(K,I)*DLT13    ! NH3GAS 
+   2818 in g/m3/s, convert to kg, cumulative
+   2819       END DO
+   2820     END DO
+   2821     END DO
+   2822  ENDIF
+   2823 
+   2824 RETURN
+   2825 
+   2826 !***************************************************************************************************************************
+
+Page 56          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2826 ********
+   2827 !**                                                       p H   C O 2                                                       
+   2827       **
+   2828 !***************************************************************************************************************************
+   2828 ********
+   2829 
+   2830 ENTRY PH_CO2
+   2831 
+   2832 ! pH and carbonate species
+   2833 
+   2834   DO I=IU,ID
+   2835     DO K=KT,KB(I)
+   2836       CART = TIC(K,I)/12000.0                ! CART=equivalents/liter of C    TIC=mg/l C (MW=12g/mole)
+   2837       ALKT = ALK(K,I)/5.0E+04                ! ALK=mg/l as CaCO3 (MW=50 g/mole; EQ=50g/eq))      ALKT=equivalents/l
+   2838       T1K  = T1(K,I)+273.15
+   2839 
+   2840 !**** Ionic strength
+   2841 
+   2842       IF (FRESH_WATER(JW)) S2 = 2.5E-05*TDS(K,I)
+   2843       IF (SALT_WATER(JW))  S2 = 1.47E-3+1.9885E-2*TDS(K,I)+3.8E-5*TDS(K,I)*TDS(K,I)
+   2844 
+   2845 !**** Debye-Huckel terms and activity coefficients
+   2846 
+   2847       SQRS2  =  SQRT(S2)
+   2848       DH1    = -0.5085*SQRS2/(1.0+1.3124*SQRS2)+4.745694E-03+4.160762E-02*S2-9.284843E-03*S2*S2
+   2849       DH2    = -2.0340*SQRS2/(1.0+1.4765*SQRS2)+1.205665E-02+9.715745E-02*S2-2.067746E-02*S2*S2
+   2850       H2CO3T =  10.0**(0.0755*S2)
+   2851       HCO3T  =  10.0**DH1
+   2852       CO3T   =  10.0**DH2
+   2853       OH     =  HCO3T
+   2854 
+   2855 !**** Temperature adjustment
+   2856 
+   2857       KW = 10.0**(-283.971-0.05069842*T1K+13323.0/T1K+102.24447*LOG10(T1K)-1119669.0/(T1K*T1K))/OH
+   2858       K1 = 10.0**(-3404.71/T1K+14.8435-0.032786*T1K)*H2CO3T/HCO3T
+   2859       K2 = 10.0**(-2902.39/T1K+ 6.4980-0.023790*T1K)*HCO3T/CO3T
+   2860 
+   2861 !**** pH evaluation
+   2862 
+   2863       PHT = -PH(K,I)-2.1
+   2864       IF (PH(K,I) <= 0.0) PHT = -14.0
+   2865       INCR = 10.0
+   2866       DO N=1,3
+   2867         F    = 1.0
+   2868         INCR = INCR/10.0
+   2869         ITER = 0
+   2870         DO WHILE (F > 0.0 .AND. ITER < 12)
+   2871           PHT    = PHT+INCR
+   2872           HION   = 10.0**PHT
+   2873           BICART = CART*K1*HION/(K1*HION+K1*K2+HION*HION)
+   2874           F      = BICART*(HION+2.0*K2)/HION+KW/HION-ALKT-HION/OH
+   2875           ITER   = ITER+1
+   2876         END DO
+   2877         PHT = PHT-INCR
+   2878       END DO
+   2879 
+   2880 !**** pH, carbon dioxide, bicarbonate, and carbonate concentrations
+
+Page 57          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2881 
+   2882       HION      =  10.0**PHT
+   2883       PH(K,I)   = -PHT
+   2884       CO2(K,I)  =  TIC(K,I)/(1.0+K1/HION+K1*K2/(HION*HION))          ! mg/l as C
+   2885       IF(CDWBC(HCO3_DER,JW)=='      ON')HCO3(K,I) =  TIC(K,I)/(1.0+HION/K1+K2/HION)                    ! mg/l as C
+   2886       IF(CDWBC(CO3_DER,JW)=='      ON') CO3(K,I)  =  TIC(K,I)/((HION*HION)/(K1*K2)+HION/K2+1.0)        ! mg/l as C
+   2887     END DO
+   2888   END DO
+   2889 RETURN
+   2890 
+   2891 !***************************************************************************************************************************
+   2891 ********
+   2892 !**                                                       p H   C O 2   N E W                                               
+   2892       **
+   2893 !***************************************************************************************************************************
+   2893 ********
+   2894 
+   2895 ENTRY PH_CO2_NEW ! Enhancements added for buffering by ammonia, phosphate, and OM ! SR 01/01/12
+   2896 ! pH and carbonate species
+   2897  DO I=IU,ID
+   2898    DO K=KT,KB(I)
+   2899      T1K = T1(K,I)+273.15
+   2900      CART = TIC(K,I)/12011. ! SR 01/01/12
+   2901      ALKT = ALK(K,I)/50044. ! SR 01/01/12
+   2902      AMMT = NH4(K,I)/14006.74 ! SR 01/01/12
+   2903      PHOST = PO4(K,I)/30973.762 ! SR 01/01/12
+   2904      OMCT = (LDOM(K,I)+RDOM(K,I))*ORGC(JW)/12011. ! moles carbon per liter from DOM ! SR 01/01/12
+   2905      IF (POM_BUFFERING) OMCT = OMCT + (LPOM(K,I)+RPOM(K,I))*ORGC(JW)/12011. ! SR 01/01/12
+   2906 !**** Ionic strength
+   2907      IF (FRESH_WATER(JW)) S2 = 2.5E-05*TDS(K,I)
+   2908      IF (SALT_WATER(JW)) S2 = 1.47E-3+1.9885E-2*TDS(K,I)+3.8E-5*TDS(K,I)*TDS(K,I)
+   2909 !**** Debye-Huckel terms and activity coefficients
+   2910      SQRS2 = SQRT(S2)
+   2911      DH1 = -0.5085*SQRS2/(1.0+1.3124*SQRS2)+4.745694E-03+4.160762E-02*S2-9.284843E-03*S2*S2
+   2912      DH2 = -2.0340*SQRS2/(1.0+1.4765*SQRS2)+1.205665E-02+9.715745E-02*S2-2.067746E-02*S2*S2
+   2913      DH3 = -4.5765*SQRS2/(1.0+1.3124*SQRS2) ! extended Debye-Huckel for PO4 ! SR 01/01/12
+   2914      DHH = -0.5085*SQRS2/(1.0+2.9529*SQRS2) ! extended Debye-Huckel for H+ ion ! SR 01/01/12
+   2915      H2CO3T = 10.0**(0.0755*S2)
+   2916      HCO3T = 10.0**DH1
+   2917      CO3T = 10.0**DH2
+   2918      PO4T = 10.0**DH3 ! SR 01/01/12
+   2919      HT = 10.0**DHH ! activity coefficient for H+ ! SR 01/01/12
+   2920      HPO4T = CO3T ! tabled values similar to those for carbonate ! SR 01/01/12
+   2921      OHT = HCO3T ! tabled values similar to those for bicarbonate ! SR 01/01/12
+   2922      H2PO4T = HCO3T ! tabled values similar to those for bicarbonate ! SR 01/01/12
+   2923      NH4T = HCO3T ! tabled values similar to those for bicarbonate ! SR 01/01/12
+   2924      NH3T = H2CO3T ! neutral species, set coefficient to same as that for carbonic acid ! SR 01/01/12
+   2925      H3PO4T = H2CO3T ! neutral species, set coefficient to same as that for carbonic acid ! SR 01/01/12
+   2926 !**** Temperature adjustment
+   2927      KW = 10.0**(-283.971 -0.05069842*T1K +13323.0/T1K +102.24447*LOG10(T1K) -1119669.0/(T1K*T1K))/OHT
+   2928      K1 = 10.0**(-356.3094 -0.06091964*T1K +21834.37/T1K +126.8339 *LOG10(T1K) -1684915 /(T1K*T1K))*H2CO3T/HCO3T
+   2929      K2 = 10.0**(-107.8871 -0.03252849*T1K + 5151.79/T1K + 38.92561*LOG10(T1K) - 563713.9/(T1K*T1K))*HCO3T/CO3T
+   2930      KAMM = 10.0**(-0.09018 -2729.92/T1K)*NH4T/NH3T ! SR 01/01/12
+   2931      KP1 = 10.0**(4.5535 -0.013486*T1K -799.31/T1K)*H3PO4T/H2PO4T ! Bates (1951) ! SR 01/21/12
+   2932      KP2 = 10.0**(5.3541 -0.019840*T1K -1979.5/T1K)*H2PO4T/HPO4T ! Bates and Acree (1943) ! SR 01/21/12
+   2933      KP3 = 10.0**(-12.38) *HPO4T/PO4T ! Dean (1985) ! SR 01/01/12
+   2934 !**** pH evaluation
+
+Page 58          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2935      PHT = -PH(K,I)-2.1
+   2936      IF (PH(K,I) <= 0.0) PHT = -14.0
+   2937      INCR = 10.0
+   2938      DO N=1,3
+   2939         F = 1.0
+   2940         INCR = INCR/10.0
+   2941         ITER = 0
+   2942         DO WHILE (F > 0.0 .AND. ITER < 12)
+   2943           PHT = PHT+INCR
+   2944           HION = 10.0**PHT
+   2945           F = CART*K1*(HION+2.0*K2)/(HION*HION+K1*HION+K1*K2)+KW/HION-ALKT-HION/HT ! SR 01/01/12
+   2946           IF (AMMONIA_BUFFERING) THEN ! SR 01/01/12
+   2947             F = F + AMMT*KAMM/(HION+KAMM) ! SR 01/01/12
+   2948           END IF ! SR 01/01/12
+   2949           IF (PHOSPHATE_BUFFERING) THEN ! SR 01/01/12
+   2950             F = F + PHOST*( KP1*KP2*HION + 2*KP1*KP2*KP3 - HION*HION*HION ) &
+   2951                 /( HION*HION*HION + KP1*HION*HION + KP1*KP2*HION + KP1*KP2*KP3) ! SR 01/01/12
+   2952           END IF ! SR 01/01/12
+   2953           IF (OM_BUFFERING) THEN ! SR 01/01/12
+   2954             DO JA=1,NAG ! SR 01/01/12
+   2955               F = F + OMCT*SDEN(JA)*( 1.0/(1.0+HION*(10.0**PK(JA))) - 1.0/(1.0+(10.0**(PK(JA)-4.5))) ) ! SR 01/01/12
+   2956             END DO ! SR 01/01/12
+   2957           END IF ! SR 01/01/12
+   2958           ITER = ITER+1
+   2959         END DO
+   2960         PHT = PHT-INCR
+   2961      END DO
+   2962 !**** pH, carbon dioxide, bicarbonate, and carbonate concentrations
+   2963      HION = 10.0**PHT
+   2964      PH(K,I) = -PHT
+   2965      CO2(K,I) = TIC(K,I)/(1.0+K1/HION+K1*K2/(HION*HION))
+   2966      IF(CDWBC(HCO3_DER,JW)=='      ON')HCO3(K,I) = TIC(K,I)/(1.0+HION/K1+K2/HION)
+   2967      IF(CDWBC(CO3_DER,JW)=='      ON') CO3(K,I) = TIC(K,I)/((HION*HION)/(K1*K2)+HION/K2+1.0)
+   2968    END DO
+   2969  END DO
+   2970 RETURN
+   2971 
+   2972 
+   2973 !**********************************************************
+   2974 !**           SUBROUTINE ZOOPLANKTON                     **
+   2975 !**********************************************************
+   2976 
+   2977 ENTRY ZOOPLANKTON
+   2978   DO I=IU,ID
+   2979     DO K=KT,KB(I)
+   2980 	  DO JZ = 1, NZP
+   2981             ZGZTOT=0.0                                                                                                   ! K
+   2981 V 5/9/2007
+   2982 	        DO JJZ = 1,NZP
+   2983 !             ZGZTOT=ZGZTOT+ZGZ(K,I,JZ,JJZ)*ZOO(K,I,JZ)                                                                   ! 
+   2983 KV 5/9/2007
+   2984             ZGZTOT=ZGZTOT+ZGZ(K,I,JZ,JJZ)                                                                             ! CB 5
+   2984 /26/07
+   2985             END DO
+   2986         ZOOSS(K,I,JZ)= ZSR(K,I,JZ)+ (ZMU(K,I,JZ)*ZEFF(JZ)-ZRT(K,I,JZ)-ZMT(K,I,JZ))*ZOO(K,I,JZ) - ZGZTOT   ! OMNIVOROUS ZOOPL
+   2986 ANKTON    ! KV 5/9/2007  ! SW 1/28/2019 SETTLING/RISING
+   2987 	  END DO
+
+Page 59          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   2988     END DO
+   2989   END DO
+   2990 RETURN
+   2991 
+   2992 !***************************************************************************************************************************
+   2992 ********
+   2993 !**                                              D E R I V E D   C O N S T I T U E N T S                                    
+   2993       **
+   2994 !***************************************************************************************************************************
+   2994 ********
+   2995 
+   2996 ENTRY DERIVED_CONSTITUENTS
+   2997   APR = 0.0; ATOT = 0.0; TOTSS = 0.0; CHLA = 0.0; CBODU=0.0
+   2998   DO JW=1,NWB
+   2999     DO JB=BS(JW),BE(JW)
+   3000       DO I=CUS(JB),DS(JB)
+   3001         DO K=KTWB(JW),KB(I)
+   3002           DO JA=1,NAL
+   3003             IF(ALG_CALC(JA))APR(K,I) = APR(K,I)+(AGR(K,I,JA)-ARR(K,I,JA))*ALG(K,I,JA)*H2(K,I)*DAY
+   3004           END DO
+   3005         END DO
+   3006         DO K=KTWB(JW),KB(I)
+   3007           CBODCT = 0.0; CBODNT = 0.0; CBODPT = 0.0; BODTOT = 0.0; ALGP = 0.0; ALGN = 0.0; ZOOP=0.0; ZOON=0.0; POC(K,I)=0.0
+   3008           DO JA=1,NAL
+   3009             IF(ALG_CALC(JA))ATOT(K,I) = ATOT(K,I)+ALG(K,I,JA)
+   3010           END DO
+   3011           DO IBOD=1,NBOD
+   3012           IF(BOD_CALC(IBOD))THEN      
+   3013 !CBODCt  = CBODCt+CBOD(K,I,IBOD)*BODC(IBOD)    ! cb 6/6/10
+   3014 !CBODNt  = CBODNt+CBODn(K,I,IBOD)              ! cb 6/6/10
+   3015 !CBODPt  = CBODPt+CBODp(K,I,IBOD)              ! cb 6/6/10
+   3016 !BODTOT = BODTOT+CBOD(K,I,IBOD)
+   3017             IF(BOD_CALC(IBOD))THEN      
+   3018               CBODCT  = CBODCT+CBOD(K,I,IBOD)*RBOD(IBOD)*BODC(IBOD)                          
+   3019               BODTOT  = BODTOT+CBOD(K,I,IBOD)*RBOD(IBOD)                                             
+   3020             ENDIF
+   3021             IF(BOD_CALCP(IBOD)) THEN                                                
+   3022               CBODPT  = CBODPT+CBODP(K,I,IBOD)*RBOD(IBOD)                                    
+   3023             ELSE 
+   3024               CBODPT  = CBODPT+CBOD(K,I,IBOD)*RBOD(IBOD)*BODP(IBOD)                        
+   3025             END IF
+   3026             IF(BOD_CALCN(IBOD)) THEN                                                
+   3027               CBODNT  = CBODNT+CBODN(K,I,IBOD)*RBOD(IBOD)                                   
+   3028             ELSE 
+   3029               CBODNT  = CBODNT+CBOD(K,I,IBOD)*RBOD(IBOD)*BODN(IBOD)                          
+   3030             END IF
+   3031             IF(CBODS(IBOD)>0.0)TOTSS(K,I) = TOTSS(K,I)+CBOD(K,I,IBOD)/O2OM(JW)               ! SW 9/5/13  Added particulate 
+   3031 CBOD to TSS computation
+   3032           ENDIF
+   3033           END DO
+   3034           IF(ORGC_CALC)THEN
+   3035             DOM(K,I) = (LDOMC(K,I)+RDOMC(K,I))/ORGC(JW)
+   3036             POM(K,I) = (LPOMC(K,I)+RPOMC(K,I))/ORGC(JW)
+   3037           ELSE
+   3038           DOM(K,I) = LDOM(K,I)+RDOM(K,I)
+   3039           POM(K,I) = LPOM(K,I)+RPOM(K,I)
+   3040           END IF
+
+Page 60          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   3041 !
+   3042 !DOC(K,I) = DOM(K,I)*ORGC(JW)+CBODCt             ! cb 6/6/10
+   3043 !POC(K,I) = POM(K,I)*ORGC(JW)
+   3044           DOC(K,I) = LDOC(K,I) + RDOC(K,I) + CBODCT          
+   3045           POC(K,I) = LPOC(K,I) + RPOC(K,I)                 
+   3046           DO JA=1,NAL
+   3047           IF(ALG_CALC(JA))THEN
+   3048             POC(K,I) = POC(K,I)+ALG(K,I,JA)*AC(JA)
+   3049             ALGP     = ALGP+ALG(K,I,JA)*AP(JA)
+   3050             ALGN     = ALGN+ALG(K,I,JA)*AN(JA)
+   3051           ENDIF
+   3052           END DO
+   3053           IF(ZOOPLANKTON_CALC)THEN
+   3054             DO JZ=1,NZP
+   3055                 POC(K,I)=POC(K,I)+ZC(JZ)*ZOO(K,I,JZ) !MLM BAULK
+   3056                 ZOOP=ZOOP+ZOO(K,I,JZ)*ZP(JZ) !SW 3/25/2021
+   3057                 ZOON=ZOON+ZOO(K,I,JZ)*ZN(JZ) !SW 3/25/2021
+   3058                 IF(CDWBC(CBODU_DER,JW)=='      ON')CBODU(K,I) = CBODU(K,I) + O2OM(JW)*ZOO(K,I,JZ)
+   3059                 IF(CDWBC(TOTSS_DER,JW)=='      ON')TOTSS(K,I) = TOTSS(K,I)+ZOO(K,I,JZ)               ! SW 9/5/13  Added zoop
+   3059 lankton to TSS computation
+   3060 	        END DO
+   3061 	      ENDIF
+   3062           TOC(K,I)   = DOC(K,I)+POC(K,I)
+   3063           DOP(K,I)   = LDOP(K,I)+RDOP(K,I)+CBODPT       
+   3064           DON(K,I)   = LDON(K,I)+RDON(K,I)+CBODNT
+   3065           POP(K,I)   = LPOP(K,I)+RPOP(K,I)+ALGP+ZOOP
+   3066           PON(K,I)   = LPON(K,I)+RPON(K,I)+ALGN+ZOON
+   3067 !DOP(K,I)   = LDOM(K,I)*ORGPLD(K,I)+RDOM(K,I)*ORGPRD(K,I)+CBODPT    ! CB 6/6/10
+   3068 !DON(K,I)   = LDOM(K,I)*ORGNLD(K,I)+RDOM(K,I)*ORGNRD(K,I)+CBODNT    ! CB 6/6/10
+   3069 !POP(K,I)   = LPOM(K,I)*ORGPLP(K,I)+RPOM(K,I)*ORGPRP(K,I)+ALGP+ZOOP
+   3070 !PON(K,I)   = LPOM(K,I)*ORGNLP(K,I)+RPOM(K,I)*ORGNRP(K,I)+ALGN+ZOON   !SW 1/29/2019 ZOOP
+   3071           TOP(K,I)   = DOP(K,I)+POP(K,I)
+   3072           TON(K,I)   = DON(K,I)+PON(K,I)
+   3073           TKN(K,I)   = TON(K,I)+NH4(K,I)
+   3074           IF(CDWBC(NH3_DER,JW)=='      ON')NH3(K,I)   = F_NH3(K,I)*NH4(K,I)
+   3075           IF(CDWBC(CBODU_DER,JW)=='      ON')CBODU(K,I) = CBODU(K,I)+O2OM(JW)*(DOM(K,I)+POM(K,I)+ATOT(K,I))+BODTOT
+   3076 !TPSS       = 0.0    PO4 ALREADY INCLUDES PARTP  SR 3/17/2019
+   3077 !DO JS=1,NSS
+   3078 !  TPSS = TPSS+SS(K,I,JS)*PARTP(JW)
+   3079 !END DO
+   3080           TP(K,I)   =  TOP(K,I)+PO4(K,I)     !+TPSS   SR 3/17/2019
+   3081           TN(K,I)   =  TON(K,I)+NH4(K,I)+NO3(K,I)   ! note nh4 is total ammonia including nh3 if ON
+   3082           IF(CDWBC(O2DG_DER,JW)=='      ON')O2DG(K,I) = (O2(K,I)/SATO(T1(K,I),TDS(K,I),PALT(I),SALT_WATER(JW)))*100.0       
+   3082    
+   3083           IF(CDWBC(CHLA_DER,JW)=='      ON')THEN
+   3084             DO JA=1,NAL
+   3085                IF(ALG_CALC(JA))THEN
+   3086                  CHLA(K,I)  = CHLA(K,I) +ALG(K,I,JA)/ACHLA(JA)
+   3087                ENDIF
+   3088             END DO
+   3089           ENDIF
+   3090           IF(CDWBC(TOTSS_DER,JW)=='      ON')THEN
+   3091             DO JA=1,NAL
+   3092               IF(ALG_CALC(JA))THEN
+   3093               TOTSS(K,I) = TOTSS(K,I)+ALG(K,I,JA)
+   3094               ENDIF
+   3095             END DO
+
+Page 61          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+   3096             TOTSS(K,I) = TOTSS(K,I)+TISS(K,I)+POM(K,I)+FEOOH(K,I)+MNO2(K,I)    ! SW 1/29/2025 Added oxidized Fe and Mn to TS
+   3096 S calculation
+   3097           ENDIF
+   3098           IF(CDWBC(TURB_DER,JW)=='      ON')TURB(K,I)    = EXP(CoeffA_Turb(JW)*LOG(TOTSS(K,I)) + CoeffB_Turb(JW))
+   3099           IF(CDWBC(SECCHI_DER,JW)=='      ON')SECCHID(K,I) = SECC_PAR(JW)/GAMMA(K,I)        ! Secchi Disk
+   3100           FE(K,I)      = FEII(K,I) + FEOOH(K,I)         ! Total Fe
+   3101 !IF(CAC(NDGP)== '      ON') TDG(K,I) = 100.*DGP(K,I)/PALT(I)
+   3102         END DO
+   3103       END DO
+   3104     END DO
+   3105   END DO
+   3106 RETURN
+   3107 
+   3108 !********************************************************************************************************************
+   3109 !**                                             A L K A L I N I T Y                                                **
+   3110 !********************************************************************************************************************
+   3111 ENTRY ALKALINITY ! entire subroutine added ! SR 01/01/12
+   3112 ! According to Stumm and Morgan (1996), table 4.5 on page 173:
+   3113 ! Utilization of ammonium during photosynthesis results in an alkalinity decrease: 14 eq. alk per 16 moles ammonium
+   3114 ! Utilization of nitrate during photosynthesis results in an alkalinity increase: 18 eq. alk per 16 moles nitrate
+   3115 ! Production of ammonium during respiration results in an alkalinity increase: 14 eq. alk per 16 moles ammonium
+   3116 ! Nitrification of ammonium results in an alkalinity decrease: 2 eq. alk per 1 mole ammonium
+   3117 ! Denitrification of nitrate (to nitrogen gas) results in an alkalinity increase: 1 eq. alk per 1 mole nitrate
+   3118 ! Alkalinity is represented as mg/L CaCO3 (MW=100.088). CaCO3 has 2 equivalents of alk per mole.
+   3119 ! Nitrogen has an atomic mass of 14.00674. These numbers account for the factor of 50.044/14.00674 used below.
+   3120 
+   3121  
+   3122  DO I=IU,ID
+   3123    DO K=KT,KB(I)
+   3124        if(noncon_alkalinity)then
+   3125      ALKSS(K,I) = (50.044/14.00674) * ( 14./16.*(NH4AP(K,I)+NH4EP(K,I)+NH4ZR(K,I)+NH4MR(K,I)-NH4MG(K,I)) &
+   3126                   + 18./16.*(NO3AG(K,I)+NO3EG(K,I)) &
+   3127                   - 2.*NH4D(K,I) + NO3D(K,I) + NO3SED(K,I)*(1-FNO3SED(JW)) )
+   3128        else
+   3129          alkss(k,i)=0.0   ! NW 2/11/16
+   3130        end if
+   3131    END DO
+   3132  END DO
+   3133  
+   3134 RETURN
+   3135 
+   3136 ENTRY DEALLOCATE_KINETICS
+   3137   DEALLOCATE (OMTRM,  SODTRM, NH4TRM, NO3TRM, DOM, POM, PO4BOD, NH4BOD, TICBOD, ATRM,   ATRMR,  ATRMF, ETRM,   ETRMR,  ETRMF
+   3137 , BIBH2)
+   3138   DEALLOCATE (LAM2M, ALGAE_SETTLING,FE,FEMN_TEMP)       
+   3139   IF(MIGRATION == 'ON')DEALLOCATE (ASETTLE, DEN_AVG, DENP, DEN1, DEN2, ALLIM_OLD, DEN, AMP, PHASE, C_COEFF_EXT, RAD, MIND, M
+   3139 AXD, DENSI, DENBI, T_DEC, C_DENINC, C_DENDEC, DEPTH_LIM, LOSS_FRAC, TWQ, &
+   3140       I_C, C_DENINC_1, C_DENINC_2, C_DENDEC_1, C_DENDEC_2, DENP_MINS, DENP_MINB, DENP_MIN, DEN_COR, MIGRATE_GROUP, MIGRATE_M
+   3140 ODEL, TS_DEC, DEPTH_LIM_ONOFF,&
+   3141       NMINT, MIGON, MIGOFF, LOLD, DEPTH_CALC_ONOFF, EXP_DEPTH)    ! CO 6/12/2019
+   3142     IF(ALGAE_TOXIN)THEN
+   3143       DEALLOCATE(CTP,CTB,IN_TOXIN)
+   3144     ENDIF
+   3145   RETURN
+   3146 END SUBROUTINE KINETICS
+   3147 
+
+Page 62          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+
+Page 63          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:water-quality.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+
+Page 64          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\water-quality.f90
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : water-quality.lst
+  /object:water-quality.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

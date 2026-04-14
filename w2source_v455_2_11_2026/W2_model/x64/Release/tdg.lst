@@ -1,0 +1,299 @@
+Page 1           Source Listing                  TOTAL_DISSOLVED_GAS
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\341801124.i90
+
+      1 # 1 "..\..\..\tdg.f90"
+      2 
+      3 !***************************************************************************************************************************
+      3 ********
+      4 !**                                       S U B R O U T I N E   T O T A L  D I S S O L V E D  G A S                         
+      4       **
+      5 !***************************************************************************************************************************
+      5 ********
+      6 
+      7 SUBROUTINE TOTAL_DISSOLVED_GAS (NSAT,P,NSG,N,T,C)   ! SW 12/1/2025
+      8 !  nsat=0 [do], 1 [N2], 2 [DGP]
+      9 !  P pressure
+     10 !  NSG: gate =1 otherwise spillway (=0)
+     11 !  N: spillway or gate number
+     12 !  T: temperature C
+     13 !  C: Do conc [nsat=0], N2 conc [nsat=1] DGP [nsat=2]
+     14 !  Only called when QGT or QSP are > 0 cms
+     15 !
+     16   USE TDGAS; USE STRUCTURES; USE GLOBAL; USE MAIN, ONLY: EA; USE TVDC, ONLY: TDEW; USE SCREENC, ONLY: JDAY
+     17   IMPLICIT NONE
+     18   INTEGER      :: N, NSG, NSAT
+     19   REAL(R8)     :: T,P,C,CINIT1
+     20   REAL         :: SAT,DB,DA,TDG
+     21 
+     22   IF(NSAT==0)THEN    ! DISSOLVED OXYGEN
+     23       SAT = EXP(7.7117-1.31403*(LOG(T+45.93)))*P
+     24   ELSE IF(NSAT==1)THEN                ! N2 GAS
+     25   EA = DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))*0.001316   ! in mm Hg   0.0098692atm=7.5006151mmHg
+     26    SAT=(1.5568D06*0.79*(P-EA)*(1.8816D-5 - 4.116D-7 * T + 4.6D-9 * T*T))   ! SW 10/27/15    4/20/16 SPEED
+     27   ELSE
+     28     SAT = p    
+     29   ENDIF
+     30   
+     31   IF (NSG == 0) THEN
+     32     IF (EQSP(N) == 1) THEN
+     33       TDG = AGASSP(N)*.035313*QSP(N)+BGASSP(N)
+     34       IF (TDG > 145.0) TDG = 145.0
+     35       C = SAT
+     36       IF (TDG >= 100.0) C = TDG*SAT/100.0    
+     37     ELSE IF (EQSP(N) == 2) THEN
+     38       TDG = AGASSP(N)+BGASSP(N)*EXP(0.035313*QSP(N)*CGASSP(N))
+     39       IF (TDG > 145.0)  TDG = 145.0    
+     40       C = SAT
+     41       IF (TDG >= 100.0) C = TDG*SAT/100.0
+     42     ELSE IF (EQSP(N) == 3) THEN
+     43       DA = SAT-C                                                                               ! MM 5/21/2009 DA: Deficit up
+     43 stream
+     44       DB = DA/(1.0+0.38*AGASSP(N)*BGASSP(N)*CGASSP(N)*(1.0-0.11*CGASSP(N))*(1.0+0.046*T))      ! DB: deficit downstream
+     45       C  = SAT-DB
+     46     ELSE IF (EQSP(N) == 4) THEN  
+     47       C = AGASSP(N) * C
+     48       IF(CGASSP(N)==1  .AND. C > SAT)C= SAT
+     49     ELSE IF (EQSP(N) == 5) THEN  
+     50         CINIT1 = C
+     51       IF(C >= SAT)THEN
+     52           C = SAT
+     53           ELSE
+
+Page 2           Source Listing                  TOTAL_DISSOLVED_GAS
+2026-03-30 08:47                                 ..\..\..\tdg.f90
+
+     54           C = AGASSP(N)+BGASSP(N) * QSP(N) + CGASSP(N) * C + DGASSP(N) *  T   ! SW 12/1/2025
+     55           ENDIF  
+     56           IF(CINIT1 < C)C = CINIT1
+     57     END IF
+     58   ELSE IF (EQGT(N) == 1) THEN
+     59     TDG = AGASGT(N)*0.035313*QGT(N)+BGASGT(N)
+     60     IF (TDG > 145.0) TDG = 145.0
+     61     C = SAT
+     62     IF (TDG >= 100.0) C = TDG*SAT/100.0
+     63   ELSE IF (EQGT(N) == 2) THEN
+     64     TDG = AGASGT(N)+BGASGT(N)*EXP(.035313*QGT(N)*CGASGT(N))
+     65     IF (TDG > 145.0) TDG = 145.0
+     66     C = SAT
+     67     IF (TDG >= 100.0) C = TDG*SAT/100.0
+     68   ELSE IF (EQGT(N) == 3) THEN  
+     69     DA = SAT-C                                                                               ! MM 5/21/2009 DA: Deficit upst
+     69 ream
+     70     DB = DA/(1.0+0.38*AGASGT(N)*BGASGT(N)*CGASGT(N)*(1.0-0.11*CGASGT(N))*(1.0+0.046*T))      ! DB: deficit downstream
+     71     C  = SAT-DB
+     72   ELSE IF (EQGT(N) == 4) THEN  
+     73       C = AGASGT(N) * C  
+     74       IF(CGASGT(N)==1  .AND. C > SAT)C= SAT
+     75   ELSE IF (EQGT(N) == 5) THEN  
+     76 ! DEBUG
+     77       CINIT1 = C
+     78       IF(C >= SAT)THEN
+     79           C= SAT
+     80           ELSE
+     81           C = AGASGT(N)+ BGASGT(N) * QGT(N) + CGASGT(N) * C + DGASGT(N) *  T   ! SW 12/1/2025
+     82       ENDIF
+     83           IF(CINIT1 > C)C = CINIT1
+     84 ! WRITE(22100,'(F12.6,",",I3,",",9(F12.5,","))')JDAY,N,C,CINIT1,SAT,T,QGT(N),AGASGT(N),BGASGT(N),CGASGT(N),DGASGT(N)
+     85   END IF
+     86 END SUBROUTINE TOTAL_DISSOLVED_GAS
+
+Page 3           Source Listing                  TOTAL_DISSOLVED_GAS
+2026-03-30 08:47 Entry Points                    ..\..\..\tdg.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name                
+                                        
+       TOTAL_DISSOLVED_GAS              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ AGASGT                     Local  59       R(4)            4     1     1        ALC              59,64,70,73,81                    
+ AGASSP                     Local  33       R(4)            4     1     1        ALC              33,38,44,47,54                    
+ BGASGT                     Local  59       R(4)            4     1     1        ALC              59,64,70,81                       
+ BGASSP                     Local  33       R(4)            4     1     1        ALC              33,38,44,54                       
+ C                          Dummy  19       R(8)            8           scalar   ARG,INOUT        35,36,40,41,43,45,47,48,50,51,52,5
+                                                                                                  4,56,61,62,66,67,69,71,73,74,77,78
+                                                                                                  ,79,81,83                         
+ CGASGT                     Local  64       R(4)            4     1     1        ALC              64,70,74,81                       
+ CGASSP                     Local  38       R(4)            4     1     1        ALC              38,44,48,54                       
+ CINIT1                     Local  19       R(8)            8           scalar                    50,56,77,83                       
+ DA                         Local  20       R(4)            4           scalar                    43,44,69,70                       
+ DB                         Local  20       R(4)            4           scalar                    44,45,70,71                       
+ DEXP                       Func   25                                   scalar                    25                                
+ DGASGT                     Local  81       R(4)            4     1     1        ALC              81                                
+ DGASSP                     Local  54       R(4)            4     1     1        ALC              54                                
+ EA                         Local  16       R(8)            8           scalar                    16,25,26                          
+ EQGT                       Local  58       I(4)            4     1     1        ALC              58,63,68,72,75                    
+ EQSP                       Local  32       I(4)            4     1     1        ALC              32,37,42,46,49                    
+ EXP                        Func   23                                   scalar                    23,38,64                          
+ GLOBAL                     Module 16                                                             16                                
+ JDAY                       Local  16       R(8)            8           scalar                    16                                
+ JW                         Local  25       I(4)            4           scalar                    25                                
+ LOG                        Func   23                                   scalar                    23                                
+ MAIN                       Module 16                                                             16                                
+ N                          Dummy  18       I(4)            4           scalar   ARG,INOUT        32,33,37,38,42,44,46,47,48,49,54,5
+                                                                                                  8,59,63,64,68,70,72,73,74,75,81   
+ NSAT                       Dummy  18       I(4)            4           scalar   ARG,INOUT        22,24                             
+ NSG                        Dummy  18       I(4)            4           scalar   ARG,INOUT        31                                
+ P                          Dummy  19       R(8)            8           scalar   ARG,INOUT        23,26,28                          
+ QGT                        Local  59       R(8)            8     1     1        ALC              59,64,81                          
+ QSP                        Local  33       R(8)            8     1     1        ALC              33,38,54                          
+ R8                         Param  19       I(4)            4           scalar                    19                                
+ SAT                        Local  20       R(4)            4           scalar                    23,26,28,35,36,40,41,43,45,48,51,5
+                                                                                                  2,61,62,66,67,69,71,74,78,79      
+ SCREENC                    Module 16                                                             16                                
+ STRUCTURES                 Module 16                                                             16                                
+ T                          Dummy  19       R(8)            8           scalar   ARG,INOUT        23,26,44,54,70,81                 
+ TDEW                       Local  16       R(8)            8     1     1        ALC              16,25                             
+ TDG                        Local  20       R(4)            4           scalar                    33,34,36,38,39,41,59,60,62,64,65,6
+                                                                                                  7                                 
+ TDGAS                      Module 16                                                             16                                
+ TOTAL_DISSOLVED_GAS        Subr   7                                                                                                
+ TVDC                       Module 16                                                             16                                
+
+Page 4           Source Listing                  TOTAL_DISSOLVED_GAS
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\tdg.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ TOTAL_DISSOLVED_GAS        Subr   7                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 5           Source Listing                  TOTAL_DISSOLVED_GAS
+2026-03-30 08:47                                 ..\..\..\tdg.f90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:tdg.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 6           Source Listing                  TOTAL_DISSOLVED_GAS
+2026-03-30 08:47                                 ..\..\..\tdg.f90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : tdg.lst
+  /object:tdg.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

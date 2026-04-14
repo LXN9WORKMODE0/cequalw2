@@ -1,0 +1,758 @@
+Page 1           Source Listing                  POROSITY
+2026-03-30 08:48                                 C:\Users\NING\AppData\Local\Temp\341801604.i90
+
+      1 # 1 "..\..\..\macrophyte-aux.f90"
+      2 !************************************************************************
+      3 !**               S U B R O U T I N E    porosity                      **
+      4 !************************************************************************
+      5 
+      6       SUBROUTINE POROSITY
+      7 
+      8       USE GEOMC;USE GLOBAL;USE MACROPHYTEC;USE POROSITYC;USE LOGICC
+      9       USE SCREENC
+     10       IMPLICIT NONE
+     11 
+     12       INTEGER :: K,M,KUP,IEXIT,K1,KDN,IUT
+     13       REAL    :: B11,VSTOT,ELR,ELL,ELL1,ELL2,ELR2,EL1,EL2,ERR1,ERR2
+     14 
+     15     IF(NIT.EQ.0)THEN
+     16 
+     17  1040 FORMAT((8X,I8,3F8.0))
+     18 
+     19       DO JW=1,NWB
+     20         KT = KTWB(JW)
+     21         DO JB=BS(JW),BE(JW)
+     22           IU   = CUS(JB)
+     23           ID   = DS(JB)
+     24           DO I=IU,ID
+     25             DO K=2,KB(I)
+     26               VOLI(K,I) = BH(K,I)*DLX(I)
+     27             END DO
+     28             VOLI(KT,I)    = BH2(KT,I)*DLX(I)
+     29           END DO
+     30         END DO
+     31       END DO
+     32 
+     33     END IF
+     34 
+     35     DO JB=1,NBR
+     36       COSA(JB)=COS(ALPHA(JB))
+     37     END DO
+     38 
+     39 !C  CALCULATING # OF MACROPHYTE STEMS IN EACH CELL
+     40 
+     41     DO JW=1,NWB
+     42       KT = KTWB(JW)
+     43       DO JB=BS(JW),BE(JW)
+     44         IU   = CUS(JB)
+     45         ID   = DS(JB)
+     46         DO I=IU,ID
+     47 !          HKTI  = H(KT,JW)-Z(I)    REPLACED BY H1(KT,I)
+     48           IF(KT.EQ.KTI(I))THEN
+     49             VOLKTI(I)=H1(KT,I)*BIC(KT,I)*DLX(I)
+     50           ELSE
+     51             VOLKTI(I) = BIC(KTI(I),I)*(EL(KT,I)-EL(KTI(I)+1,I)-Z(I)*COSA(JB))/COSA(JB)*DLX(I)
+     52           END IF
+     53           DO K=KTI(I)+1,KT
+     54             VOLKTI(I) = VOLKTI(I)+VOLI(K,I)
+     55           END DO
+     56 
+     57           DO M=1,NMC
+
+Page 2           Source Listing                  POROSITY
+2026-03-30 08:48                                 ..\..\..\macrophyte-aux.f90
+
+     58             VSTEMKT(I,M)=(MAC(KT,I,M)*VOLKTI(I))/DWV(M)    !CB 6/29/06
+     59           END DO
+     60 
+     61           DO K=KT+1,KB(I)
+     62             DO M=1,NMC
+     63               VSTEM(K,I,M)=(MAC(K,I,M)*VOLI(K,I))/DWV(M)   !CB 6/29/06
+     64             END DO
+     65           END DO
+     66         END DO
+     67       END DO
+     68     END DO
+     69 
+     70     POR=1.0
+     71     DO JW=1,NWB
+     72       KT = KTWB(JW)
+     73       DO JB=BS(JW),BE(JW)
+     74         IU = CUS(JB)
+     75         ID = DS(JB)
+     76 
+     77         DO I=IU,ID
+     78           DO K=KT,KB(I)
+     79             IF(K.EQ.KT)THEN
+     80               VSTOT=0.0
+     81               DO M=1,NMC
+     82                   VSTOT=VSTOT+VSTEMKT(I,M)
+     83               END DO
+     84               POR(KT,I)=(VOLKTI(I)-VSTOT)/VOLKTI(I)
+     85             ELSE
+     86               VSTOT=0.0
+     87               DO M=1,NMC
+     88                 VSTOT=VSTOT+VSTEM(K,I,M)
+     89               END DO
+     90               POR(K,I)=(VOLI(K,I)-VSTOT)/VOLI(K,I)
+     91             END IF
+     92           END DO
+     93         END DO
+     94 
+     95         DO I=IU,ID
+     96           DO K=KTI(I),KB(I)
+     97             IF(K.LE.KT)THEN
+     98               B(K,I)=POR(KT,I)*BIC(K,I)
+     99             ELSE
+    100               B(K,I)=POR(K,I)*BIC(K,I)
+    101             END IF
+    102 
+    103           END DO
+    104         END DO
+    105 
+    106       END DO
+    107     END DO
+    108 
+    109 
+    110 
+    111 ! BOUNDARY WIDTHS
+    112 
+    113   DO JW=1,NWB
+    114     KT = KTWB(JW)
+
+Page 3           Source Listing                  POROSITY
+2026-03-30 08:48                                 ..\..\..\macrophyte-aux.f90
+
+    115     DO JB=BS(JW),BE(JW)
+    116       IU = US(JB)
+    117       ID = DS(JB)
+    118       DO I=IU-1,ID+1
+    119         B(1,I) = B(2,I)
+    120         DO K=KB(I)+1,KMX
+    121           B(K,I) = B(KB(I),I)
+    122         END DO
+    123       END DO
+    124     END DO
+    125   END DO
+    126   DO JW=1,NWB
+    127     KT = KTWB(JW)
+    128     DO JB=BS(JW),BE(JW)
+    129       IU    = US(JB)
+    130       ID    = DS(JB)
+    131       IEXIT = 0
+    132       DO K=1,KMX-1
+    133         B(K,IU-1) = B(K,IU)
+    134         IF (UH_INTERNAL(JB) .OR. HEAD_FLOW(JB)) THEN
+    135           IF (JBUH(JB) >= BS(JW) .AND. JBUH(JB) <= BE(JW)) THEN
+    136             B(K,IU-1) = B(K,UHS(JB))
+    137           ELSE
+    138             ELR = EL(K,IU)+SINA(JB)*DLX(IU)*0.5
+    139             ELL = EL(2,UHS(JB))-SINA(JBUH(JB))*DLX(UHS(JB))*0.5
+    140             IF (ELR >= ELL) THEN
+    141               B(K,IU-1) = B(2,UHS(JB))
+    142             ELSE
+    143               DO KUP=2,KMX-1
+    144                 ELL1 = EL(KUP,UHS(JB))-SINA(JBUH(JB))*DLX(UHS(JB))*0.5
+    145                 ELL2 = EL(KUP+1,UHS(JB))-SINA(JBUH(JB))*DLX(UHS(JB))*0.5
+    146                 IF (ELL1 > ELR .AND. ELL2 <= ELR) THEN
+    147                   IF (KUP > KB(UHS(JB))) THEN
+    148                     KB(IU-1)    = K-1
+    149                     KBMIN(IU-1) = MIN(KB(IU),KB(IU-1))
+    150                     IEXIT       = 1
+    151                     EXIT
+    152                   END IF
+    153                   ELR2 = EL(K+1,IU)+SINA(JB)*DLX(IU)*0.5
+    154                   IF (ELR2 >= ELL2) THEN
+    155                     B(K,IU-1) = B(KUP,UHS(JB)); EXIT
+    156                   ELSE
+    157                     K1 = KUP+1
+    158                     IF (K1 > KMX) EXIT
+    159                     B11 = 0.0
+    160                     EL1 = ELR
+    161                     EL2 = EL(K1,UHS(JB))-SINA(JBUH(JB))*DLX(IU)*0.5
+    162                     DO WHILE (ELR2 <= EL2)
+    163                       B11 = B11+(EL1-EL2)*B(K1-1,UHS(JB))
+    164                       EL1 = EL2
+    165                       K1  = K1+1
+    166                       IF (K1 >= KMX+1 .OR. EL2 == ELR2) EXIT
+    167                       EL2 = EL(K1,UHS(JB))-SINA(JBUH(JB))*DLX(UHS(JB))*0.5
+    168                       IF (EL2 <= ELR2) EL2 = ELR2
+    169                     END DO
+    170                     B(K,IU-1) = B11/H(K,JW); EXIT
+    171                   END IF
+
+Page 4           Source Listing                  POROSITY
+2026-03-30 08:48                                 ..\..\..\macrophyte-aux.f90
+
+    172                 END IF
+    173               END DO
+    174               IF (EL(KMX,UHS(JB)) > EL(K,IU)) B(K,IU-1) = B(K-1,IU-1)
+    175               IF (B(K,IU-1) == 0.0) B(K,IU-1) = B(K-1,IU-1)
+    176               IF (IEXIT == 1) EXIT
+    177             END IF
+    178           END IF
+    179         END IF
+    180       END DO
+    181       IEXIT = 0
+    182       DO K=1,KMX-1
+    183         B(K,ID+1) = B(K,ID)
+    184         IF (DH_INTERNAL(JB)) THEN
+    185           IF (JBDH(JB) >= BS(JW) .AND. JBDH(JB) <= BE(JW)) THEN
+    186             B(K,ID+1) = B(K,DHS(JB))
+    187           ELSE
+    188             ELL = EL(K,ID)-SINA(JB)*DLX(ID)*0.5
+    189             ELR = EL(2,DHS(JB))+SINA(JBDH(JB))*DLX(DHS(JB))*0.5
+    190             IF (ELL >= ELR) THEN
+    191               B(K,ID+1) = B(2,DHS(JB))
+    192             ELSE
+    193               DO KDN=2,KMX-1
+    194                 ERR1 = EL(KDN,DHS(JB))  +SINA(JBDH(JB))*DLX(DHS(JB))*0.5
+    195                 ERR2 = EL(KDN+1,DHS(JB))+SINA(JBDH(JB))*DLX(DHS(JB))*0.5
+    196                 IF (ERR1 >= ELL .AND. ERR2 < ELL) THEN
+    197                   IF (KDN > KB(DHS(JB))) THEN
+    198                     KB(ID+1)  = K-1
+    199                     KBMIN(ID) = MIN(KB(ID),KB(ID+1))
+    200                     IEXIT     = 1
+    201                     EXIT
+    202                   END IF
+    203                   ELL2 = EL(K+1,ID)-SINA(JB)*DLX(ID)*0.5
+    204                   IF (ELL2 >= ERR2) THEN
+    205                     B(K,ID+1) = B(KDN,DHS(JB)); EXIT
+    206                   ELSE
+    207                     K1  = KDN+1
+    208                     IF (K1 > KMX) EXIT
+    209                     B11 = 0.0
+    210                     EL2 = ELL
+    211                     EL1 = EL(K1,DHS(JB))+SINA(JBDH(JB))*DLX(DHS(JB))*0.5
+    212                     DO WHILE (ELL2 <= EL1)
+    213                       B11 = B11+(EL2-EL1)*B(K1-1,DHS(JB))
+    214                       EL2 = EL1
+    215                       K1  = K1+1
+    216                       IF (K1 >= KMX+1 .OR. EL1 == ELL2) EXIT
+    217                       EL1 = EL(K1,DHS(JB))+SINA(JBDH(JB))*DLX(DHS(JB))*0.5
+    218                       IF (EL1 <= ELL2) EL1 = ELL2
+    219                     END DO
+    220                     B(K,ID+1) = B11/H(K,JW); EXIT
+    221                   END IF
+    222                 END IF
+    223               END DO
+    224               IF (EL(KMX,DHS(JB)) > EL(K,ID)) B(K,ID+1) = B(K-1,ID+1)
+    225               IF (B(K,ID+1) == 0.0) B(K,ID+1) = B(K-1,ID+1)
+    226               IF (IEXIT == 1) EXIT
+    227             END IF
+    228           END IF
+
+Page 5           Source Listing                  POROSITY
+2026-03-30 08:48                                 ..\..\..\macrophyte-aux.f90
+
+    229         END IF
+    230       END DO
+    231 
+    232 !**** AREAS AND BOTTOM WIDTHS
+    233 
+    234       IF (.NOT. TRAPEZOIDAL(JW)) THEN                                                                                  !SW 0
+    234 7/16/04
+    235         DO I=IU-1,ID+1
+    236           DO K=1,KMX-1
+    237             BH2(K,I) = B(K,I)*H(K,JW)
+    238             BH(K,I)  = B(K,I)*H(K,JW)
+    239             BB(K,I)  = B(K,I)-(B(K,I)-B(K+1,I))/(0.5*(H(K,JW)+H(K+1,JW)))*H(K,JW)*0.5                                  !SW 0
+    239 8/02/04
+    240           END DO
+    241           BH(KMX,I) = BH(KMX-1,I)
+    242         END DO
+    243 !****** DERIVED GEOMETRY
+    244 
+    245         DO I=IU-1,ID+1
+    246           BH2(KT,I) = B(KTI(I),I)*(EL(KT,I)-EL(KTI(I)+1,I)-Z(I)*COSA(JB))/COSA(JB)
+    247           IF (KT == KTI(I)) BH2(KT,I) = H2(KT,I)*B(KT,I)
+    248           DO K=KTI(I)+1,KT
+    249             BH2(KT,I) = BH2(KT,I)+BH(K,I)
+    250           END DO
+    251           BKT(I)   = BH2(KT,I)/H2(KT,I)
+    252           BI(KT,I) = B(KTI(I),I)
+    253         END DO
+    254       ELSE                                                                                                             !SW 0
+    254 7/16/04
+    255         DO I=IU-1,ID+1
+    256           DO K=1,KMX-1
+    257             BB(K,I)  = B(K,I)-(B(K,I)-B(K+1,I))/(0.5*(H(K,JW)+H(K+1,JW)))*H(K,JW)*0.5
+    258           END DO
+    259           BB(KB(I),I) = B(KB(I),I)*0.5
+    260           BH2(1,I)    = B(1,I)*H(1,JW)
+    261           BH(1,I)     = BH2(1,I)
+    262           DO K=2,KMX-1
+    263             BH2(K,I) = 0.25*H(K,JW)*(BB(K-1,I)+2.*B(K,I)+BB(K,I))
+    264             BH(K,I)  = BH2(K,I)
+    265           END DO
+    266           BH(KMX,I) = BH(KMX-1,I)
+    267         END DO
+    268         DO I=IU-1,ID+1
+    269           CALL GRID_AREA1(EL(KT,I)-Z(I),EL(KT+1,I),BH2(KT,I),BI(KT,I))
+    270           BKT(I) = BH2(KT,I)/H2(KT,I)
+    271         END DO
+    272       END IF
+    273       DO I=IU-1,ID
+    274         DO K=1,KMX-1
+    275           AVH2(K,I) = (H2(K,I) +H2(K+1,I)) *0.5
+    276           AVHR(K,I) =  H2(K,I)+(H2(K,I+1)-H2(K,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                                  !SW 0
+    276 7/29/04
+    277         END DO
+    278         AVH2(KMX,I) = H2(KMX,I)
+    279         DO K=1,KMX
+    280           BR(K,I)   = B(K,I)  +(B(K,I+1)  -B(K,I))  /(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                                !SW 0
+    280 7/29/04
+
+Page 6           Source Listing                  POROSITY
+2026-03-30 08:48                                 ..\..\..\macrophyte-aux.f90
+
+    281           BHR(K,I)  = BH(K,I) +(BH(K,I+1) -BH(K,I)) /(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                                !SW 0
+    281 7/29/04
+    282           BHR2(K,I) = BH2(K,I)+(BH2(K,I+1)-BH2(K,I))/(0.5*(DLX(I)+DLX(I+1)))*0.5*DLX(I)                                !SW 0
+    282 7/29/04
+    283            IF(CONSTRICTION(K,I))THEN    ! SW 6/26/2018
+    284               IF(BR(K,I) > BCONSTRICTION(I))          BR(K,I)  = BCONSTRICTION(I)
+    285               IF(BHR(K,I) > BCONSTRICTION(I)*H(K,JW)) BHR(K,I) = BCONSTRICTION(I)*H(K,JW)
+    286               IF(BHR2(K,I) > BCONSTRICTION(I)*H(K,JW))BHR2(K,I)= BCONSTRICTION(I)*H(K,JW)
+    287           ENDIF
+    288 
+    289         END DO
+    290       END DO
+    291       DO K=1,KMX-1
+    292         AVH2(K,ID+1) = (H2(K,ID+1)+H2(K+1,ID+1))*0.5
+    293         BR(K,ID+1)   =   B(K,ID+1)
+    294         BHR(K,ID+1)  =   BH(K,ID+1)
+    295       END DO
+    296       AVH2(KMX,ID+1) = H2(KMX,ID+1)
+    297       AVHR(KT,ID+1)  = H2(KT,ID+1)
+    298       BHR2(KT,ID+1)  = BH2(KT,ID+1)
+    299       IUT = IU
+    300       IF (UP_HEAD(JB)) IUT = IU-1
+    301       DO I=IUT,ID
+    302         DO K=1,KMX-1
+    303           VOL(K,I) = B(K,I)*H2(K,I)*DLX(I)
+    304         END DO
+    305         VOL(KT,I)    = BH2(KT,I)*DLX(I)
+    306         DEPTHB(KT,I) = H2(KT,I)
+    307         DEPTHM(KT,I) = H2(KT,I)*0.5
+    308         DO K=KT+1,KMX
+    309           DEPTHB(K,I) = DEPTHB(K-1,I)+ H2(K,I)
+    310           DEPTHM(K,I) = DEPTHM(K-1,I)+(H2(K-1,I)+H2(K,I))*0.5
+    311         END DO
+    312       END DO
+    313     END DO
+    314   END DO
+    315 
+    316 10 CONTINUE
+    317 
+    318     RETURN
+    319     END SUBROUTINE POROSITY
+
+Page 7           Source Listing                  POROSITY
+2026-03-30 08:48 Entry Points                    ..\..\..\macrophyte-aux.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name     
+                             
+       POROSITY              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 10                         Label  316                                                                                              
+ 1040                       Label  17                                                                                               
+ ALPHA                      Local  36       R(8)            8     1     1        ALC              36                                
+ AVH2                       Local  275      R(8)            8     2     1        ALC              275,278,292,296                   
+ AVHR                       Local  276      R(8)            8     2     1        ALC              276,297                           
+ B                          Local  98       R(8)            8     2     1        ALC              98,100,119,121,133,136,141,155,163
+                                                                                                  ,170,174,175,183,186,191,205,213,2
+                                                                                                  20,224,225,237,238,239,246,247,252
+                                                                                                  ,257,259,260,263,280,293,303      
+ B11                        Local  13       R(4)            4           scalar                    159,163,170,209,213,220           
+ BB                         Local  239      R(8)            8     2     1        ALC              239,257,259,263                   
+ BCONSTRICTION              Local  284      R(8)            8     1     1        ALC              284,285,286                       
+ BE                         Local  21       I(4)            4     1     1        ALC              21,43,73,115,128,135,185          
+ BH                         Local  26       R(8)            8     2     1        ALC              26,238,241,249,261,264,266,281,294
+ BH2                        Local  28       R(8)            8     2     1        ALC              28,237,246,247,249,251,260,261,263
+                                                                                                  ,264,269,270,282,298,305          
+ BHR                        Local  281      R(8)            8     2     1        ALC              281,285,294                       
+ BHR2                       Local  282      R(8)            8     2     1        ALC              282,286,298                       
+ BI                         Local  252      R(8)            8     2     1        ALC              252,269                           
+ BIC                        Local  49       R(4)            4     2     1        ALC              49,51,98,100                      
+ BKT                        Local  251      R(8)            8     1     1        ALC              251,270                           
+ BR                         Local  280      R(8)            8     2     1        ALC              280,284,293                       
+ BS                         Local  21       I(4)            4     1     1        ALC              21,43,73,115,128,135,185          
+ CONSTRICTION               Local  283      L(4)            4     2     1        ALC              283                               
+ COS                        Func   36                                   scalar                    36                                
+ COSA                       Local  36       R(8)            8     1     1        ALC              36,51,246                         
+ CUS                        Local  22       I(4)            4     1     1        ALC              22,44,74                          
+ DEPTHB                     Local  306      R(8)            8     2     1        ALC              306,309                           
+ DEPTHM                     Local  307      R(8)            8     2     1        ALC              307,310                           
+ DHS                        Local  186      I(4)            4     1     1        ALC              186,189,191,194,195,197,205,211,21
+                                                                                                  3,217,224                         
+ DH_INTERNAL                Local  184      L(4)            4     1     1        ALC              184                               
+ DLX                        Local  26       R(8)            8     1     1        ALC              26,28,49,51,138,139,144,145,153,16
+                                                                                                  1,167,188,189,194,195,203,211,217,
+                                                                                                  276,280,281,282,303,305           
+ DS                         Local  23       I(4)            4     1     1        ALC              23,45,75,117,130                  
+ DWV                        Local  58       R(4)            4     1     1        ALC              58,63                             
+ EL                         Local  51       R(8)            8     2     1        ALC              51,138,139,144,145,153,161,167,174
+                                                                                                  ,188,189,194,195,203,211,217,224,2
+                                                                                                  46,269                            
+ EL1                        Local  13       R(4)            4           scalar                    160,163,164,211,212,213,214,216,21
+                                                                                                  7,218                             
+ EL2                        Local  13       R(4)            4           scalar                    161,162,163,164,166,167,168,210,21
+                                                                                                  3,214                             
+
+Page 8           Source Listing                  POROSITY
+2026-03-30 08:48 Symbol Table                    ..\..\..\macrophyte-aux.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ELL                        Local  13       R(4)            4           scalar                    139,140,188,190,196,210           
+ ELL1                       Local  13       R(4)            4           scalar                    144,146                           
+ ELL2                       Local  13       R(4)            4           scalar                    145,146,154,203,204,212,216,218   
+ ELR                        Local  13       R(4)            4           scalar                    138,140,146,160,189,190           
+ ELR2                       Local  13       R(4)            4           scalar                    153,154,162,166,168               
+ ERR1                       Local  13       R(4)            4           scalar                    194,196                           
+ ERR2                       Local  13       R(4)            4           scalar                    195,196,204                       
+ GEOMC                      Module 8                                                              8                                 
+ GLOBAL                     Module 8                                                              8                                 
+ GRID_AREA1                 Subr   269                                                            269                               
+ H                          Local  170      R(8)            8     2     1        ALC              170,220,237,238,239,257,260,263,28
+                                                                                                  5,286                             
+ H1                         Local  49       R(8)            8     2     1        ALC              49                                
+ H2                         Local  247      R(8)            8     2     1        ALC              247,251,270,275,276,278,292,296,29
+                                                                                                  7,303,306,307,309,310             
+ HEAD_FLOW                  Local  134      L(4)            4     1     1        ALC              134                               
+ I                          Local  24       I(4)            4           scalar                    24,25,26,28,46,48,49,51,53,54,58,6
+                                                                                                  1,63,77,78,82,84,88,90,95,96,98,10
+                                                                                                  0,118,119,120,121,235,237,238,239,
+                                                                                                  241,245,246,247,248,249,251,252,25
+                                                                                                  5,257,259,260,261,263,264,266,268,
+                                                                                                  269,270,273,275,276,278,280,281,28
+                                                                                                  2,283,284,285,286,301,303,305,306,
+                                                                                                  307,309,310                       
+ ID                         Local  23       I(4)            4           scalar                    23,24,45,46,75,77,95,117,118,130,1
+                                                                                                  83,186,188,191,198,199,203,205,220
+                                                                                                  ,224,225,235,245,255,268,273,292,2
+                                                                                                  93,294,296,297,298,301            
+ IEXIT                      Local  12       I(4)            4           scalar                    131,150,176,181,200,226           
+ IU                         Local  22       I(4)            4           scalar                    22,24,44,46,74,77,95,116,118,129,1
+                                                                                                  33,136,138,141,148,149,153,155,161
+                                                                                                  ,170,174,175,235,245,255,268,273,2
+                                                                                                  99,300                            
+ IUT                        Local  12       I(4)            4           scalar                    299,300,301                       
+ JB                         Local  21       I(4)            4           scalar                    21,22,23,35,36,43,44,45,51,73,74,7
+                                                                                                  5,115,116,117,128,129,130,134,135,
+                                                                                                  136,138,139,141,144,145,147,153,15
+                                                                                                  5,161,163,167,174,184,185,186,188,
+                                                                                                  189,191,194,195,197,203,205,211,21
+                                                                                                  3,217,224,246,300                 
+ JBDH                       Local  185      I(4)            4     1     1        ALC              185,189,194,195,211,217           
+ JBUH                       Local  135      I(4)            4     1     1        ALC              135,139,144,145,161,167           
+ JW                         Local  19       I(4)            4           scalar                    19,20,21,41,42,43,71,72,73,113,114
+                                                                                                  ,115,126,127,128,135,170,185,220,2
+                                                                                                  34,237,238,239,257,260,263,285,286
+ K                          Local  12       I(4)            4           scalar                    25,26,53,54,61,63,78,79,88,90,96,9
+                                                                                                  7,98,100,120,121,132,133,136,138,1
+                                                                                                  41,148,153,155,170,174,175,182,183
+                                                                                                  ,186,188,191,198,203,205,220,224,2
+                                                                                                  25,236,237,238,239,248,249,256,257
+                                                                                                  ,262,263,264,274,275,276,279,280,2
+                                                                                                  81,282,283,284,285,286,291,292,293
+                                                                                                  ,294,302,303,308,309,310          
+ K1                         Local  12       I(4)            4           scalar                    157,158,161,163,165,166,167,207,20
+                                                                                                  8,211,213,215,216,217             
+
+Page 9           Source Listing                  POROSITY
+2026-03-30 08:48 Symbol Table                    ..\..\..\macrophyte-aux.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ KB                         Local  25       I(4)            4     1     1        ALC              25,61,78,96,120,121,147,148,149,19
+                                                                                                  7,198,199,259                     
+ KBMIN                      Local  149      I(4)            4     1     1        ALC              149,199                           
+ KDN                        Local  12       I(4)            4           scalar                    193,194,195,197,205,207           
+ KMX                        Local  120      I(4)            4           scalar                    120,132,143,158,166,174,182,193,20
+                                                                                                  8,216,224,236,241,256,262,266,274,
+                                                                                                  278,279,291,296,302,308           
+ KT                         Local  20       I(4)            4           scalar                    20,28,42,48,49,51,53,58,61,72,78,7
+                                                                                                  9,84,97,98,114,127,246,247,248,249
+                                                                                                  ,251,252,269,270,297,298,305,306,3
+                                                                                                  07,308                            
+ KTI                        Local  48       I(4)            4     1     1        ALC              48,51,53,96,246,247,248,252       
+ KTWB                       Local  20       I(4)            4     1     1        ALC              20,42,72,114,127                  
+ KUP                        Local  12       I(4)            4           scalar                    143,144,145,147,155,157           
+ LOGICC                     Module 8                                                              8                                 
+ M                          Local  12       I(4)            4           scalar                    57,58,62,63,81,82,87,88           
+ MAC                        Local  58       R(4)            4     3     1        ALC              58,63                             
+ MACROPHYTEC                Module 8                                                              8                                 
+ MIN                        Func   149                                  scalar                    149,199                           
+ NBR                        Local  35       I(4)            4           scalar                    35                                
+ NIT                        Local  15       I(4)            4           scalar                    15                                
+ NMC                        Local  57       I(4)            4           scalar                    57,62,81,87                       
+ NWB                        Local  19       I(4)            4           scalar                    19,41,71,113,126                  
+ POR                        Local  70       R(4)            4     2     1        ALC              70,84,90,98,100                   
+ POROSITY                   Subr   6                                                                                                
+ POROSITYC                  Module 8                                                              8                                 
+ SCREENC                    Module 9                                                              9                                 
+ SINA                       Local  138      R(8)            8     1     1        ALC              138,139,144,145,153,161,167,188,18
+                                                                                                  9,194,195,203,211,217             
+ TRAPEZOIDAL                Local  234      L(4)            4     1     1        ALC              234                               
+ UHS                        Local  136      I(4)            4     1     1        ALC              136,139,141,144,145,147,155,161,16
+                                                                                                  3,167,174                         
+ UH_INTERNAL                Local  134      L(4)            4     1     1        ALC              134                               
+ UP_HEAD                    Local  300      L(4)            4     1     1        ALC              300                               
+ US                         Local  116      I(4)            4     1     1        ALC              116,129                           
+ VOL                        Local  303      R(8)            8     2     1        ALC              303,305                           
+ VOLI                       Local  26       R(4)            4     2     1        ALC              26,28,54,63,90                    
+ VOLKTI                     Local  49       R(4)            4     1     1        ALC              49,51,54,58,84                    
+ VSTEM                      Local  63       R(4)            4     3     1        ALC              63,88                             
+ VSTEMKT                    Local  58       R(4)            4     2     1        ALC              58,82                             
+ VSTOT                      Local  13       R(4)            4           scalar                    80,82,84,86,88,90                 
+ Z                          Local  51       R(8)            8     1     1        ALC              51,246,269                        
+
+Page 10          Source Listing                  POROSITY
+2026-03-30 08:48                                 ..\..\..\macrophyte-aux.f90
+
+    320 
+    321 !************************************************************************
+    322 !**               S U B R O U T I N E    MACROPHYTE_FRICTION           **
+    323 !************************************************************************
+    324 
+    325     SUBROUTINE MACROPHYTE_FRICTION(HRAD,BEDFR,EFFRIC,K,II)
+    326 
+    327     USE GEOMC;USE GLOBAL;USE MACROPHYTEC;USE POROSITYC
+    328     IMPLICIT NONE
+    329       INTEGER :: K,M,II
+    330       REAL(R8) :: BEDFR, EFFRIC, HRAD
+    331       REAL     :: SAVOLRAT,XSAREA,TSAREA,ARTOT,SCTOT,CDAVG,FRIN
+    332 
+    333   DO M=1,NMC
+    334     SAVOLRAT=DWV(M)/DWSA(M)     !CB 6/29/2006
+    335     IF(K.EQ.KT)THEN
+    336 !      SAREA(M)=VSTEMKT(II,M)*SAVOLRAT/PI
+    337       SAREA(M)=VSTEMKT(II,M)*SAVOLRAT*ANORM(M)     !CB 6/29/2006
+    338     ELSE
+    339 !      SAREA(M)=VSTEM(K,II,M)*SAVOLRAT/PI
+    340       SAREA(M)=VSTEM(K,II,M)*SAVOLRAT*ANORM(M)     !CB 6/29/2006
+    341     END IF
+    342   END DO
+    343   XSAREA=BH2(K,II)
+    344 
+    345   TSAREA=0.0
+    346   ARTOT=0.0
+    347   SCTOT=0.0
+    348   DO M=1,NMC
+    349     ARTOT=ARTOT+SAREA(M)
+    350     SCTOT=SCTOT+CDDRAG(M)*SAREA(M)
+    351     TSAREA=TSAREA+SAREA(M)
+    352   END DO
+    353 
+    354   IF(ARTOT.GT.0.0)THEN
+    355     CDAVG=SCTOT/ARTOT
+    356     FRIN=CDAVG*TSAREA*HRAD**(4./3.)/(2.0*G*XSAREA*DLX(II)*BEDFR**2)
+    357     EFFRIC=BEDFR*SQRT(1.0+FRIN)
+    358   ELSE
+    359     EFFRIC=BEDFR
+    360   END IF
+    361 
+    362   RETURN
+    363   END SUBROUTINE MACROPHYTE_FRICTION
+
+Page 11          Source Listing                  MACROPHYTE_FRICTION
+2026-03-30 08:48 Entry Points                    ..\..\..\macrophyte-aux.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name                
+                                        
+       MACROPHYTE_FRICTION              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ANORM                      Local  337      R(4)            4     1     1        ALC              337,340                           
+ ARTOT                      Local  331      R(4)            4           scalar                    346,349,354,355                   
+ BEDFR                      Dummy  330      R(8)            8           scalar   ARG,INOUT        356,357,359                       
+ BH2                        Local  343      R(8)            8     2     1        ALC              343                               
+ CDAVG                      Local  331      R(4)            4           scalar                    355,356                           
+ CDDRAG                     Local  350      R(4)            4     1     1        ALC              350                               
+ DLX                        Local  356      R(8)            8     1     1        ALC              356                               
+ DWSA                       Local  334      R(4)            4     1     1        ALC              334                               
+ DWV                        Local  334      R(4)            4     1     1        ALC              334                               
+ EFFRIC                     Dummy  330      R(8)            8           scalar   ARG,INOUT        357,359                           
+ FRIN                       Local  331      R(4)            4           scalar                    356,357                           
+ G                          Local  356      R(8)            8           scalar                    356                               
+ GEOMC                      Module 327                                                            327                               
+ GLOBAL                     Module 327                                                            327                               
+ HRAD                       Dummy  330      R(8)            8           scalar   ARG,INOUT        356                               
+ II                         Dummy  329      I(4)            4           scalar   ARG,INOUT        337,340,343,356                   
+ K                          Dummy  329      I(4)            4           scalar   ARG,INOUT        335,340,343                       
+ KT                         Local  335      I(4)            4           scalar                    335                               
+ M                          Local  329      I(4)            4           scalar                    333,334,337,340,348,349,350,351   
+ MACROPHYTEC                Module 327                                                            327                               
+ MACROPHYTE_FRICTION        Subr   325                                                                                              
+ NMC                        Local  333      I(4)            4           scalar                    333,348                           
+ POROSITYC                  Module 327                                                            327                               
+ R8                         Param  330      I(4)            4           scalar                    330                               
+ SAREA                      Local  337      R(4)            4     1     1        ALC              337,340,349,350,351               
+ SAVOLRAT                   Local  331      R(4)            4           scalar                    334,337,340                       
+ SCTOT                      Local  331      R(4)            4           scalar                    347,350,355                       
+ SQRT                       Func   357                                  scalar                    357                               
+ TSAREA                     Local  331      R(4)            4           scalar                    345,351,356                       
+ VSTEM                      Local  340      R(4)            4     3     1        ALC              340                               
+ VSTEMKT                    Local  337      R(4)            4     2     1        ALC              337                               
+ XSAREA                     Local  331      R(4)            4           scalar                    343,356                           
+
+Page 12          Source Listing                  MACROPHYTE_FRICTION
+2026-03-30 08:48 Subprograms/Common Blocks       ..\..\..\macrophyte-aux.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ MACROPHYTE_FRICTION        Subr   325                                                                                              
+ POROSITY                   Subr   6                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+
+Page 13          Source Listing                  MACROPHYTE_FRICTION
+2026-03-30 08:48                                 ..\..\..\macrophyte-aux.f90
+
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:macrophyte-aux.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+
+Page 14          Source Listing                  MACROPHYTE_FRICTION
+2026-03-30 08:48                                 ..\..\..\macrophyte-aux.f90
+
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : macrophyte-aux.lst
+  /object:macrophyte-aux.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

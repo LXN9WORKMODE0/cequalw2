@@ -1,0 +1,180 @@
+{gate-spill-pipe是描述水如何通过水工建筑物的，TDG是计算水工建筑物如何运行才能达到设定的下泄水气体饱和度目标的，withdrawal我不是很清楚其作用。在我看来，因为我是想做水温的水动力模拟的，因此TDG这个可以完整剥离掉，因为现在其依赖的气体模块应该已经没了。先设计个plan。}
+
+{我先把 withdrawal 在当前树里的职责和 TDG、gate-spill-pipe 的实际耦合关系再核一遍，确认 Stage 4 是“只剥离 TDG”还是会连带影响结构流量和温控取水，再给你一个可直接执行的计划。
+
+
+Ran 3 commands
+我已经确认两件关键事实：当前支持 baseline 的 w2_con.csv 里 NGT=20、SELECTC=OFF、NWD=0，也就是说现在跑通的案例确实依赖闸门流量，但不依赖选择性取水；而 withdrawal.f90 不只是“温控目标”，它同时承载了通用的取水/退水结构计算入口。我要把这部分读透，再问你最后一个会改变 Stage 4 边界的问题。
+
+
+Ran 3 commands
+我已经确认 withdrawal.f90 不是纯“温控目标模块”，它有两层职责：一层是通用的 DOWNSTREAM_WITHDRAWAL / LATERAL_WITHDRAWAL 结构取排水计算，另一层才是 SELECTIVE* 温度目标控制。gate-spill-pipe.f90 负责闸门/溢洪道/管道流量，TDG* 则是叠加在这些结构运行上的气体饱和度控制。接下来只剩两个会改变 Stage 4 范围的产品决策。
+
+我再把 TDG 在当前树里的残余耦合和对 package/case 的影响扫一遍，主要确认三点：移除 TDG 后要不要改输入契约、要不要停发 TDG 输出文件、以及 withdrawal 里哪些分支只是在 TDG 打开时才生效。然后我给你最终 Stage 4 计划。
+
+
+Ran 5 commands
+我已经把 Stage 4 的技术边界压到一个很具体的点了：如果“保留结构流量、保留 withdrawal 核心+温控、完整剥离 TDG”，那真正还缺一个产品层决定，就是最终 package/case 合同要不要继续容忍旧的 TDG 输入痕迹。因为当前支持 case 里还带着 w2_systdg.npt、w2_TDGtarget.csv、以及 GATE GAS / SYSTDG 相关注释。}
+
+{# Stage 4 计划：保留结构流量与温控取水，完整剥离 TDG 并收紧交付契约
+
+## Summary
+- 最终边界固定为：保留 `gate-spill-pipe` 结构流量、保留 `withdrawal` 核心与 `SELECTIVE*` 温控取水，完整移除 TDG 功能链。
+- 交付契约采用“强收缩契约”：最终 package、文档、支持 case 都改成无 TDG；旧 case 如果仍带 TDG 配置或 TDG 文件，视为不支持并尽早报错，不再做兼容忽略。
+- 本阶段不再动水质主链，因为 Stage 3 已完成；本阶段的核心是“结构保留、TDG剥离、case/package 重定义”。
+
+## Key Changes
+- 运行时边界：
+  - 保留闸门、溢洪道、管道与结构取排水的水动力计算。
+  - 保留 `withdrawal.f90` 中的 `WITHDRAWAL`、`DOWNSTREAM_WITHDRAWAL`、`LATERAL_WITHDRAWAL`、`SELECTIVEINIT`、`SELECTIVE`、`SelectiveInitUSGS`、`SelectiveUSGS`。
+  - 删除 TDG 控制链：`systdg.f90`、`tdg.f90`、`TDGtarget.f90`。
+- 代码改动：
+  - 在 [`hydroinout.F90`](/C:/Users/NING/Desktop/v455/w2source_v455_2_11_2026/hydroinout.F90) 中移除 `TDGtarget`、`SYSTDG_TDG`、`TOTAL_DISSOLVED_GAS` 相关调用与分支；保留 `SPILLWAY_FLOW`、`PIPE_FLOW`、`GATE_FLOW` 及结构流量主线。
+  - 在 [`withdrawal.f90`](/C:/Users/NING/Desktop/v455/w2source_v455_2_11_2026/withdrawal.f90) 中删除 TDG/气体饱和度后处理：
+    - 移除 `modSYSTDG` 依赖。
+    - 移除 `TDGON`、`JSG`、`NNSG`、`NDO`、`NN2`、`NDGP`、`O2DG_DER`、`TDG_DER` 相关 TDG逻辑。
+    - 保留 `TAVG`、`QOUT/QDSW`、`CAVG/CDAVG` 的结构取排水与温度/派生输出主线。
+  - 在 [`input.F90`](/C:/Users/NING/Desktop/v455/w2source_v455_2_11_2026/input.F90) 中删除 TDG 输入初始化与 `w2_systdg.npt` 读取路径；替换为显式不支持检查：
+    - 若发现 `w2_systdg.npt`、`w2_TDGtarget.csv`、`TDGdyntarget.csv` 中任一存在，则报明确错误并停止。
+  - 在 [`w2_4_win.f90`](/C:/Users/NING/Desktop/v455/w2source_v455_2_11_2026/w2_4_win.f90)、[`w2_main.f90`](/C:/Users/NING/Desktop/v455/w2source_v455_2_11_2026/w2_main.f90)、[`endsimulation.F90`](/C:/Users/NING/Desktop/v455/w2source_v455_2_11_2026/endsimulation.F90) 中移除 `InitTDGtarget`、`DEALLOCATE_SYSTDG`、`DEALLOCATE_TDGtarget`、TDG 相关状态收尾。
+  - 从 GUI/console 构建脚本中移除 `systdg.f90`、`tdg.f90`、`TDGtarget.f90`。
+- 交付与案例：
+  - 更新 packaged case 与支持基线 case，移除 `w2_systdg.npt`、`w2_TDGtarget.csv`、`TDGdyntarget.csv`。
+  - 清理 `w2_con.csv` 的标题/注释里关于 `GATE GAS`、`SYSTDG`、`TDG` 的说明文字。
+  - 不再把 `TDG_output.csv`、`TDGTarget_output.csv`、`TDGTarget_warning.opt` 视为支持边界输出。
+  - 保留当前 Bonneville 结构流量案例，但改造成“无 TDG 的结构流量 + 水温”基线。
+- 文档与对外契约：
+  - 更新当前状态文档、baseline 文档、package 文档与 supported-cases 文档，明确：
+    - 支持结构流量。
+    - 支持选择性温控取水。
+    - 不支持 TDG。
+    - 旧 TDG case 不兼容当前 reduced deliverable。
+
+## Public Interfaces / Contract
+- 保留：
+  - 结构流量能力：gate / spill / pipe。
+  - 温控取水能力：`SELECTC=ON`、`SELECTC=USGS`。
+- 移除：
+  - `w2_systdg.npt`
+  - `w2_TDGtarget.csv`
+  - `TDGdyntarget.csv`
+  - `TDG_output.csv`
+  - `TDGTarget_output.csv`
+  - `TDGTarget_warning.opt`
+- 行为约束：
+  - 如果 case 目录仍包含 TDG 配置文件，程序应尽早报清晰错误，而不是静默忽略。
+  - 仅含结构流量与温控取水的 case 继续支持。
+
+## Test Plan
+- 构建：
+  - console build 成功。
+  - GUI build 成功。
+  - 不再编译 `systdg.f90`、`tdg.f90`、`TDGtarget.f90`。
+- 运行回归：
+  - 以“去 TDG 后的 packaged minimal case”做 clean run，确认能启动并生成当前 hydro-temp 关键输出。
+  - 以“去 TDG 后的 temp_case_work 派生 case”做 rerun，确认结构流量仍工作。
+  - GUI 可执行文件能正常启动。
+- 结构行为验证：
+  - gate/spill/pipe 相关输出仍生成，`flowbal.csv`、`BON_spr.csv`、`BON_snp.opt` 仍存在。
+  - 不再生成任何 TDG 专用输出文件。
+- 契约验证：
+  - 给 case 目录放入 `w2_systdg.npt` 或 `w2_TDGtarget.csv`，程序应在启动早期报“TDG no longer supported”类清晰错误。
+  - `SELECTC=ON` 和 `SELECTC=USGS` 的 case 仍能进入相应初始化路径。
+- 稳定性：
+  - `w2.err` 在标准支持 case 下保持为空。
+  - 文档中的支持边界、package 内容、验证输出与实际运行一致。
+
+## Assumptions
+- `withdrawal.f90` 被保留，且其通用取排水与 `SELECTIVE*` 温控逻辑属于最终交付能力。
+- `gate-spill-pipe.f90` 被保留，当前 Bonneville 结构流量基线继续支持。
+- TDG 是完整剥离，不保留兼容模式，也不保留 package 内占位文件。
+- Stage 4 不再追求旧 TDG case 的无修改兼容；旧 TDG case 直接视为超出支持边界。
+}
+
+{Implement plan}
+
+{我先核当前树里 TDG 的剩余依赖点和 package/case 中的 TDG 痕迹，按“先断代码、再改构建、再收缩案例与文档、最后回归”的顺序做。
+
+
+Ran 5 commands
+我先把 TDG 相关源码边界读透，尤其是 systdg/tdg/TDGtarget 和 input/hydroinout/withdrawal 的耦合点；这样改动能一次切干净，不会把 gate/spill/pipe 或 SELECTIVE* 一起误伤。
+
+
+Ran 4 commands
+我在看主程序对 ERROR_OPEN 的处理方式，确保“发现 TDG 文件即尽早报错并停止”能接到现有错误路径，不会只是设置了标志却继续往下跑。
+
+
+Ran 3 commands
+我在看主程序尾部的错误出口标签，决定 TDG 不支持时应该跳到哪个现有路径，保证 GUI 和 console 都能在启动早期干净退出。
+
+
+Ran 2 commands
+我把 support baseline 里的 TDG 文件分布也扫一下。Stage 4 既然是“强收缩契约”，package case 和当前支持基线里凡是 TDG 文件、TDG 输出、TDG 注释，都要一起收掉。
+
+
+Ran 5 commands
+我先定位 w2_con.csv 里真正的 TDG/GAS 开关行，避免只改标题注释而漏掉实际控制字段。然后我会同步处理 packaged case 和两个支持基线目录。
+
+
+Ran 2 commands
+我在定位 w2_con.csv 里实际的 GASSPC/GASGTC 和 TDG 派生开关行，这样 package case 和两个支持基线目录可以一次改干净，不会因为隐藏的 ON 触发新错误。
+
+
+Ran 3 commands
+我需要把 case 里的实际 GASSPC/GASGTC 开关也改成 OFF，否则新的强契约检查会把 package case 自己拦住。我先把对应行号挖出来。
+
+
+Ran 3 commands
+我再扫 package 和当前文档里所有 TDG/SYSTDG 文案，准备和代码一起收缩，避免交付物还有旧边界描述。
+
+
+Ran 1 command
+我开始动 input.F90 和主程序入口，先把 TDG 文件检测和早期退出路径接上；这一步决定后面删掉 systdg/tdg/TDGtarget 之后还能不能保持“启动早期清晰报错”。
+
+
+Ran 4 commands
+我在数剩余 TOTAL_DISSOLVED_GAS / TDGtarget / SYSTDG_TDG 的实际调用点，准备按模块分组切掉。这样不会在大文件里盲改。
+
+
+Ran 2 commands
+我在抓 hydroinout.F90 的几个 TDG 分支窗口。这里我会直接把“同一结构流量路径里夹带的 TDG 修正”改成纯结构流量+温度版本，而不是一条条删调用。
+
+
+Ran 2 commands
+我开始改入口、输入和收尾，再切 hydroinout/withdrawal 的 TDG 分支。代码会先达到“完全不再引用 systdg/tdg/TDGtarget”，之后我再删文件和更新 case/package。
+
+
+Edited 6 files
+我把 TDG 契约检查再收紧一格：除了 TDG 文件存在外，w2_con.csv 里如果还打开了 GASSPC/GASGTC 或 %DO/TDG 派生输出，也会被当成 TDG 配置直接拦下。这样 package case 就必须真正改干净。
+
+
+Edited 3 files
+我先做一次静态复核，确认 hydroinout/withdrawal/w2_main/w2_4_win/endsimulation/input 里已经没有 live 的 TDG 入口引用，再进入构建。构建过了我再删 systdg.f90、tdg.f90、TDGtarget.f90。
+
+
+Ran 3 commands
+hydroinout.F90 还剩一段 gate 分支里的 TDG 调用没切干净，我把这最后一段收掉，再统一删 TDG 文件和 case/package 里的 TDG 痕迹。
+
+
+Edited 1 file, ran 2 commands
+我再做一次静态扫描；如果 TDG 入口已经全清空，就进入构建。随后我再删 systdg.f90、tdg.f90、TDGtarget.f90 并收缩 case/package。
+
+Ran Select-String -Path 'C:\Users\NING\Desktop\v455\w2source_v455_2_11_2026\hydroinout.F90','C:\Users\NING\Desktop\v455\w2source_v455_2_11_2026\withdrawal.f90','C:\Users\NING\Desktop\v455\w2source_v455_2_11_2026\input.F90','C:\Users\NING\Desktop\v455\w2source_v455_2_11_2026\w2_4_win.f90','C:\Users\NING\Desktop\v455\w2source_v455_2_11_2026\w2_main.f90','C:\Users\NING\Desktop\v455\w2source_v455_2_11_2026\endsimulation.F90' -Pattern '\bTOTAL_DISSOLVED_GAS\b|\bTDGtarget\b|\bSYSTDG_TDG\b|\bUPDATE_TDGC\b|\bmodSYSTDG\b|\bInitTDGtarget\b|\bDEALLOCATE_TDGtarget\b|\bDEALLOCATE_SYSTDG\b' -CaseSensitive:$false | Select-Object Path,LineNumber,Line | Sort-Object Path,LineNumber | Format-Table -Wrap -AutoSize
+Ran cmd /c build_reduced_console.bat
+Ran cmd /c build_reduced_gui.bat
+}
+
+{
+10 files changed +153 -637
+w2source_v455_2_11_2026/w2_4_win.f90 +5 -5
+w2source_v455_2_11_2026/w2_main.f90 +7 -4
+w2source_v455_2_11_2026/input.F90 +24 -30
+w2source_v455_2_11_2026/endsimulation.F90 +4 -8
+w2source_v455_2_11_2026/hydroinout.F90 +80 -428
+w2source_v455_2_11_2026/withdrawal.f90 +28 -107
+w2source_v455_2_11_2026/input.F90 +1 -1
+w2source_v455_2_11_2026/build_reduced_console.bat +0 -3
+w2source_v455_2_11_2026/build_reduced_gui.bat +0 -3
+w2source_v455_2_11_2026/hydroinout.F90 +4 -48
+}
+

@@ -1,0 +1,206 @@
+Page 1           Source Listing                  DENSITY
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180854.i90
+
+      1 # 1 "..\..\..\density.f90"
+      2 !***************************************************************************************************************************
+      2 ********
+      3 !**                                            F U N C T I O N   D E N S I T Y                                              
+      3       **
+      4 !***************************************************************************************************************************
+      4 ********
+      5 
+      6 REAL(R8) FUNCTION DENSITY (T,TDS,SS)
+      7   use PREC
+      8   USE LOGICC, ONLY: SUSP_SOLIDS, FRESH_WATER, SALT_WATER; USE GLOBAL, ONLY:JW
+      9   IMPLICIT NONE
+     10   REAL(R8) :: T,TDS,SS
+     11   IF(T <= 0.0) THEN    ! Suggested by Stewart Rounds
+     12                              DENSITY = 0.842594D0
+     13   IF (SUSP_SOLIDS)     DENSITY = DENSITY+6.2D-4*SS
+     14   IF (FRESH_WATER(JW)) DENSITY = DENSITY+TDS*8.221D-4
+     15   IF (SALT_WATER(JW))  DENSITY = DENSITY+TDS*0.824493D0                      &
+     16                                  +(-5.72466D-3)*TDS**1.5D0+4.8314D-4*TDS*TDS
+     17 
+     18   ELSE
+     19                        DENSITY = ((((6.536332D-9*T-1.120083D-6)*T+1.001685D-4)*T-9.09529D-3)*T+6.793952D-2)*T+0.842594D0
+     20                        
+     21   IF (SUSP_SOLIDS)     DENSITY = DENSITY+6.2D-4*SS
+     22   IF (FRESH_WATER(JW)) DENSITY = DENSITY+TDS*((4.99D-8*T-3.87D-6)*T+8.221D-4)
+     23   IF (SALT_WATER(JW))  DENSITY = DENSITY+TDS*((((5.3875D-9*T-8.2467D-7)*T+7.6438D-5)*T-4.0899D-3)*T+0.824493D0)             
+     23          &
+     24                                  +((-1.6546D-6*T+1.0227D-4)*T-5.72466D-3)*TDS**1.5D0+4.8314D-4*TDS*TDS
+     25   ENDIF
+     26   
+     27   DENSITY = DENSITY+999.0D0
+     28 END FUNCTION DENSITY
+
+Page 2           Source Listing                  DENSITY
+2026-03-30 08:47 Entry Points                    ..\..\..\density.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name    
+                            
+       DENSITY              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DENSITY                    Local  6        R(8)            8           scalar                                                      
+ DENSITY                    Func   6        R(8)            8           scalar                    12,13,14,15,19,21,22,23,27        
+ FRESH_WATER                Local  8        L(4)            4     1     1        ALC              8,14,22                           
+ GLOBAL                     Module 8                                                              8                                 
+ JW                         Local  8        I(4)            4           scalar                    8,14,15,22,23                     
+ LOGICC                     Module 8                                                              8                                 
+ PREC                       Module 7                                                              7                                 
+ R8                         Param  6        I(4)            4           scalar                    6,10                              
+ SALT_WATER                 Local  8        L(4)            4     1     1        ALC              8,15,23                           
+ SS                         Dummy  10       R(8)            8           scalar   ARG,INOUT        13,21                             
+ SUSP_SOLIDS                Local  8        L(4)            4           scalar                    8,13,21                           
+ T                          Dummy  10       R(8)            8           scalar   ARG,INOUT        11,19,22,23,24                    
+ TDS                        Dummy  10       R(8)            8           scalar   ARG,INOUT        14,15,16,22,23,24                 
+
+Page 3           Source Listing                  DENSITY
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\density.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DENSITY                    Func   6        R(8)            8           scalar                    12,13,14,15,19,21,22,23,27        
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 4           Source Listing                  DENSITY
+2026-03-30 08:47                                 ..\..\..\density.f90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:density.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 5           Source Listing                  DENSITY
+2026-03-30 08:47                                 ..\..\..\density.f90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : density.lst
+  /object:density.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

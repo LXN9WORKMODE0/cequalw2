@@ -1,0 +1,946 @@
+Page 1           Source Listing                  INPUT_SYSTDG
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\341801094.i90
+
+      1 # 1 "..\..\..\systdg.f90"
+      2 ! System Total Dissolved Gas (SYSTDG)
+      3 ! Spillbay TDG production is calculated based on the regression equations included in SYSTDG
+      4 ! SYSTDG equations were provided by Tammy Threadgill and Ron Thompson.
+      5 ! Sponsored by USACE Portland District through the CRSO EIS
+      6 !
+      7 ! Three new ON/OFF controls are included in this version's control file
+      8 ! 1) SYSTDG      - calculate Spillway TDG production (1 - 5 equations) and mixing downstream TDG
+      9 ! 2) N2BDN/DOBND - specify saturation (%) for all inflow N2 and DO boundary conditions
+     10 ! 3) TDGTA       - specify downstream or spillflow TDG target to reallocate spillflow into powerhouse to meet TDG targets
+     11 !
+     12 ! If SYSTDG = ON, a SYSTDG control input file (w2_systdg.npt) is required.
+     13 ! If TDGTA  = ON, a TDG target control input file (w2_tdgtarget.npt) is required.
+     14 !
+     15 ! Developed from PSU W2V4.1 dated Sept 2, 2018
+     16 ! Drs Zhonglong Zhang (PSU) and Hongda Wang (UCD); Revised by SWells Sept 2019 for inclusion in updated 4.2 code; August 202
+     16 0 csv file format added SW
+     17 !
+     18 !
+     19 MODULE modSYSTDG
+     20  USE PREC,  ONLY: R8
+     21  USE TDGAS; USE STRUCTURES; USE GLOBAL; USE MAIN, ONLY: EA, GTTYP, GTPC, Q, WBSEG, TEXT, ERROR_OPEN, SYSTDGC, N2BNDC, DOBNDC
+     21 , TDGTAC,TMSTRT, CONTDG, TDG2BNDC
+     22  USE TVDC, ONLY: TAIR, TDEW; USE KINETIC, ONLY: TDG
+     23   IMPLICIT NONE
+     24   REAL(R8), ALLOCATABLE, DIMENSION(:) :: TDG_PHS, TDG_FLS, TDG_TDP 
+     25   REAL(R8), ALLOCATABLE, DIMENSION(:) :: BAYC, QBAY
+     26   REAL(R8)                            :: qs, TDG_ROSP, TDG_TDG, TDG_REL
+     27   REAL(R8)                            :: TDGP1, TDGP2, TDGP3, TDGP4, TDGP12, TDGP22, TDGP32, TDGP42, TDGE1, TDGE2, TDGE12, T
+     27 DGE22, ROP1, ROP2, ROP3, ROP4
+     28   REAL(R8)                            :: TWE, TWCE, TWE_TS, FBE, QSPILL, TDGSPMN
+     29   INTEGER, ALLOCATABLE, DIMENSION(:)  :: POWGTNO, FLGTNO
+     30   INTEGER                             :: POWNO, FLNO, BEGNO, ENDNO, NRO, NBAY
+     31   INTEGER                             :: TWEMOD, TDGEQ, TDGROEQ, TDGENTEQ
+     32   INTEGER                             :: ig, ip, ifl, ib
+     33   LOGICAL,  ALLOCATABLE, DIMENSION(:) :: GTNAME
+     34   CHARACTER(72)                       :: TITLESYSTDG(10)
+     35   CHARACTER(8)                        :: TWETSC, TDGLOC
+     36   CHARACTER(72)                       :: TWEFN 
+     37   REAL                                :: NXTSPLIT3
+     38 !
+     39   CONTAINS
+     40 !===========================================================================================================================
+     41   SUBROUTINE INPUT_SYSTDG
+     42 !USE MAIN, ONLY: TMSTRT, CONTDG       !, GTTYP, GTPC, SYSTDGC, N2BNDC, DOBNDC, TDGTAC
+     43    IMPLICIT NONE
+     44    CHARACTER(8) :: AID1
+     45    LOGICAL      :: CSVFORMAT
+     46    INTEGER      :: I, IG, N_POW, N_FLD, N_SPB
+     47       NXTSPLIT3=TMSTRT
+     48       open  (88888, FILE='TDG_output.csv', status='unknown')
+     49       WRITE (88888, '(A, <NGT>("QGT-",I2,","))')'JDAY,TDG_TDG,SUM_QGT2,',(IG, IG = 1, NGT)
+     50       NRO=0                                                 
+     51       POWNO = 0
+     52       FLNO  = 0
+     53       NBAY  = 0
+     54       
+
+Page 2           Source Listing                  INPUT_SYSTDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+     55      CSVFORMAT=.FALSE.   
+     56      READ (CONTDG,'(A)')TITLESYSTDG(1)
+     57      IF(TITLESYSTDG(1)(1:1)=='$')CSVFORMAT=.TRUE.
+     58      
+     59      IF(.NOT.CSVFORMAT)THEN
+     60      READ (CONTDG,'(A)')TITLESYSTDG(1)    ! READ NEXT LINE - IF COMMAS IN FIRST FEW FIELDS IT IS IN CSV FORMAT
+     61      DO I=1,7
+     62          IF(TITLESYSTDG(1)(I:I)==',')THEN
+     63              CSVFORMAT=.TRUE.
+     64              EXIT
+     65          ENDIF
+     66      ENDDO
+     67      REWIND(CONTDG)
+     68      ENDIF
+     69       
+     70       IF(CSVFORMAT)THEN
+     71       READ (CONTDG,*)
+     72       READ (CONTDG,*)
+     73       READ (CONTDG,*)
+     74       DO I=1,10
+     75       READ (CONTDG,*) AID1,TITLESYSTDG(I)
+     76       ENDDO
+     77       READ (CONTDG,*)
+     78       READ (CONTDG,*)
+     79       READ (CONTDG,*)AID1,SYSTDGC, N2BNDC, DOBNDC,  TDG2BNDC,TDGTAC;SYSTDGC=ADJUSTR(SYSTDGC); N2BNDC=ADJUSTR(N2BNDC); DOBNDC
+     79 =ADJUSTR(DOBNDC); TDGTAC=ADJUSTR(TDGTAC)
+     80       TDG2BNDC=ADJUSTR(TDG2BNDC)
+     81       READ (CONTDG,*)
+     82       READ (CONTDG,*)
+     83       DO IG=1,NGT
+     84       READ (CONTDG,*) AID1,GTTYP(IG), GTPC(IG)
+     85       ENDDO
+     86       GTTYP=ADJUSTR(GTTYP)
+     87 
+     88       DO IG = 1, NGT
+     89          IF (GTTYP(IG)=='     POW') POWNO = POWNO + 1
+     90          IF (GTTYP(IG)=='     FLD') FLNO  = FLNO  + 1
+     91          IF (GTTYP(IG)=='      RO')  NRO   = NRO  + 1
+     92          IF (GTTYP(IG)=='     SPB') NBAY  = NBAY  + 1
+     93       END DO       
+     94       READ (CONTDG,*)
+     95       READ (CONTDG,*)
+     96 
+     97       READ (CONTDG,*) AID1,FBE, TWCE, TWEMOD, TWE, TWETSC, TDGLOC, QSPILL, TDGSPMN;  TWETSC=ADJUSTR(TWETSC); TDGLOC=ADJUSTR(
+     97 TDGLOC)
+     98       READ (CONTDG,*)
+     99       READ (CONTDG,*)
+    100       READ (CONTDG,*) AID1,TDGEQ, TDGP1, TDGP2, TDGP3, TDGP4, TDGP12, TDGP22, TDGP32, TDGP42   
+    101       IF (NRO>0) READ (CONTDG,*) AID1,TDGROEQ, ROP1, ROP2, ROP3, ROP4     
+    102       READ (CONTDG,*)
+    103       READ (CONTDG,*)
+    104 
+    105       READ (CONTDG,*) AID1,TDGENTEQ, TDGE1, TDGE2, TDGE12, TDGE22   
+    106       READ (CONTDG,*)
+    107       READ (CONTDG,*)
+    108 
+    109       READ (CONTDG,*) AID1, TWEFN                                                             
+
+Page 3           Source Listing                  INPUT_SYSTDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    110       CLOSE(CONTDG)       
+    111 ELSE
+    112       READ (CONTDG, '(///(8X,A72))') (TITLESYSTDG(i), i=1,10)
+    113       READ (CONTDG, '(//8x,5A8)')SYSTDGC, N2BNDC, DOBNDC, TDG2BNDC,TDGTAC
+    114       READ (CONTDG,'(//(:8X,A8,F8.2))') (GTTYP(IG), GTPC(IG), IG=1,NGT) 
+    115 
+    116       DO IG = 1, NGT
+    117          IF (GTTYP(IG)=='     POW') POWNO = POWNO + 1
+    118          IF (GTTYP(IG)=='     FLD') FLNO  = FLNO  + 1
+    119          IF (GTTYP(IG)=='      RO')  NRO   = NRO  + 1
+    120          IF (GTTYP(IG)=='     SPB') NBAY  = NBAY  + 1
+    121       END DO                                                                                             
+    122 
+    123       READ (CONTDG,'(//8X,2F8.3,I8,F8.3,2A8,2F8.3)') FBE, TWCE, TWEMOD, TWE, TWETSC, TDGLOC, QSPILL, TDGSPMN      
+    124       READ (CONTDG,'(//8X,I8,8F8.3)') TDGEQ, TDGP1, TDGP2, TDGP3, TDGP4, TDGP12, TDGP22, TDGP32, TDGP42    
+    125       IF (NRO>0) READ (CONTDG,'(8X,I8,4F8.5)') TDGROEQ, ROP1, ROP2, ROP3, ROP4                             
+    126       READ (CONTDG,'(//8X,I8,4F8.3)') TDGENTEQ, TDGE1, TDGE2, TDGE12, TDGE22                               
+    127       READ (CONTDG,'(//(8X,A72))')  TWEFN                                                             
+    128       CLOSE(CONTDG)
+    129 ENDIF
+    130 IF(SYSTDGC == '     OFF')GO TO 100          ! DO NOT ALLOCATE ARRAYS IF WE ARE NOT USING SYSTDG
+    131       IF (POWNO>0) THEN 
+    132           ALLOCATE (POWGTNO(POWNO), TDG_PHS(POWNO))
+    133       ELSE
+    134           ALLOCATE (POWGTNO(1), TDG_PHS(1))
+    135           POWGTNO(1)=0
+    136       END IF
+    137       IF (FLNO>0) THEN 
+    138           ALLOCATE (FLGTNO(FLNO), TDG_FLS(FLNO))
+    139       ELSE
+    140          ALLOCATE (FLGTNO(1), TDG_FLS(1))
+    141          FLGTNO(1)=0
+    142       END IF
+    143       N_POW = 0
+    144       N_FLD = 0
+    145       DO ig = 1, NGT
+    146          IF (GTTYP(ig)=='     POW') THEN
+    147             N_POW = N_POW + 1
+    148             POWGTNO(N_POW)=ig
+    149          END IF
+    150          IF (GTTYP(ig)=='     FLD') THEN
+    151             N_FLD = N_FLD + 1
+    152             FLGTNO(N_FLD)=ig
+    153          END IF
+    154       END DO
+    155       DO ig = 1, NGT
+    156          IF (GTTYP(ig)=='     SPB') THEN
+    157             BEGNO = ig
+    158             EXIT
+    159          END IF
+    160       END DO
+    161       ENDNO = BEGNO + NBAY -1
+    162       IF (NBAY/=0) THEN
+    163          ALLOCATE (BAYC(NBAY), QBAY(NBAY))
+    164       ELSE
+    165         ALLOCATE (BAYC(1), QBAY(1))
+    166       END IF
+
+Page 4           Source Listing                  INPUT_SYSTDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    167       N_SPB = 0
+    168       DO ig = 1, NGT
+    169         IF (GTTYP(ig)=='     SPB') THEN
+    170            N_SPB = N_SPB + 1
+    171            BAYC(N_SPB)=GTPC(ig)
+    172         END IF
+    173       END DO
+    174 !
+    175       ALLOCATE (GTNAME(NGT), TDG_TDP(NGT))
+    176       GTNAME=.FALSE.
+    177       DO ig=1, NGT
+    178           IF (GTTYP(ig)=='      RO') GTNAME(ig)=.TRUE.          ! C IN RO IS UPDATE FROM TDG
+    179           IF (ig>=BEGNO .AND. ig<=ENDNO) GTNAME(ig)=.TRUE.      ! GTNAME = GATE IS A SPILLBAY== .TRUE.
+    180       END DO
+    181 100      RETURN
+    182   END SUBROUTINE
+
+
+ENTRY POINTS
+
+ Address      Type  Name                      
+                                              
+       MODSYSTDG_mp_INPUT_SYSTDG              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 100                        Label  181                                                            130                               
+ ADJUSTR                    Func   79                                   scalar                    79,80,86,97                       
+ AID1                       Local  44       CHAR            8           scalar                    75,79,84,97,100,101,105,109       
+ BAYC                       Local  163      R(8)            8     1     1        ALC              163,165,171,192,193,438           
+ BEGNO                      Local  157      I(4)            4           scalar                    157,161,179,236,283,292           
+ CONTDG                     Local  56       I(4)            4           scalar                    21,56,60,67,71,72,73,75,77,78,79,8
+                                                                                                  1,82,84,94,95,97,98,99,100,101,102
+                                                                                                  ,103,105,106,107,109,110,112,113,1
+                                                                                                  14,123,124,125,126,127,128        
+ CSVFORMAT                  Local  45       L(4)            4           scalar                    55,57,59,63,70                    
+ DOBNDC                     Local  79       CHAR            8           scalar                    21,79,113                         
+ ENDNO                      Local  161      I(4)            4           scalar                    161,179,236,283,292               
+ FBE                        Local  97       R(8)            8           scalar                    97,123,271,274,277,300,307,314    
+ FLGTNO                     Local  138      I(4)            4     1     1        ALC              138,140,141,152,399,439           
+ FLNO                       Local  52       I(4)            4           scalar                    52,90,118,137,138,397,398         
+ GTNAME                     Local  175      L(4)            4     1     1        ALC              175,176,178,179,440               
+ GTPC                       Local  84       R(8)            8     1     1        ALC              21,84,114,171                     
+ GTTYP                      Local  84       CHAR            8     1     1        ALC              21,84,86,89,90,91,92,114,117,118,1
+                                                                                                  19,120,146,150,156,169,178,233,246
+                                                                                                  ,252                              
+ I                          Local  46       I(4)            4           scalar                    61,62,74,75,112                   
+ IG                         Local  46       I(4)            4           scalar                    49,83,84,88,89,90,91,92,114,116,11
+                                                                                                  7,118,119,120,145,146,148,150,152,
+                                                                                                  155,156,157,168,169,171,177,178,17
+                                                                                                  9                                 
+ INPUT_SYSTDG               Subr   41                                                                                               
+ LA                         Label  49                                                                                               
+ LB                         Label  49                                                                                               
+
+Page 5           Source Listing                  INPUT_SYSTDG
+2026-03-30 08:47 Symbol Table                    ..\..\..\systdg.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ N2BNDC                     Local  79       CHAR            8           scalar                    21,79,113                         
+ NBAY                       Local  53       I(4)            4           scalar                    53,92,120,161,162,163,191,283     
+ NGT                        Local  49       I(4)            4           scalar                    49,83,88,114,116,145,155,168,175,1
+                                                                                                  77,232,245,251,394,426,429        
+ NRO                        Local  50       I(4)            4           scalar                    50,91,101,119,125                 
+ NXTSPLIT3                  Local  47       R(4)            4           scalar                    47,425,430                        
+ N_FLD                      Local  46       I(4)            4           scalar                    144,151,152                       
+ N_POW                      Local  46       I(4)            4           scalar                    143,147,148                       
+ N_SPB                      Local  46       I(4)            4           scalar                    167,170,171                       
+ POWGTNO                    Local  132      I(4)            4     1     1        ALC              132,134,135,148,266,374,375,379,38
+                                                                                                  1,389,439                         
+ POWNO                      Local  51       I(4)            4           scalar                    51,89,117,131,132,215,264,265,368,
+                                                                                                  373                               
+ QBAY                       Local  163      R(8)            8     1     1        ALC              163,165,192,193,283,438           
+ QSPILL                     Local  97       R(8)            8           scalar                    97,123,357,365                    
+ ROP1                       Local  101      R(8)            8           scalar                    101,125,253                       
+ ROP2                       Local  101      R(8)            8           scalar                    101,125                           
+ ROP3                       Local  101      R(8)            8           scalar                    101,125,253                       
+ ROP4                       Local  101      R(8)            8           scalar                    101,125                           
+ SYSTDGC                    Local  79       CHAR            8           scalar                    21,79,113,130                     
+ TDG2BNDC                   Local  79       CHAR            8           scalar                    21,79,80,113                      
+ TDGE1                      Local  105      R(8)            8           scalar                    105,126,272,275,305,312           
+ TDGE12                     Local  105      R(8)            8           scalar                    105,126,278,319                   
+ TDGE2                      Local  105      R(8)            8           scalar                    105,126,273,276,306,313           
+ TDGE22                     Local  105      R(8)            8           scalar                    105,126,279,320                   
+ TDGENTEQ                   Local  105      I(4)            4           scalar                    105,126,406,409,412               
+ TDGEQ                      Local  100      I(4)            4           scalar                    100,124,323,326,329,332,344       
+ TDGLOC                     Local  97       CHAR            8           scalar                    97,123,215,264,368                
+ TDGP1                      Local  100      R(8)            8           scalar                    100,124,301,308                   
+ TDGP12                     Local  100      R(8)            8           scalar                    100,124,315                       
+ TDGP2                      Local  100      R(8)            8           scalar                    100,124,302,309                   
+ TDGP22                     Local  100      R(8)            8           scalar                    100,124,316                       
+ TDGP3                      Local  100      R(8)            8           scalar                    100,124,303,310                   
+ TDGP32                     Local  100      R(8)            8           scalar                    100,124,317                       
+ TDGP4                      Local  100      R(8)            8           scalar                    100,124,304,311                   
+ TDGP42                     Local  100      R(8)            8           scalar                    100,124,318                       
+ TDGROEQ                    Local  101      I(4)            4           scalar                    101,125                           
+ TDGSPMN                    Local  97       R(8)            8           scalar                    97,123,357,365                    
+ TDGTAC                     Local  79       CHAR            8           scalar                    21,79,113                         
+ TDG_FLS                    Local  138      R(8)            8     1     1        ALC              138,140,437                       
+ TDG_PHS                    Local  132      R(8)            8     1     1        ALC              132,134,371,385,387,389,437       
+ TDG_TDP                    Local  175      R(8)            8     1     1        ALC              175,214,241,253,254,255,324,327,33
+                                                                                                  0,342,345,352,353,354,357,437     
+ TITLESYSTDG                Local  56       CHAR            72    1     10                        56,57,60,62,75,112                
+ TMSTRT                     Local  47       R(4)            4           scalar                    21,47                             
+ TWCE                       Local  97       R(8)            8           scalar                    97,123,324,327,330                
+ TWE                        Local  97       R(8)            8           scalar                    97,123,286,287,324,327,330        
+ TWEFN                      Local  109      CHAR            72          scalar                    109,127                           
+ TWEMOD                     Local  97       I(4)            4           scalar                    97,123,287                        
+ TWETSC                     Local  97       CHAR            8           scalar                    97,123,286                        
+
+Page 6           Source Listing                  INPUT_SYSTDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    183   
+    184 !===========================================================================================================================
+    185 ! allocate and initialize all input parameter
+    186   SUBROUTINE SYSTDG_qs
+    187     IMPLICIT NONE
+    188     REAL(R8)          :: SUMQ, SUMQ1
+    189     SUMQ = 0.0
+    190     SUMQ1 = 0.0
+    191     DO ib = 1, NBAY
+    192       SUMQ = SUMQ + QBAY(ib)**BAYC(ib)
+    193       SUMQ1 = SUMQ1 + QBAY(ib)**(BAYC(ib) - 1.0)
+    194     END DO
+    195     IF (SUMQ1 /= 0.0) qs = SUMQ / SUMQ1 *35.3147/1000.0    ! CMS TO KCFS
+    196   END SUBROUTINE SYSTDG_qs
+
+
+ENTRY POINTS
+
+ Address      Type  Name                   
+                                           
+       MODSYSTDG_mp_SYSTDG_QS              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ IB                         Local  191      I(4)            4           scalar                    191,192,193                       
+ QS                         Local  195      R(8)            8           scalar                    195,324,327,330,342,345           
+ R8                         Param  188      I(4)            4           scalar                    24,25,26,27,28,188,203,204,223,224
+                                                                                                  ,225,226,227                      
+ SUMQ                       Local  188      R(8)            8           scalar                    189,192,195                       
+ SUMQ1                      Local  188      R(8)            8           scalar                    190,193,195                       
+ SYSTDG_QS                  Subr   186                                                            284                               
+
+Page 7           Source Listing                  SYSTDG_QS
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    197   
+    198 !===========================================================================================================================
+    199 ! TDG production calculation in SYSTDG
+    200   SUBROUTINE UPDATE_TDGC (NSAT, P, N, T, TDGC)
+    201       IMPLICIT NONE
+    202       INTEGER          :: NSAT, N
+    203       REAL(R8)         :: P, T, TDGC
+    204       REAL(R8)         :: SAT
+    205 ! CALCULATE SAT
+    206       IF (NSAT == 0) THEN   ! O2 saturation
+    207         SAT = EXP(7.7117 - 1.31403 * (LOG(T + 45.93))) * P
+    208       ELSE IF (NSAT == 1) THEN            ! N2 saturation
+    209         EA = DEXP(2.3026D0 * (7.5D0 * TDEW(WBSEG(IUGT(N))) / (TDEW(WBSEG(IUGT(N))) + 237.3D0) + 0.6609D0)) * 0.001316   ! mm
+    209 Hg
+    210         SAT = (1.5568D06 * 0.79 * (P - EA) * (1.8816D-5 - 4.116D-7 * T + 4.6D-9 * T*T)) 
+    211       ELSE
+    212         SAT = P  
+    213       END IF
+    214       TDGC = TDG_TDP(N) * SAT / 100.0
+    215       IF (POWNO>0 .AND. TDGLOC=='     REL') THEN
+    216          TDGC = TDG_TDG * SAT / 100.0
+    217       END IF
+    218     END SUBROUTINE UPDATE_TDGC
+
+
+ENTRY POINTS
+
+ Address      Type  Name                     
+                                             
+       MODSYSTDG_mp_UPDATE_TDGC              
+
+Page 8           Source Listing                  UPDATE_TDGC
+2026-03-30 08:47 Symbol Table                    ..\..\..\systdg.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DEXP                       Func   209                                  scalar                    209                               
+ EA                         Local  209      R(8)            8           scalar                    21,209,210                        
+ EXP                        Func   207                                  scalar                    207                               
+ IUGT                       Local  209      I(4)            4     1     1        ALC              209,253,267,295,296,324,327,330,33
+                                                                                                  5,336,338,342,345,352,379,381     
+ LOG                        Func   207                                  scalar                    207                               
+ N                          Dummy  202      I(4)            4           scalar   ARG,INOUT        209,214                           
+ NSAT                       Dummy  202      I(4)            4           scalar   ARG,INOUT        206,208                           
+ P                          Dummy  203      R(8)            8           scalar   ARG,INOUT        207,210,212                       
+ SAT                        Local  204      R(8)            8           scalar                    207,210,212,214,216               
+ T                          Dummy  203      R(8)            8           scalar   ARG,INOUT        207,210                           
+ TDEW                       Local  209      R(8)            8     1     1        ALC              22,209                            
+ TDGC                       Dummy  203      R(8)            8           scalar   ARG,INOUT        214,216                           
+ TDG_TDG                    Local  216      R(8)            8           scalar                    216,363,365,422,424,429           
+ UPDATE_TDGC                Subr   200                                                                                              
+ WBSEG                      Local  209      I(4)            4     1     1        ALC              21,209                            
+
+Page 9           Source Listing                  UPDATE_TDGC
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    219     
+    220     SUBROUTINE SYSTDG_TDG
+    221     USE SCREENC, ONLY:JDAY; 
+    222       IMPLICIT NONE
+    223       REAL(R8)         :: P1, P2, P3, P4, E1, E2
+    224       REAL(R8)         :: qs_RO, W2FBE, Q_SUM, TEMP_TW, SUM_TDGPHK
+    225       REAL(R8)         :: Q_ROSP, QRO, QSP, QPH, QTOT, TDG_QROSP, TDG_QPH, TDG_QTOT, TDG_QENT
+    226       REAL(R8)         :: SUM_TDG_ROS, SUM_TDG_SPS, SUM_TDG_PHS
+    227       REAL(R8)         :: TDG_RO, TDG_SP, TDG_PH
+    228       INTEGER*8        :: SUM_K, IK
+    229       REAL             :: SUM_QGT2
+    230       Q_SUM = 0.0
+    231 ! ADD QRO AND QSP
+    232       DO ig = 1, NGT
+    233          IF (GTTYP(ig)=='      RO') THEN
+    234             Q_SUM = Q_SUM + QGT(ig)
+    235          ELSE
+    236             IF (ig>=BEGNO.AND. ig<=ENDNO)  Q_SUM = Q_SUM + QGT(ig)
+    237          END IF
+    238       END DO
+    239       TDG_ROSP = 0.0
+    240       IF (Q_SUM/=0.0) THEN
+    241           TDG_TDP(:)  = 0.0                                                ! INITIAL TDG FOR GATES
+    242 !
+    243           SUM_TDG_ROS = 0.0                                                ! INITIAL SUM TDG FOR RO
+    244           QRO         = 0.0                                                ! INITIAL SUM Q FOR RO
+    245           DO ig = 1, NGT
+    246              IF (GTTYP(ig)=='      RO') THEN                               
+    247                  QRO = QRO + QGT(ig)
+    248              END IF 
+    249           END DO
+    250           qs_RO = QRO * 35.3147/1000.0                                     ! CMS TO KCFS
+    251           DO ig = 1, NGT
+    252              IF (GTTYP(ig)=='      RO' .AND. QGT(ig)>0.0) THEN
+    253                 TDG_TDP(ig)= (ROP1 * (1 - EXP(ROP3 * qs_RO)) + PALT(IUGT(ig))*760.0)/(PALT(IUGT(ig))*760.0) *100.0     ! RO 
+    253 USE EQ 1     ! (mmgh) TO TDG (%)
+    254                 IF (TDG_TDP(ig) > 145.0) TDG_TDP(ig) = 145.0               ! TDG <= 145.0
+    255                 SUM_TDG_ROS = SUM_TDG_ROS + TDG_TDP(ig)*QGT(ig)            ! SUM TDG FOR RO
+    256              END IF 
+    257           END DO
+    258           IF (QRO /= 0.0) THEN
+    259              TDG_RO = SUM_TDG_ROS/QRO                                      ! FLOW AVERAGED TDG_RO (%)
+    260           ELSE
+    261              TDG_RO = 0.0                                                  ! ZERO FLOW --> RO TDG IS 0.0
+    262           END IF
+    263 ! SET E1 E2 INCASE ONLY RO FLOW TO CALCULATE TDG_REL
+    264           IF (POWNO>0 .AND. TDGLOC=='     REL') THEN
+    265              DO ip = 1, POWNO
+    266                 IF (QGT(POWGTNO(ip))/=0.0) THEN
+    267                    W2FBE=Q(IUGT(ip)-US(JBUGT(ip))+1) ! FLOW DISCHARGE BEFORE DAM
+    268                    EXIT
+    269                 END IF
+    270              END DO
+    271              IF (FBE < 0.0) THEN
+    272                 E1 = TDGE1
+    273                 E2 = TDGE2
+    274              ELSE IF (W2FBE < FBE) THEN
+
+Page 10          Source Listing                  SYSTDG_TDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    275                 E1 = TDGE1
+    276                 E2 = TDGE2
+    277              ELSE IF (W2FBE>= FBE) THEN
+    278                 E1 = TDGE12
+    279                 E2 = TDGE22
+    280              END IF
+    281           END IF
+    282 !
+    283           IF (NBAY/=0) QBAY(1:NBAY)=QGT(BEGNO:ENDNO)                       ! BAY FLOW QBAY FROM GATE FLOW QGT
+    284           CALL SYSTDG_qs                                                   ! CALCULATE qs
+    285 ! TWE Recalculation
+    286           IF (TWETSC == '      ON') TWE=TWE_TS                             ! UPDATE TWE TO TWE_TS ACCORDING TO CONTROL VARIA
+    286 BLE TWETSC
+    287           IF (TWEMOD == 1) TWE=TWE * 0.934 + 4.94                          ! UPDATE TWE ACCORDING TO TWEMOD
+    288           SUM_TDG_SPS = 0.0                                                ! INITIAL TDG*QSP FOR SPILL
+    289           QSP         = 0.0                                                ! INITIAL SUM Q FOR SPILL
+    290           TDG_SP      = 0.0                                                ! INITIAL TDG FOR SPILL
+    291 ! CALCULATE TDG_TDP FOR EACH BAY FROM BEGNO TO ENDNO
+    292           DO ig = BEGNO, ENDNO
+    293              IF (QGT(ig)/=0.0) THEN
+    294 ! READ W2FBE
+    295                 IF (IUGT(ig)>=US(JBUGT(ig))+1) THEN                        ! GATE IS NOT LOCATED IN THE 1ST SEGMENT
+    296                     W2FBE=Q(IUGT(ig)-US(JBUGT(ig))+1)                      ! FLOW DISCHARGE BEFORE DAM
+    297                 ELSE 
+    298                     W2FBE=0.0
+    299                 END IF
+    300                 IF (FBE < 0.0) THEN
+    301                    P1 = TDGP1
+    302                    P2 = TDGP2
+    303                    P3 = TDGP3
+    304                    P4 = TDGP4
+    305                    E1 = TDGE1
+    306                    E2 = TDGE2
+    307                 ELSE IF (W2FBE < FBE) THEN
+    308                    P1 = TDGP1
+    309                    P2 = TDGP2
+    310                    P3 = TDGP3
+    311                    P4 = TDGP4
+    312                    E1 = TDGE1
+    313                    E2 = TDGE2
+    314                 ELSE IF (W2FBE>= FBE) THEN
+    315                    P1 = TDGP12
+    316                    P2 = TDGP22
+    317                    P3 = TDGP32
+    318                    P4 = TDGP42
+    319                    E1 = TDGE12
+    320                    E2 = TDGE22
+    321                 END IF
+    322 ! TDG EQUATIONS 1/2/3/4/5
+    323                 IF (TDGEQ == 2) THEN
+    324                    TDG_TDP(ig) = P1 *((TWE - TWCE)**P2 ) * (1.0 - EXP(P3 * qs)) + P4 + PALT(IUGT(ig))*760.0  ! mmHg
+    325 !
+    326                 ELSE IF (TDGEQ == 3) THEN
+    327                    TDG_TDP(ig) = P1* ((TWE - TWCE)**P2) * (qs**P3) + P4 + PALT(IUGT(ig))*760.0               ! mmHg
+    328 !
+    329                 ELSE IF (TDGEQ == 4) THEN
+    330                    TDG_TDP(ig) = P1 * (TWE - TWCE) + P2 *(qs**P3) + P4 + PALT(IUGT(ig))*760.0                ! mmHg
+
+Page 11          Source Listing                  SYSTDG_TDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    331 !
+    332                 ELSE IF (TDGEQ == 5) THEN                   
+    333                    SUM_K = 0
+    334                    TEMP_TW = 0.0
+    335                    DO IK = KT, KB(IUGT(ig)+1)
+    336                       IF (T2(IK,IUGT(ig)+1)/=-99.0 .AND. T2(IK,IUGT(ig)+1)>0.0) THEN                         ! WATER TEMP IS
+    336  >0.0
+    337                          SUM_K=SUM_K+1
+    338                          TEMP_TW = TEMP_TW + T2(IK,IUGT(ig)+1)                                               ! SUM EVERY LAY
+    338 ER OF TAIL WATER
+    339                       END IF
+    340                    END DO
+    341                 IF (SUM_K/=0) TEMP_TW = TEMP_TW/SUM_K                                                        ! AVERAGED TEMP
+    341  OF TAIL WATER
+    342                    TDG_TDP(ig) = P1 * (1.0 - EXP(P2 * qs)) + P3 * (TEMP_TW - P4) + PALT(IUGT(ig))*760.0      ! mmHg
+    343 !
+    344                 ELSE IF (TDGEQ == 1) THEN
+    345                    TDG_TDP(ig) = P1 * (1.0 - EXP(P3 * qs)) + PALT(IUGT(ig))*760.0 ! mmHg
+    346 !
+    347                 ELSE 
+    348                 TEXT='TDGEQ INPUT ERROR'
+    349                 ERROR_OPEN=.TRUE. 
+    350 !
+    351                 END IF
+    352                 TDG_TDP(ig)= TDG_TDP(ig)/(PALT(IUGT(ig))*760.0) *100.0                                       ! (mmgh) TO TDG
+    352  (%)
+    353                 IF (TDG_TDP(ig) > 145.0) TDG_TDP(ig) = 145.0                                                 ! TDG <= 145.0
+    354                 SUM_TDG_SPS = SUM_TDG_SPS + TDG_TDP(ig) * QGT(ig)                                            ! SUM TDG_SP*QG
+    354 T
+    355                 QSP = QSP + QGT(ig)                                                                          ! SUM Q OF SPIL
+    355 L
+    356 ! If total spill <= 50 kcfs, TDG % saturation = 110 % in the spillway outlets.
+    357                 IF ((QSP*35.3147/1000.0)>0.0 .and. (QSP*35.3147/1000.0)<=QSPILL) TDG_TDP(ig) =  TDGSPMN      
+    358              END IF
+    359           END DO
+    360           IF (QSP/=0.0) TDG_SP= SUM_TDG_SPS/QSP                                                              ! FLOW AVERAGED
+    360  TDG FOR SPILL
+    361           Q_ROSP = QRO + QSP                                                                                 ! ADD QSP INTO 
+    361 Q_ROSP
+    362           TDG_ROSP = (SUM_TDG_ROS+SUM_TDG_SPS)/Q_ROSP                                                        ! FLOW AVERAGED
+    362  TDG FOR SPILL WITH RO
+    363           TDG_TDG = TDG_ROSP                                                                                 ! OUTPUT TDG = 
+    363 TDG_SP
+    364 ! If total spill <= 50 kcfs, TDG % saturation = 110 % in the spillway outlets.
+    365           IF ((QSP*35.3147/1000.0)>0.0 .and. (QSP*35.3147/1000.0)<=QSPILL) TDG_TDG =  TDGSPMN
+    366 !
+    367 ! QENT CALCULATIONS UPDATE TDG_TDG TO TDG_REL
+    368           IF (POWNO>0 .AND. TDGLOC=='     REL') THEN
+    369 ! TDG POWER HOUSE(S) AND Q POWER HOUSE(S)
+    370              QPH  = 0.0                                                                                       ! INITIAL Q OF
+    370  POWER HOUSE(S)
+    371              TDG_PHS(:)   = 0.0                                                                               ! INITIAL TDG 
+    371 OF POWER HOUSE(S)
+    372              SUM_TDG_PHS  = 0.0                                                                               ! INITIAL SUM 
+    372 TDG*QPH
+    373              DO ip = 1, POWNO
+    374                 IF (QGT(POWGTNO(ip))/=0.0) THEN
+
+Page 12          Source Listing                  SYSTDG_TDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    375                     QPH = QPH + QGT(POWGTNO(ip))                                                                 ! Q POWER H
+    375 OUSE(S)
+    376                     SUM_K=0                                                                                      ! INITIAL S
+    376 UM K
+    377                     SUM_TDGPHK=0.0                                                                               ! INITIAL S
+    377 UM TDG OF POWER HOUSE(S) SEGMENT
+    378                     DO IK=1, KMX
+    379                         IF (TDG(IK, IUGT(POWGTNO(ip)))>0.0) THEN                                                 ! TDG > 0.0
+    379  LAYER
+    380                             SUM_K=SUM_K+1                                                                        ! SUM LAYER
+    380  COUNT
+    381                             SUM_TDGPHK=SUM_TDGPHK+ TDG(IK, IUGT(POWGTNO(ip)))                                    ! SUM TDG O
+    381 F POWER HOUSE(S)
+    382                         END IF
+    383                     END DO
+    384                     IF (SUM_K/=0) THEN
+    385                         TDG_PHS(ip)=SUM_TDGPHK/SUM_K                                                             ! LAYER AVE
+    385 RAGED TDG FOR POWER HOUSE(S)
+    386                     ELSE
+    387                         TDG_PHS(ip)=0.0
+    388                     END IF
+    389                     SUM_TDG_PHS = SUM_TDG_PHS + TDG_PHS(ip)*QGT(POWGTNO(ip))                                     ! SUM TDG*Q
+    389 PH
+    390                 END IF
+    391              END DO
+    392              IF(QPH/=0.0) TDG_PH = SUM_TDG_PHS/QPH                                                                ! FLOW AVE
+    392 RAGED TDG FOR POWER HOUSE(S)
+    393              QTOT = 0.0                                                                                           ! INITIAL 
+    393 QTOT
+    394              DO ig = 1, NGT
+    395                 QTOT = QTOT + QGT(ig)                                                                             ! SUM QTOT
+    396              END DO
+    397              IF (FLNO>0) THEN
+    398                 DO ifl = 1, FLNO
+    399                    QTOT = QTOT - QGT(FLGTNO(ifl))                                                                 ! QTOT = Q
+    399 TOT - Q FISH LADDER
+    400                 END DO 
+    401              END IF
+    402              TDG_QROSP = Q_ROSP *35.3147/1000.0                                                                   ! CMS TO K
+    402 CFS
+    403              TDG_QPH   = QPH    *35.3147/1000.0                                                                   ! CMS TO K
+    403 CFS
+    404              TDG_QTOT  = QTOT   *35.3147/1000.0                                                                   ! CMS TO K
+    404 CFS
+    405 ! CALCULATE QENT
+    406              IF (TDGENTEQ == 1) THEN
+    407                 TDG_QENT=E1*TDG_QROSP+E2
+    408 !
+    409              ELSE IF (TDGENTEQ == 2) THEN
+    410                 TDG_QENT=MIN((TDG_QTOT/60),1.0)*E1*TDG_QROSP+E2
+    411 !
+    412              ELSE IF (TDGENTEQ== 3) THEN
+    413                 TDG_QENT=MIN((TDG_QROSP/20),1.0)*E1*TDG_QROSP+E2
+    414 !
+    415              ELSE
+    416                 TEXT='TDGENTEQ INPUT ERROR'
+    417                 ERROR_OPEN=.TRUE.
+
+Page 13          Source Listing                  SYSTDG_TDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    418              END IF
+    419              TDG_QENT=MIN(TDG_QENT,(TDG_QTOT-TDG_QROSP))
+    420              TDG_REL= (TDG_ROSP*(TDG_QROSP+TDG_QENT) + TDG_PH*(TDG_QPH-TDG_QENT))/(TDG_QPH+TDG_QROSP)           ! TDG RELEAS
+    420 E CALCULATION
+    421              IF (TDG_REL>145.0) TDG_REL = 145.0                                                                 ! TDG RELEAS
+    421 E <=145.0
+    422              TDG_TDG=TDG_REL                                                                                    ! OUTPUT TDG
+    422  = TDG_REL
+    423           END IF                                                                                                ! END IF POW
+    423 NO >0
+    424           IF (TDG_TDG > 145.0) TDG_TDG = 145.0                                                                  ! TDG <=145.
+    424 0
+    425           IF (JDAY>=NXTSPLIT3) THEN
+    426              DO ig = 1, NGT
+    427                 SUM_QGT2=SUM_QGT2+QGT(ig)
+    428              END DO
+    429              WRITE (88888, '(A, F10.3, 2A, F10.3, A, F9.3, A, <NGT>(F9.3,","))')' ',JDAY,',  ', ', ',TDG_TDG,',  ',SUM_QGT2,
+    429 ',  ',(QGT(ig), ig = 1, NGT)
+    430              NXTSPLIT3 = NXTSPLIT3 + 1.0
+    431           END IF
+    432        END IF                                                                                                   ! END IF Q_S
+    432 UM/=0.0
+    433     END SUBROUTINE SYSTDG_TDG
+
+
+ENTRY POINTS
+
+ Address      Type  Name                    
+                                            
+       MODSYSTDG_mp_SYSTDG_TDG              
+
+Page 14          Source Listing                  SYSTDG_TDG
+2026-03-30 08:47 Symbol Table                    ..\..\..\systdg.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ E1                         Local  223      R(8)            8           scalar                    272,275,278,305,312,319,407,410,41
+                                                                                                  3                                 
+ E2                         Local  223      R(8)            8           scalar                    273,276,279,306,313,320,407,410,41
+                                                                                                  3                                 
+ ERROR_OPEN                 Local  349      L(4)            4           scalar                    21,349,417                        
+ EXP                        Func   253                                  scalar                    253,324,342,345                   
+ IFL                        Local  398      I(4)            4           scalar                    398,399                           
+ IG                         Local  232      I(4)            4           scalar                    232,233,234,236,245,246,247,251,25
+                                                                                                  2,253,254,255,292,293,295,296,324,
+                                                                                                  327,330,335,336,338,342,345,352,35
+                                                                                                  3,354,355,357,394,395,426,427,429 
+ IK                         Local  228      I(8)            8           scalar                    335,336,338,378,379,381           
+ IP                         Local  265      I(4)            4           scalar                    265,266,267,373,374,375,379,381,38
+                                                                                                  5,387,389                         
+ JBUGT                      Local  267      I(4)            4     1     1        ALC              267,295,296                       
+ JDAY                       Local  221      R(8)            8           scalar                    221,425,429                       
+ KB                         Local  335      I(4)            4     1     1        ALC              335                               
+ KMX                        Local  378      I(4)            4           scalar                    378                               
+ KT                         Local  335      I(4)            4           scalar                    335                               
+ LC                         Label  429                                                                                              
+ LD                         Label  429                                                                                              
+ MIN                        Func   410                                  scalar                    410,413,419                       
+ P1                         Local  223      R(8)            8           scalar                    301,308,315,324,327,330,342,345   
+ P2                         Local  223      R(8)            8           scalar                    302,309,316,324,327,330,342       
+ P3                         Local  223      R(8)            8           scalar                    303,310,317,324,327,330,342,345   
+ P4                         Local  223      R(8)            8           scalar                    304,311,318,324,327,330,342       
+ PALT                       Local  253      R(8)            8     1     1        ALC              253,324,327,330,342,345,352       
+ Q                          Local  267      R(8)            8     1     1        ALC              21,267,296                        
+ QGT                        Local  234      R(8)            8     1     1        ALC              234,236,247,252,255,266,283,293,35
+                                                                                                  4,355,374,375,389,395,399,427,429 
+ QPH                        Local  225      R(8)            8           scalar                    370,375,392,403                   
+ QRO                        Local  225      R(8)            8           scalar                    244,247,250,258,259,361           
+ QSP                        Local  225      R(8)            8           scalar                    289,355,357,360,361,365           
+ QS_RO                      Local  224      R(8)            8           scalar                    250,253                           
+ QTOT                       Local  225      R(8)            8           scalar                    393,395,399,404                   
+ Q_ROSP                     Local  225      R(8)            8           scalar                    361,362,402                       
+ Q_SUM                      Local  224      R(8)            8           scalar                    230,234,236,240                   
+ SCREENC                    Module 221                                                            221                               
+ SUM_K                      Local  228      I(8)            8           scalar                    333,337,341,376,380,384,385       
+ SUM_QGT2                   Local  229      R(4)            4           scalar                    427,429                           
+ SUM_TDGPHK                 Local  224      R(8)            8           scalar                    377,381,385                       
+ SUM_TDG_PHS                Local  226      R(8)            8           scalar                    372,389,392                       
+ SUM_TDG_ROS                Local  226      R(8)            8           scalar                    243,255,259,362                   
+ SUM_TDG_SPS                Local  226      R(8)            8           scalar                    288,354,360,362                   
+ SYSTDG_TDG                 Subr   220                                                                                              
+ T2                         Local  336      R(8)            8     2     1        PTR              336,338                           
+ TDG                        Local  379      R(8)            8     2     1        PTR              22,379,381                        
+ TDG_PH                     Local  227      R(8)            8           scalar                    392,420                           
+ TDG_QENT                   Local  225      R(8)            8           scalar                    407,410,413,419,420               
+ TDG_QPH                    Local  225      R(8)            8           scalar                    403,420                           
+ TDG_QROSP                  Local  225      R(8)            8           scalar                    402,407,410,413,419,420           
+
+Page 15          Source Listing                  SYSTDG_TDG
+2026-03-30 08:47 Symbol Table                    ..\..\..\systdg.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ TDG_QTOT                   Local  225      R(8)            8           scalar                    404,410,419                       
+ TDG_REL                    Local  420      R(8)            8           scalar                    420,421,422                       
+ TDG_RO                     Local  227      R(8)            8           scalar                    259,261                           
+ TDG_ROSP                   Local  239      R(8)            8           scalar                    239,362,363,420                   
+ TDG_SP                     Local  227      R(8)            8           scalar                    290,360                           
+ TEMP_TW                    Local  224      R(8)            8           scalar                    334,338,341,342                   
+ TEXT                       Local  348      CHAR            72          scalar                    21,348,416                        
+ TWE_TS                     Local  286      R(8)            8           scalar                    286                               
+ US                         Local  267      I(4)            4     1     1        ALC              267,295,296                       
+ W2FBE                      Local  224      R(8)            8           scalar                    267,274,277,296,298,307,314       
+
+Page 16          Source Listing                  SYSTDG_TDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    434 !===========================================================================================================================
+    435     SUBROUTINE DEALLOCATE_SYSTDG
+    436      IMPLICIT NONE 
+    437       DEALLOCATE (TDG_PHS, TDG_FLS, TDG_TDP)
+    438       DEALLOCATE (BAYC, QBAY)
+    439       DEALLOCATE (POWGTNO, FLGTNO)
+    440       DEALLOCATE (GTNAME)
+    441     END SUBROUTINE
+
+
+ENTRY POINTS
+
+ Address      Type  Name                           
+                                                   
+       MODSYSTDG_mp_DEALLOCATE_SYSTDG              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DEALLOCATE_SYSTDG          Subr   435                                                                                              
+
+Page 17          Source Listing                  DEALLOCATE_SYSTDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+    442 !
+    443 END MODULE modSYSTDG
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ GLOBAL                     Module 21                                                             21                                
+ KINETIC                    Module 22                                                             22                                
+ MAIN                       Module 21                                                             21                                
+ MODSYSTDG                  Module 19                                                                                               
+ PREC                       Module 20                                                             20                                
+ R8                         Local  20                                   scalar                    20                                
+ STRUCTURES                 Module 21                                                             21                                
+ TAIR                       Local  22       R(8)            8     1     1        ALC              22                                
+ TDGAS                      Module 21                                                             21                                
+ TVDC                       Module 22                                                             22                                
+
+Page 18          Source Listing                  DEALLOCATE_SYSTDG
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\systdg.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DEALLOCATE_SYSTDG          Subr   435                                                                                              
+ INPUT_SYSTDG               Subr   41                                                                                               
+ MODSYSTDG                  Module 19                                                                                               
+ SYSTDG_QS                  Subr   186                                                            284                               
+ SYSTDG_TDG                 Subr   220                                                                                              
+ UPDATE_TDGC                Subr   200                                                                                              
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+
+Page 19          Source Listing                  DEALLOCATE_SYSTDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:systdg.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+
+Page 20          Source Listing                  DEALLOCATE_SYSTDG
+2026-03-30 08:47                                 ..\..\..\systdg.f90
+
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : systdg.lst
+  /object:systdg.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

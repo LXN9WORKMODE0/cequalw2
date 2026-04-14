@@ -1,0 +1,843 @@
+Page 1           Source Listing                                                                
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180794.i90
+
+..\..\..\temperature.F90(317): error #6404: This name does not have a type, and must have an explicit type.   [ICETHICKNESSCHANGE
+                  IceThicknessChange = ICETHU+ICETH1+ICETH2
+------------------^
+
+Page 2           Source Listing                  
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180794.i90
+
+      1 # 1 "..\..\..\temperature.F90"
+      2 subroutine temperature
+      3 
+      4 USE MAIN
+      5 USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINETIC; USE SHADEC; USE EDDY
+      6   USE STRUCTURES; USE TRANS;  USE TVDC;   USE SELWC;  USE GDAYC; USE SCREENC; USE RSTART
+      7   USE MetFileRegion
+      8 ! USE KINETIC kept - EXH2O, BETA, GAMMA used for light extinction
+      9 ! TDGAS removed - not used in temperature
+     10 ! MACROPHYTEC, POROSITYC, ZOOPLANKTONC removed - water quality related
+     11 ! CEMAVars removed - sediment diagenesis
+     12   IMPLICIT NONE
+     13   EXTERNAL RESTART_OUTPUT
+     14   
+     15   REAL(R8) :: BTA1(1000),GMA1(1000)   ! places a limit of 1000 vertical layers
+     16   REAL     :: RN1    
+     17 
+     18 DO JW=1,NWB
+     19       IF (READ_EXTINCTION(JW))GAMMA(:,US(BS(JW)):DS(BE(JW))) = EXH2O(JW)      ! SW 1/28/13
+     20       KT = KTWB(JW)
+     21       if(.not.Met_Regions)then
+     22       IF (.NOT. NO_HEAT(JW)) THEN
+     23         IF (.NOT. READ_RADIATION(JW)) CALL SHORT_WAVE_RADIATION (JDAY)
+     24         IF (TERM_BY_TERM(JW))THEN                                      ! SW 1/25/05
+     25                          IF(I_LWAT==1)THEN  ! Prata (1996)
+     26                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 =
+     26 =kPa
+     27                              RANLW(JW) = 0.0000000562*((273.15D0+TAIR(JW))**4)*(1.0-(1.0+(465.0*EA)/(273.15+TAIR(JW)))*EXP(-
+     27 SQRT(1.2+(3*465*EA)/(273.15+TAIR(JW)))))*(1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0   
+     28                          ELSEIF(I_LWAT==2)THEN  ! Idso (1981)
+     29                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 =
+     29 =kPa
+     30                              RANLW(JW) = 0.0000000562*((273.15+TAIR(JW))**4)*(0.7+0.000595*EA*EXP(1500/(273.15+TAIR(JW))))*(
+     30 1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0
+     31                          ELSEIF(I_LWAT==3)THEN  ! Dilley and O'Brien(1998)
+     32                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 =
+     32 =kPa
+     33                              RANLW(JW) = 59.83+113.7*(((273.16+TAIR(JW))/(273.16))**6)+96.96*SQRT(4650*EA/(273.15+TAIR(JW))/
+     33 25)*(1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0
+     34                          ELSE     ! IDSO AND JACKSON AND SWINBANK AT LOW TEMP BELOW 5C  Legacy W2 version
+     35                            IF(TAIR(JW).GE.5.0)THEN
+     36                            RANLW(JW) = 5.31D-13*(273.15D0+TAIR(JW))**6*(1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0    ! SW 4/20
+     36 /16 SPEED
+     37                            ELSE
+     38                            RANLW(JW) = 5.62D-8*(273.15D0+TAIR(JW))**4*(1.D0-0.261D0*DEXP(-7.77D-4*TAIR(JW)*TAIR(JW)))*(1.0D0
+     38 +CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0     ! SW 4/20/16 SPEED
+     39                            ENDIF
+     40                          ENDIF      
+     41         ENDIF
+     42       END IF
+     43       endif
+     44       DO JB=BS(JW),BE(JW)
+     45       IF(BR_INACTIVE(JB))CYCLE
+     46         IU = CUS(JB)
+     47         ID = DS(JB)
+     48 
+     49 !****** Heat exchange
+
+Page 3           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+     50 
+     51         IF (.NOT. NO_HEAT(JW)) THEN
+     52           DO I=IU,ID
+     53               if(Met_Regions)then
+     54                         NMet=I_MetRegions(I)
+     55                         IF (.NOT. NO_HEAT(JW)) THEN
+     56                         IF (.NOT. READ_RADIATION(JW)) CALL SHORT_WAVE_RADIATION (JDAY)
+     57                         IF (TERM_BY_TERM(JW))THEN                                      ! SW 1/25/05
+     58                          IF(I_LWAT==1)THEN
+     59                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(NMet)/(TDEW(NMet)+237.3D0)+0.6609D0))   ! mmHg X 0.1333
+     59 22 ==kPa
+     60                              RANLW(NMet) = 0.0000000562*((273.15D0+TAIR(NMet))**4)*(1.0-(1.0+(465.0*EA)/(273.15+TAIR(NMet)))
+     60 *EXP(-SQRT(1.2+(3*465*EA)/(273.15+TAIR(NMet)))))*(1.0D0+CC_LW*CLOUD(NMet)*CLOUD(NMet))*0.97D0      !CC_LW=0.0017D0 default
+     61                          ELSEIF(I_LWAT==2)THEN  ! Idso (1981)
+     62                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(NMet)/(TDEW(NMet)+237.3D0)+0.6609D0))   ! mmHg X 0.1333
+     62 22 ==kPa
+     63                              RANLW(NMet) = 0.0000000562*((273.15+TAIR(NMet))**4)*(0.7+0.000595*EA*EXP(1500/(273.15+TAIR(NMet
+     63 ))))*(1.0D0+CC_LW*CLOUD(NMet)*CLOUD(NMet))*0.97D0
+     64                          ELSEIF(I_LWAT==3)THEN  ! Dilley and O'Brien(1998)
+     65                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(NMet)/(TDEW(NMet)+237.3D0)+0.6609D0))   ! mmHg X 0.1333
+     65 22 ==kPa
+     66                              RANLW(NMet) = 59.83+113.7*(((273.16+TAIR(NMet))/(273.16))**6)+96.96*SQRT(4650*EA/(273.15+TAIR(N
+     66 Met))/25)*(1.0D0+CC_LW*CLOUD(NMet)*CLOUD(NMet))*0.97D0
+     67                          ELSE     ! IDSO AND JACKSON AND SWINBANK AT LOW TEMP BELOW 5C  Legacy W2 version
+     68                            IF(TAIR(NMet).GE.5.0)THEN
+     69                            RANLW(NMet) = 5.31D-13*(273.15D0+TAIR(NMet))**6*(1.0D0+0.0017D0*CLOUD(NMet)*CLOUD(NMet))*0.97D0  
+     69   ! SW 4/20/16 SPEED
+     70                            ELSE
+     71                            RANLW(NMet) = 5.62D-8*(273.15D0+TAIR(NMet))**4*(1.D0-0.261D0*DEXP(-7.77D-4*TAIR(NMet)*TAIR(NMet))
+     71 )*(1.0D0+CC_LW*CLOUD(NMet)*CLOUD(NMet))*0.97D0     ! SW 4/20/16 SPEED
+     72                            ENDIF
+     73                          ENDIF
+     74                          
+     75                         ENDIF
+     76                         END IF
+     77 !else
+     78 !          IF (.NOT. NO_HEAT(JW)) THEN
+     79 !          IF (.NOT. READ_RADIATION(JW)) CALL SHORT_WAVE_RADIATION (JDAY)
+     80 !          IF (TERM_BY_TERM(JW))THEN                                      ! SW 1/25/05
+     81 !           IF(I_LWAT==1)THEN
+     82 !               EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 ==kPa
+     83 !               RANLW(JW) = 0.0000000562*((273.15D0+TAIR(JW))**4)*(1.0-(1.0+(465.0*EA)/(273.15+TAIR(JW)))*EXP(-SQRT(1.2+(3*4
+     83 65*EA)/(273.15+TAIR(JW)))))*(1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0      !CC_LW=0.0017D0 default
+     84 !           ELSEIF(I_LWAT==2)THEN  ! Idso (1981)
+     85 !               EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 ==kPa
+     86 !               RANLW(JW) = 0.0000000562*((273.15+TAIR(JW))**4)*(0.7+0.000595*EA*EXP(1500/(273.15+TAIR(JW))))*(1.0D0+CC_LW*C
+     86 LOUD(JW)*CLOUD(JW))*0.97D0
+     87 !           ELSEIF(I_LWAT==3)THEN  ! Dilley and O'Brien(1998)
+     88 !               EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 ==kPa
+     89 !               RANLW(JW) = 59.83+113.7*(((273.16+TAIR(JW))/(273.16))**6)+96.96*SQRT(4650*EA/(273.15+TAIR(JW))/25)*(1.0D0+CC
+     89 _LW*CLOUD(JW)*CLOUD(JW))*0.97D0
+     90 !           ELSE     ! IDSO AND JACKSON AND SWINBANK AT LOW TEMP BELOW 5C  Legacy W2 version
+     91 !             IF(TAIR(JW).GE.5.0)THEN
+     92 !             RANLW(JW) = 5.31D-13*(273.15D0+TAIR(JW))**6*(1.0D0+0.0017D0*CLOUD(JW)*CLOUD(JW))*0.97D0    ! SW 4/20/16 SPEED
+     93 !             ELSE
+     94 !             RANLW(JW) = 5.62D-8*(273.15D0+TAIR(JW))**4*(1.D0-0.261D0*DEXP(-7.77D-4*TAIR(JW)*TAIR(JW)))*(1.0D0+CC_LW*CLOUD(
+     94 JW)*CLOUD(JW))*0.97D0     ! SW 4/20/16 SPEED
+
+Page 4           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+     95 !             ENDIF
+     96 !           ENDIF
+     97 !
+     98 !          ENDIF
+     99 !          END IF
+    100               endif
+    101               
+    102             IF (DYNAMIC_SHADE(I)) CALL SHADING
+    103 
+    104 !********** Surface
+    105 
+    106             IF (.NOT. ICE(I)) THEN
+    107               IF (TERM_BY_TERM(JW)) THEN
+    108                 CALL SURFACE_TERMS (T2(KT,I))
+    109                  if(Met_Regions)then
+    110                     RS(I)     = SRON(NMet)*SHADE(I)
+    111                     RN(I)     = RS(I)+RANLW(NMet)-RB(I)-RE(I)-RC(I)
+    112                      else
+    113                     RS(I)     = SRON(JW)*SHADE(I)
+    114                     RN(I)     = RS(I)+RANLW(JW)-RB(I)-RE(I)-RC(I)
+    115                 endif
+    116                 HEATEX    = RN(I)/RHOWCP*BI(KT,I)*DLX(I)
+    117 
+    118               ELSE
+    119                 CALL EQUILIBRIUM_TEMPERATURE
+    120                 HEATEX = (ET(I)-T2(KT,I))*CSHE(I)*BI(KT,I)*DLX(I)
+    121               END IF
+    122               TSS(KT,I) =  TSS(KT,I)+HEATEX
+    123               TSSS(JB)  =  TSSS(JB) +HEATEX*DLT
+    124               if(Met_Regions)then
+    125               SROOUT    = (1.0D0-BETA(JW))*(SRON(NMet)*SHADE(I)/RHOWCP)*BI(KT,I)*DLX(I)*DEXP(-GAMMA(KT,I)*DEPTHB(KT,I))
+    126               else
+    127               SROOUT    = (1.0D0-BETA(JW))*(SRON(JW)*SHADE(I)/RHOWCP)*BI(KT,I)*DLX(I)*DEXP(-GAMMA(KT,I)*DEPTHB(KT,I))    
+    128               endif
+    129               
+    130               TSS(KT,I) =  TSS(KT,I)-SROOUT
+    131               TSSS(JB)  =  TSSS(JB) -SROOUT*DLT
+    132               IF(KT == KB(I))THEN    ! SW 4/18/07
+    133               SROSED    =  SROOUT*TSEDF(JW)
+    134               ELSE
+    135               SROSED    =  SROOUT*(1.0D0-BI(KT+1,I)/BI(KT,I))*TSEDF(JW)
+    136               ENDIF
+    137               TSS(KT,I) =  TSS(KT,I)+SROSED
+    138               TSSS(JB)  =  TSSS(JB) +SROSED*DLT
+    139               SROIN     =  SROOUT*B(KT+1,I)/BI(KT,I)
+    140               DO K=KT+1,KB(I)
+    141                 SROOUT   = SROIN*DEXP(-GAMMA(K,I)*(H1(K,I)))
+    142                 SRONET   = SROIN-SROOUT
+    143                 IF(K /= KB(I))THEN                                         ! SW 1/18/08
+    144                 SROSED   = SROOUT*(1.0D0-BI(K+1,I)/BI(K,I))*TSEDF(JW)
+    145                 ELSE
+    146                 SROSED   = SROOUT*TSEDF(JW)
+    147                 ENDIF
+    148                 TSS(K,I) = TSS(K,I)+ SRONET+SROSED
+    149                 TSSS(JB) = TSSS(JB)+(SRONET+SROSED)*DLT
+    150                 SROIN    = SROOUT*B(K+1,I)/B(K,I)
+    151               END DO
+
+Page 5           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    152             END IF
+    153 
+    154 !********** Sediment/water
+    155 
+    156             DO K=KT,KB(I)
+    157               IF(K==KB(I))THEN                ! SW 4/18/07
+    158               TFLUX    = CBHE(JW)/RHOWCP*(TSED(JW)-T2(K,I))*BI(K,I)*DLX(I)
+    159               ELSE
+    160               TFLUX    = CBHE(JW)/RHOWCP*(TSED(JW)-T2(K,I))*(BI(K,I)-BI(K+1,I))*DLX(I)
+    161               ENDIF
+    162               TSS(K,I) = TSS(K,I)+TFLUX
+    163               TSSB(JB) = TSSB(JB)+TFLUX*DLT
+    164             END DO
+    165           END DO
+    166 
+    167 !******** Ice cover
+    168 
+    169           IF (ICE_CALC(JW)) THEN
+    170 !           HIA = 0.2367*CSHE(I)/5.65E-8    ! SW 10/20/09 Duplicate line of code
+    171             DO I=IU,ID
+    172               ALLOW_ICE(I) = .TRUE.
+    173               IF (T2(KT,I) > ICET2(JW)) ALLOW_ICE(I) = .FALSE.                        ! RC/SW 4/28/11
+    174 !             DO K=KT,KB(I)                                                          ! RC 4/28/11: no reason to loop over al
+    174 l layers
+    175 !               IF (T2(K,I) > ICET2(JW)) ALLOW_ICE(I) = .FALSE.
+    176 !             END DO
+    177             END DO
+    178 !          ICE_IN(JB) = .TRUE.                                                      ! RC/SW 4/28/11 eliminate ICE_IN
+    179 !          DO I=IU,ID
+    180 !            IF (ICETH(I) < ICEMIN(JW)) ICE_IN(JB) = .FALSE.
+    181 !          END DO
+    182             DO I=IU,ID
+    183               IF(SALT_WATER(JW))THEN        ! SW/RC 4/28/11
+    184                 IF(TDS(KT,I) < 35.)THEN
+    185                 RIMT = -0.0545*TDS(KT,I)                                         ! REGRESSION FOR TDS BETWEEN 0 AND 35 PPT
+    186                 ELSE
+    187                 RIMT=-0.31462-0.04177*TDS(KT,I)-0.000166*TDS(KT,I)*TDS(KT,I)     ! REGRESSION EQN FOR TDS>35 PPT
+    188                 ENDIF                                                                                
+    189               ELSE
+    190               RIMT=0.0
+    191               ENDIF
+    192               IF (DETAILED_ICE(JW)) THEN
+    193                 IF (T2(KT,I) < 0.0) THEN
+    194                   IF (.NOT. ICE(I)) THEN
+    195                     ICETH2 = -T2(KT,I)*RHO(KT,I)*CP*H2(KT,I)/RHOIRL1
+    196                     IF (ICETH2 < ICE_TOL) THEN
+    197                       ICETH2 = 0.0D0
+    198                     ELSE
+    199                       TFLUX      = T2(KT,I)*RHO(KT,I)*CP*H2(KT,I)*BI(KT,I)/(RHOWCP*DLT)*DLX(I)
+    200                       TSS(KT,I)  = TSS(KT,I) -TFLUX
+    201                       TSSICE(JB) = TSSICE(JB)-TFLUX*DLT
+    202                     END IF
+    203                   END IF
+    204                 END IF
+    205 
+    206 !************** Ice balance
+    207 
+
+Page 6           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    208                 IF (ICE(I)) THEN
+    209                   if(Met_Regions)then
+    210                   NMet=I_MetRegions(I)
+    211                   TICE = TAIR(NMet)
+    212                   else
+    213                   TICE = TAIR(JW)
+    214                   endif
+    215                   DEL  = 2.0D0
+    216                   J    = 1
+    217                   if(.not.TERM_BY_TERM(JW))then
+    218                   if(Met_Regions)then    !if using TEQ need to compute terms for ice balance - no need to recompute though s
+    218 ince it was already used for temperature in water
+    219                          IF(I_LWAT==1)THEN
+    220                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(NMet)/(TDEW(NMet)+237.3D0)+0.6609D0))   ! mmHg X 0.1333
+    220 22 ==kPa
+    221                              RANLW(NMet) = 0.0000000562*((273.15D0+TAIR(NMet))**4)*(1.0-(1.0+(465.0*EA)/(273.15+TAIR(NMet)))
+    221 *EXP(-SQRT(1.2+(3*465*EA)/(273.15+TAIR(NMet)))))*(1.0D0+CC_LW*CLOUD(NMet)*CLOUD(NMet))*0.97D0      !CC_LW=0.0017D0 default
+    222                          ELSEIF(I_LWAT==2)THEN  ! Idso (1981)
+    223                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(NMet)/(TDEW(NMet)+237.3D0)+0.6609D0))   ! mmHg X 0.1333
+    223 22 ==kPa
+    224                              RANLW(NMet) = 0.0000000562*((273.15+TAIR(NMet))**4)*(0.7+0.000595*EA*EXP(1500/(273.15+TAIR(NMet
+    224 ))))*(1.0D0+CC_LW*CLOUD(NMet)*CLOUD(NMet))*0.97D0
+    225                          ELSEIF(I_LWAT==3)THEN  ! Dilley and O'Brien(1998)
+    226                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(NMet)/(TDEW(NMet)+237.3D0)+0.6609D0))   ! mmHg X 0.1333
+    226 22 ==kPa
+    227                              RANLW(NMet) = 59.83+113.7*(((273.16+TAIR(NMet))/(273.16))**6)+96.96*SQRT(4650*EA/(273.15+TAIR(N
+    227 Met))/25)*(1.0D0+CC_LW*CLOUD(NMet)*CLOUD(NMet))*0.97D0
+    228                          ELSE     ! IDSO AND JACKSON AND SWINBANK AT LOW TEMP BELOW 5C  Legacy W2 version
+    229                            IF(TAIR(NMet).GE.5.0)THEN
+    230                            RANLW(NMet) = 5.31D-13*(273.15D0+TAIR(NMet))**6*(1.0D0+0.0017D0*CLOUD(NMet)*CLOUD(NMet))*0.97D0  
+    230   ! SW 4/20/16 SPEED
+    231                            ELSE
+    232                            RANLW(NMet) = 5.62D-8*(273.15D0+TAIR(NMet))**4*(1.D0-0.261D0*DEXP(-7.77D-4*TAIR(NMet)*TAIR(NMet))
+    232 )*(1.0D0+CC_LW*CLOUD(NMet)*CLOUD(NMet))*0.97D0     ! SW 4/20/16 SPEED
+    233                            ENDIF
+    234                          ENDIF
+    235 !  IF(TAIR(NMet).GE.5.0)THEN
+    236 !RANLW(NMet) = 5.31D-13*(273.15D0+TAIR(NMet))**6*(1.0D0+CC_LW*CLOUD(NMet)**2)*0.97D0
+    237 !ELSE
+    238 !RANLW(NMet) = 5.62D-8*(273.15D0+TAIR(NMet))**4*(1.D0-0.261D0*DEXP(-7.77D-4*TAIR(NMet)**2))*(1.0D0+CC_LW*CLOUD(NMet)**2)*0.9
+    238 7D0
+    239 !ENDIF
+    240                     RN1=SRON(NMet)/REFL*SHADE(I)*(1.0D0-ALBEDO(JW))*BETAI(JW)+RANLW(NMet)               ! SW 4/19/10 elimina
+    240 te spurious divsion of SRO by RHOCP
+    241                   else
+    242                          IF(I_LWAT==1)THEN  ! Prata (1996)
+    243                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 =
+    243 =kPa
+    244                              RANLW(JW) = 0.0000000562*((273.15D0+TAIR(JW))**4)*(1.0-(1.0+(465.0*EA)/(273.15+TAIR(JW)))*EXP(-
+    244 SQRT(1.2+(3*465*EA)/(273.15+TAIR(JW)))))*(1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0   
+    245                          ELSEIF(I_LWAT==2)THEN  ! Idso (1981)
+    246                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 =
+    246 =kPa
+    247                              RANLW(JW) = 0.0000000562*((273.15+TAIR(JW))**4)*(0.7+0.000595*EA*EXP(1500/(273.15+TAIR(JW))))*(
+    247 1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0
+    248                          ELSEIF(I_LWAT==3)THEN  ! Dilley and O'Brien(1998)
+    249                              EA = 0.133322*DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))   ! mmHg X 0.133322 =
+
+Page 7           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    249 =kPa
+    250                              RANLW(JW) = 59.83+113.7*(((273.16+TAIR(JW))/(273.16))**6)+96.96*SQRT(4650*EA/(273.15+TAIR(JW))/
+    250 25)*(1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0
+    251                          ELSE     ! IDSO AND JACKSON AND SWINBANK AT LOW TEMP BELOW 5C  Legacy W2 version
+    252                            IF(TAIR(JW).GE.5.0)THEN
+    253                            RANLW(JW) = 5.31D-13*(273.15D0+TAIR(JW))**6*(1.0D0+CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0    ! SW 4/20
+    253 /16 SPEED
+    254                            ELSE
+    255                            RANLW(JW) = 5.62D-8*(273.15D0+TAIR(JW))**4*(1.D0-0.261D0*DEXP(-7.77D-4*TAIR(JW)*TAIR(JW)))*(1.0D0
+    255 +CC_LW*CLOUD(JW)*CLOUD(JW))*0.97D0     ! SW 4/20/16 SPEED
+    256                            ENDIF
+    257                          ENDIF      
+    258 !IF(TAIR(JW).GE.5.0)THEN
+    259 !RANLW(JW) = 5.31D-13*(273.15D0+TAIR(JW))**6*(1.0D0+CC_LW*CLOUD(JW)**2)*0.97D0
+    260 !ELSE
+    261 !RANLW(JW) = 5.62D-8*(273.15D0+TAIR(JW))**4*(1.D0-0.261D0*DEXP(-7.77D-4*TAIR(JW)**2))*(1.0D0+CC_LW*CLOUD(JW)**2)*0.97D0
+    262 !ENDIF
+    263                     RN1=SRON(JW)/REFL*SHADE(I)*(1.0D0-ALBEDO(JW))*BETAI(JW)+RANLW(JW)               ! SW 4/19/10 eliminate s
+    263 purious divsion of SRO by RHOCP
+    264                   endif
+    265                   else
+    266                     if(Met_Regions)then
+    267                        RN1=SRON(NMet)/REFL*SHADE(I)*(1.0D0-ALBEDO(JW))*BETAI(JW)+RANLW(NMet)
+    268                     else
+    269                       RN1=SRON(JW)/REFL*SHADE(I)*(1.0D0-ALBEDO(JW))*BETAI(JW)+RANLW(JW)    
+    270                     endif
+    271                   ENDIF
+    272                   
+    273                   DO WHILE (ABS(DEL) > 1.0 .AND. J < 500)                                         ! SW 4/21/10 Should have b
+    273 een ABS of DEL
+    274                     CALL SURFACE_TERMS (TICE)      
+    275                     RN(I) = RN1-RB(I)-RE(I)-RC(I)    ! 4/19/10
+    276 !                    RN(I) = SRON(JW)/(REFL*RHOWCP)*SHADE(I)*(1.0-ALBEDO(JW))*BETAI(JW)+RANLW(JW)-RB(I)-RE(JW)-RC(I)
+    277                     DEL   = RN(I)+RK1*(RIMT-TICE)/ICETH(I)     ! RK1 is ice conductivity 2.12 W/m/oC
+    278                     IF (ABS(DEL) > 1.0) TICE = TICE+DEL/500.0D0
+    279                     J = J+1
+    280                   END DO
+    281 
+    282 !**************** Solar radiation attenuation
+    283                   if(Met_Regions)then
+    284                   TFLUX      = DLX(I)*SRON(WB_MetRegions(JW))/(RHOWCP*REFL)*SHADE(I)*(1.0D0-ALBEDO(JW))*(1.0D0-BETAI(JW))   
+    284                           &   ! SW 4/21/10 Eliminate spurious divide by RHOCP
+    285                                *DEXP(-GAMMAI(JW)*ICETH(I))*BI(KT,I)
+    286                   else
+    287                   TFLUX      = DLX(I)*SRON(JW)/(RHOWCP*REFL)*SHADE(I)*(1.0D0-ALBEDO(JW))*(1.0D0-BETAI(JW))                  
+    287            &   ! SW 4/21/10 Eliminate spurious divide by RHOCP
+    288                                *DEXP(-GAMMAI(JW)*ICETH(I))*BI(KT,I)                      
+    289                   endif
+    290                   
+    291                   TSS(KT,I)  = TSS(KT,I) +TFLUX
+    292                   TSSICE(JB) = TSSICE(JB)+TFLUX*DLT
+    293                   IF (TICE > 0.0) THEN
+    294                     HICE   =  RHOICP*0.5D0*TICE*0.5D0*ICETH(I)*BI(KT,I)/(RHOWCP*DLT)
+    295                     ICETHU = -DLT*HICE/B(KTI(I),I)*RHOWCP/RHOIRL1
+    296                     TICE   =  0.0D0
+    297                   END IF
+    298 
+
+Page 8           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    299 !**************** Ice growth
+    300 
+    301                   IF (TICE < 0.0) ICETH1 = DLT*(RK1*(RIMT-TICE)/ICETH(I))/RHOIRL1
+    302 
+    303 !**************** Ice melt from water-ice interface
+    304 
+    305                   IF (T2(KT,I) > 0.0) THEN
+    306                     ICETH2     = -DLT*HWI(JW)*(T2(KT,I)-RIMT)/RHOIRL1
+    307                     TFLUX      =  2.392D-7*HWI(JW)*(RIMT-T2(KT,I))*BI(KT,I)*DLX(I)
+    308                     TSS(KT,I)  =  TSS(KT,I) +TFLUX
+    309                     TSSICE(JB) =  TSSICE(JB)+TFLUX*DLT
+    310                   END IF
+    311                 END IF
+    312 
+    313 !************** Ice thickness
+    314 
+    315                 ICETH(I) = ICETH(I)+ICETHU+ICETH1+ICETH2
+    316 ! SW 9/4/15
+    317                 IF(ICEC(JW) == '    ONWB')THEN
+    318                   IceThicknessChange = ICETHU+ICETH1+ICETH2
+	..................1                                         
+(1) This name does not have a type, and must have an explicit type.   [ICETHICKNESSCHANGE]
+
+    319                   IF(IceThicknessChange >= 0.0  .and. ICETH(I) > ICE_TOL)THEN
+    320                   IceQSS(I) =-IceThicknessChange*BI(KT,I)*DLX(I)*0.917/DLT    ! removal of 0.917 m3 of water for every 1 m3 
+    320 of ice formed
+    321                   IceBank(I)=IceBank(I)+IceThicknessChange*BI(KT,I)*DLX(I)    ! Icebank - always + - volume of ice in m3
+    322                   ELSE
+    323                     IF (ICETH(I) < ICE_TOL)THEN
+    324                         ICETH(I) = 0.0D0
+    325                         ICEQSS(I)=ICEBANK(I)*0.917/DLT
+    326                         ICEBANK(I)=0.0
+    327                         IF(I==IU .AND. US(JB) < IU)THEN    ! CHECK SUBTRACTED SEGMENTS THAT MAY HAVE ICE, MELT THEM AND PUT 
+    327 WATER IN SEGMENT IU
+    328                             DO II=US(JB),IU-1
+    329                             ICETH(II)=0.0D0
+    330                             ICEQSS(IU)=ICEQSS(IU)+ICEBANK(II)*0.917/DLT
+    331                             ICEBANK(II)=0.0
+    332                             ICE(II) = .FALSE.
+    333                             ENDDO
+    334                         ENDIF
+    335                         
+    336                     ELSE
+    337                         ICEQSS(I)=-(ICETHICKNESSCHANGE/ICETH(I))*ICEBANK(I)*0.917/DLT     ! SW 9/29/15
+    338                         ICEBANK(I)=(1.+ICETHICKNESSCHANGE/ICETH(I))*ICEBANK(I)            ! Note: ICETHICKNESSCHANGE is nega
+    338 tive
+    339                         IF(I==IU .AND. US(JB) < IU)THEN    ! CHECK SUBTRACTED SEGMENTS THAT MAY HAVE ICE, MELT THEM AND PUT 
+    339 WATER IN SEGMENT IU
+    340                             DO II=US(JB),IU-1
+    341                                 ICEQSS(IU)=ICEQSS(IU)-(ICETHICKNESSCHANGE/ICETH(IU))*ICEBANK(II)*0.917/DLT 
+    342                                 ICEBANK(II)=(1.+ICETHICKNESSCHANGE/ICETH(IU))*ICEBANK(II)
+    343                             ENDDO
+    344                         ENDIF
+    345                     ENDIF
+    346                   ENDIF
+    347 !VolIce(jb)=VolIce(jb)+iceqss(i)*dlt   ! since this flow is not exercised until the next time step - moved code to main prog
+    347 ram calculation of qss
+
+Page 9           Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    348                  ENDIF 
+    349                   
+    350                 IF (ICETH(I) < ICE_TOL) ICETH(I) = 0.0D0
+    351 !           IF (WINTER .AND. (.NOT. ICE_IN(JB))) THEN            ! RC 4/28/11 No reason for this
+    352 !             IF (.NOT. ALLOW_ICE(I)) ICETH(I) = 0.0
+    353 !           END IF
+    354                 ICE(I)   = ICETH(I) > 0.0
+    355                 IF (ICE(I))THEN    ! 3/27/08 SW
+    356                  ICESW(I) = 0.0   ! wind shear if ice is zero
+    357                  ELSE
+    358                  ICESW(I) = 1.0
+    359                 ENDIF
+    360                 ICETHU   = 0.0
+    361                 ICETH1   = 0.0
+    362                 ICETH2   = 0.0
+    363                 IF (ICETH(I) < ICE_TOL .AND. ICETH(I) > 0.0) ICETH(I) = ICE_TOL
+    364               ELSE                             ! for non-detailed model                ! IF no ice the preceding time step
+    365                 IF(TERM_BY_TERM(JW))CALL EQUILIBRIUM_TEMPERATURE           ! SW 10/20/09 Must call this first otherwise ET a
+    365 nd CSHE are 0
+    366                 HIA      = 0.2367D0*CSHE(I)/5.65D-8                          ! JM 11/08 convert SI units of m/s to English (
+    366 btu/ft2/d/F) and then back to SI W/m2/C
+    367 !                ICETH(I) = MAX(0.0,ICETH(I)+DLT*((RIMT-ET(I))/(ICETH(I)/RK1+1.0/HIA)-(T2(KT,I)-RIMT))/RHOIRL1)
+    368                 ICETH(I) = MAX(0.0,ICETH(I)+DLT*((RIMT-ET(I))/(ICETH(I)/RK1+1.0D0/HIA)-HWI(JW)*(T2(KT,I)-RIMT))/RHOIRL1)   !
+    368  SW 10/20/09 Revised missing HWI(JW)
+    369                 ICE(I)   = ICETH(I) > 0.0
+    370                 ICESW(I) = 1.0
+    371                 IF (ICE(I)) THEN
+    372 !                  TFLUX      = 2.392E-7*(RIMT-T2(KT,I))*BI(KT,I)*DLX(I)
+    373                   TFLUX      = 2.392D-7*HWI(JW)*(RIMT-T2(KT,I))*BI(KT,I)*DLX(I)      ! SW 10/20/09 Revised missing HWI(JW)
+    374                   TSS(KT,I)  = TSS(KT,I) +TFLUX
+    375                   TSSICE(JB) = TSSICE(JB)+TFLUX*DLT
+    376                   ICESW(I) = 0.0
+    377                 END IF
+    378               END IF
+    379             END DO
+    380           END IF
+    381         END IF
+    382 !DO I=IU,ID
+    383 !  icebank_all=icebank(i)+icebank_all
+    384 !END DO
+    385 !write(25600,*)jday,icebank_all
+    386 !****** Heat sources/sinks and total inflow/outflow
+    387 
+    388         IF (EVAPORATION(JW)) THEN
+    389           DO I=IU,ID
+    390             TSS(KT,I) = TSS(KT,I)-EV(I)*T2(KT,I)
+    391             TSSEV(JB) = TSSEV(JB)-EV(I)*T2(KT,I)*DLT
+    392             VOLEV(JB) = VOLEV(JB)-EV(I)         *DLT
+    393           END DO
+    394         END IF
+    395         IF (PRECIPITATION(JW)) THEN
+    396           DO I=IU,ID
+    397             TSS(KT,I) = TSS(KT,I)+QPR(I)*TPR(JB)
+    398             TSSPR(JB) = TSSPR(JB)+QPR(I)*TPR(JB)*DLT
+    399             VOLPR(JB) = VOLPR(JB)+QPR(I)        *DLT
+    400           END DO
+    401         END IF
+
+Page 10          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    402         IF (TRIBUTARIES) THEN
+    403           DO JT=1,JTT
+    404             IF (JB == JBTR(JT)) THEN
+    405               I = ITR(JT)
+    406               IF (I < CUS(JB)) I = CUS(JB)
+    407               DO K=KTTR(JT),KBTR(JT)
+    408                 IF (QTR(JT) < 0) THEN
+    409                   TSS(K,I)  = TSS(K,I) +T2(K,I)*QTR(JT)*QTRF(K,JT)
+    410                   TSSTR(JB) = TSSTR(JB)+T2(K,I)*QTR(JT)*QTRF(K,JT)*DLT
+    411                 ELSE
+    412                   TSS(K,I)  = TSS(K,I) +TTR(JT)*QTR(JT)*QTRF(K,JT)
+    413                   TSSTR(JB) = TSSTR(JB)+TTR(JT)*QTR(JT)*QTRF(K,JT)*DLT
+    414                 END IF
+    415               END DO
+    416               VOLTRB(JB) = VOLTRB(JB)+QTR(JT)*DLT
+    417             END IF
+    418           END DO
+    419         END IF
+    420         IF (DIST_TRIBS(JB)) THEN
+    421           DO I=IU,ID
+    422             IF (QDT(I) < 0) THEN
+    423               TSS(KT,I) = TSS(KT,I)+T2(KT,I)*QDT(I)
+    424               TSSDT(JB) = TSSDT(JB)+T2(KT,I)*QDT(I)*DLT
+    425             ELSE
+    426               TSS(KT,I) = TSS(KT,I)+TDTR(JB)*QDT(I)
+    427               TSSDT(JB) = TSSDT(JB)+TDTR(JB)*QDT(I)*DLT
+    428             END IF
+    429             VOLDT(JB) = VOLDT(JB)+QDT(I)*DLT
+    430           END DO
+    431         END IF
+    432         IF (WITHDRAWALS) THEN
+    433           DO JWD=1,JWW
+    434             IF (QWD(JWD) /= 0.0) THEN
+    435               IF (JB == JBWD(JWD)) THEN
+    436                 I = MAX(CUS(JBWD(JWD)),IWD(JWD))
+    437                 DO K=KTW(JWD),KBW(JWD)
+    438                   TSS(K,I)  = TSS(K,I) -T2(K,I)*QSW(K,JWD)
+    439                   TSSWD(JB) = TSSWD(JB)-T2(K,I)*QSW(K,JWD)*DLT
+    440                 END DO
+    441                 VOLWD(JB) = VOLWD(JB)-QWD(JWD)*DLT
+    442               END IF
+    443             END IF
+    444           END DO
+    445         END IF
+    446         IF (UP_FLOW(JB)) THEN
+    447             DO K=KT,KB(IU)
+    448               IF (.NOT. HEAD_FLOW(JB)) THEN
+    449                 TSS(K,IU) = TSS(K,IU)+QINF(K,JB)*QIN(JB)*TIN(JB)
+    450                 TSSIN(JB) = TSSIN(JB)+QINF(K,JB)*QIN(JB)*TIN(JB)*DLT
+    451               ELSE
+    452                 IF (U(K,IU-1) >= 0.0) THEN
+    453                   TSS(K,IU) = TSS(K,IU)+U(K,IU-1)*BHR1(K,IU-1)*T1(K,IU-1)
+    454                   TSSIN(JB) = TSSIN(JB)+U(K,IU-1)*BHR1(K,IU-1)*T1(K,IU-1)*DLT
+    455                 ELSE
+    456                   TSS(K,IU) = TSS(K,IU)+U(K,IU-1)*BHR1(K,IU-1)*T1(K,IU)
+    457                   TSSIN(JB) = TSSIN(JB)+U(K,IU-1)*BHR1(K,IU-1)*T1(K,IU)*DLT
+    458                 END IF
+
+Page 11          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    459               END IF
+    460             END DO
+    461           VOLIN(JB) = VOLIN(JB)+QIN(JB)*DLT
+    462         END IF
+    463         IF (DN_FLOW(JB)) THEN
+    464           DO K=KT,KB(ID)
+    465             TSS(K,ID)  = TSS(K,ID) -QOUT(K,JB)*T2(K,ID+1)
+    466             TSSOUT(JB) = TSSOUT(JB)-QOUT(K,JB)*T2(K,ID+1)*DLT
+    467             VOLOUT(JB) = VOLOUT(JB)-QOUT(K,JB)           *DLT
+    468           END DO
+    469         END IF
+    470         IF (UP_HEAD(JB)) THEN
+    471           DO K=KT,KB(IU)
+    472             IUT = IU
+    473             IF (QUH1(K,JB) >= 0.0) IUT = IU-1
+    474             TSSUH1(K,JB) = T2(K,IUT)*QUH1(K,JB)
+    475             TSS(K,IU)    = TSS(K,IU)+TSSUH1(K,JB)
+    476             TSSUH(JB)    = TSSUH(JB)+TSSUH1(K,JB)*DLT
+    477             VOLUH(JB)    = VOLUH(JB)+QUH1(K,JB)  *DLT
+    478           END DO
+    479         END IF
+    480         IF (UH_INTERNAL(JB)) THEN
+    481           IF (UHS(JB) /= DS(JBUH(JB)) .OR. DHS(JBUH(JB)) /= US(JB)) THEN
+    482             IF (JBUH(JB) >= BS(JW) .AND. JBUH(JB) <= BE(JW)) THEN
+    483               DO K=KT,KB(IU-1)
+    484                 TSS(K,UHS(JB))  = TSS(K,UHS(JB)) -TSSUH2(K,JB)/DLT
+    485                 TSSUH(JBUH(JB)) = TSSUH(JBUH(JB))-TSSUH2(K,JB)
+    486                 VOLUH(JBUH(JB)) = VOLUH(JBUH(JB))-VOLUH2(K,JB)
+    487               END DO
+    488             ELSE
+    489               CALL UPSTREAM_CONSTITUENT(T2,TSS)
+    490               DO K=KT,KB(IU-1)
+    491                 TSSUH(JBUH(JB)) = TSSUH(JBUH(JB))-TSSUH2(K,JB)
+    492                 VOLUH(JBUH(JB)) = VOLUH(JBUH(JB))-VOLUH2(K,JB)
+    493               END DO
+    494             END IF
+    495           END IF
+    496         END IF
+    497         IF (DN_HEAD(JB)) THEN
+    498           DO K=KT,KB(ID+1)
+    499             IDT = ID+1
+    500             IF (QDH1(K,JB) >= 0.0) IDT = ID
+    501             TSSDH1(K,JB) = T2(K,IDT)*QDH1(K,JB)
+    502             TSS(K,ID)    = TSS(K,ID)-TSSDH1(K,JB)
+    503             TSSDH(JB)    = TSSDH(JB)-TSSDH1(K,JB)*DLT
+    504             VOLDH(JB)    = VOLDH(JB)-QDH1(K,JB)  *DLT
+    505           END DO
+    506         END IF
+    507         IF (DH_INTERNAL(JB)) THEN
+    508           IF (DHS(JB) /= US(JBDH(JB)) .OR. UHS(JBDH(JB)) /= DS(JB)) THEN
+    509             IF (JBDH(JB) >= BS(JW) .AND. JBDH(JB) <= BE(JW)) THEN
+    510               DO K=KT,KB(ID+1)
+    511                 TSS(K,CDHS(JB)) = TSS(K,CDHS(JB))+TSSDH2(K,JB)/DLT
+    512                 TSSDH(JBDH(JB)) = TSSDH(JBDH(JB))+TSSDH2(K,JB)
+    513                 VOLDH(JBDH(JB)) = VOLDH(JBDH(JB))+VOLDH2(K,JB)
+    514               END DO
+    515             ELSE
+
+Page 12          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    516               CALL DOWNSTREAM_CONSTITUENT(T2,TSS)
+    517               DO K=KT,KB(ID+1)
+    518                 TSSDH(JBDH(JB)) = TSSDH(JBDH(JB))+TSSDH2(K,JB)
+    519                 VOLDH(JBDH(JB)) = VOLDH(JBDH(JB))+VOLDH2(K,JB)
+    520               END DO
+    521             END IF
+    522           END IF
+    523         END IF
+    524       END DO
+    525     END DO
+    526 
+    527 IF(NIT==0)THEN
+    528     IF (DERIVED_CALC)THEN
+    529         DO JW=1,NWB
+    530         KT=KTWB(JW)
+    531         DO JB=BS(JW),BE(JW)
+    532             IU=CUS(JB)
+    533             ID=DS(JB)
+    534         CALL TEMPERATURE_RATES
+    535         CALL KINETIC_RATES
+    536         IF(CDWBC(PH_DER,JW)=='      ON')CALL PH_CO2
+    537         ENDDO        
+    538         CALL DERIVED_CONSTITUENTS
+    539         ENDDO
+    540     ENDIF
+    541     CALL OUTPUTA    ! INITIALIZE OUTPUT FOR FIRST TIME STEP IF OUTPUT IS SET FOR FIRST TIME STEP ONLY ISSUE IS VELOCITY AND 
+    541 FLOW IS AT T+DT RATHER THAN AT T=0
+    542 ENDIF
+    543 
+    544 !** Temperature transport
+    545     COLD => HYD(:,:,4)
+    546     DO JW=1,NWB
+    547       KT = KTWB(JW)
+    548       DO JB=BS(JW),BE(JW)
+    549       IF(BR_INACTIVE(JB))CYCLE
+    550         IU =  CUS(JB)
+    551         ID =  DS(JB)
+    552 !COLD => HYD(:,:,4)
+    553         CALL HORIZONTAL_MULTIPLIERS1
+    554         CALL VERTICAL_MULTIPLIERS1
+    555         CALL HORIZONTAL_MULTIPLIERS
+    556         CALL VERTICAL_MULTIPLIERS
+    557 !   CNEW => T1(:,:)
+    558 !   SSB  => TSS(:,:)
+    559 !   SSK  => CSSB(:,:,1)
+    560 !   CALL HORIZONTAL_TRANSPORT
+    561         
+    562         DO I=IU,ID    !CONCURRENT(I=IU:ID)   !
+    563         DO K=KT,KB(I)     !CONCURRENT(K=KT:KB(I))                                              !DO K=KT,KB(I)
+    564         DT(K,I) = (COLD(K,I)*BH2(K,I)/DLT+(ADX(K,I)*BHR1(K,I)-ADX(K,I-1)*BHR1(K,I-1))/DLX(I)+(1.0D0-THETA(JW))              
+    564        &
+    565                     *(ADZ(K,I)*BB(K,I)-ADZ(K-1,I)*BB(K-1,I))+TSS(K,I)/DLX(I))*DLT/BH1(K,I)
+    566        END DO
+    567        END DO
+    568         
+    569         
+    570         DO I=IU,ID   !CONCURRENT(I=IU:ID)   !
+
+Page 13          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+    571           DO K=KT,KB(I)
+    572             AT(K,I) = 0.0D0; CT(K,I) = 0.0D0; VT(K,I) = 0.0D0    !; DT(:,I) = 0.0D0    SW CODE SPEEDUP 6/15/13
+    573           ENDDO
+    574           DO K=KT,KB(I)   !CONCURRENT(K=KT:KB(I))                                                          !DO K=KT,KB(I)
+    575             AT(K,I) = -DLT/BH1(K,I)*(BB(K-1,I)*(DZ(K-1,I)/AVH1(K-1,I)+THETA(JW)*0.5D0*W(K-1,I)))
+    576             CT(K,I) =  DLT/BH1(K,I)*(BB(K,I)*(THETA(JW)*0.5D0*W(K,I)-DZ(K,I)/AVH1(K,I)))
+    577             VT(K,I) =  1.0D0+DLT/BH1(K,I)*(BB(K,I)*(DZ(K,I)/AVH1(K,I)+THETA(JW)*0.5D0*W(K,I))+BB(K-1,I)*(DZ(K-1,I)/AVH1(K-1,
+    577 I)         &
+    578                       -THETA(JW)*0.5D0*W(K-1,I)))
+    579 !     DT(K,I) =  CNEW(K,I)
+    580           END DO
+    581 ! CALL TRIDIAG(AT(:,I),VT(:,I),CT(:,I),DT(:,I),KT,KB(I),KMX,CNEW(:,I))
+    582            BTA1(KT)=VT(KT,I)
+    583                     GMA1(KT)=DT(KT,I)
+    584                   DO K=KT+1,KB(I)
+    585                     BTA1(K) = VT(K,I)-AT(K,I)/BTA1(K-1)*CT(K-1,I)
+    586                     GMA1(K) = DT(K,I)-AT(K,I)/BTA1(K-1)*GMA1(K-1)
+    587                   END DO
+    588                   T1(KB(I),I) = GMA1(KB(I))/BTA1(KB(I))
+    589                   DO K=KB(I)-1,KT,-1
+    590                     T1(K,I) = (GMA1(K)-CT(K,I)*T1(K+1,I))/BTA1(K)
+    591                   END DO
+    592         END DO
+    593       END DO
+    594     END DO
+    595 
+    596 
+    597     END SUBROUTINE TEMPERATURE
+
+Page 14          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+
+Page 15          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:temperature.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+
+Page 16          Source Listing                  
+2026-03-30 08:47                                 ..\..\..\temperature.F90
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : temperature.lst
+  /object:temperature.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

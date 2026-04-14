@@ -1,0 +1,1203 @@
+Page 1           Source Listing                  HEAT_EXCHANGE
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180824.i90
+
+      1 # 1 "..\..\..\heat-exchange.f90"
+      2 
+      3 !***************************************************************************************************************************
+      3 ********
+      4 !**                                        S U B R O U T I N E   H E A T  E X C H A N G E                                   
+      4       **
+      5 !***************************************************************************************************************************
+      5 ********
+      6 
+      7 SUBROUTINE HEAT_EXCHANGE
+      8   USE GLOBAL; USE GDAYC; USE SURFHE; USE TVDC; USE SHADEC; USE PREC; USE MetFileRegion; USE MAIN, ONLY:CC_SW, I_SW
+      9   IMPLICIT NONE
+     10 
+     11 ! Type declaration
+     12   REAL     :: JDAY, LOCAL
+     13   REAL(R8) :: TSUR
+     14   REAL(R8) :: MPS_TO_MPH=2.23714D0,W_M2_TO_BTU_FT2_DAY=7.60796D0,FLUX_BR_TO_FLUX_SI=0.23659D0,BOWEN_CONSTANT=0.47D0
+     15   REAL(R8) :: DEG_F,DEG_C,BTU_FT2_DAY_TO_W_M2=0.1314D0
+     16   REAL(R8) :: STANDARD,HOUR,TAUD,SINAL,A0,TDEW_F,TAIR_F,SRO_BR,WIND_MPH,WIND2M,ACONV,BCONV
+     17   REAL(R8) :: TSTAR,BETA,FW,RA,ETP,EA,ES,TAIRV,DTV,DTVL
+     18   INTEGER  :: IDAY,J
+     19 
+     20 RETURN
+     21 
+     22 !***************************************************************************************************************************
+     22 ********
+     23 !**                                            S H O R T  W A V E  R A D I A T I O N                                        
+     23       **
+     24 !***************************************************************************************************************************
+     24 ********
+     25 
+     26 ENTRY SHORT_WAVE_RADIATION (JDAY)
+     27   IF(I_SW==1)THEN
+     28       CALL MEEUS
+     29   ELSE
+     30       
+     31   LOCAL    =  LONGIT(JW)
+     32   STANDARD =  15.0*INT(LONGIT(JW)/15.0)
+     33   HOUR     = (JDAY-INT(JDAY))*24.0
+     34   IDAY     =  JDAY-((INT(JDAY/365))*365)
+     35 !IDAY     =  IDAY+INT(INT(JDAY/365)/4)  ! SR 12/2018 IDAY FIX
+     36   IDAY     =  IDAY-INT(INT(JDAY/365)/4)
+     37   TAUD     = (2.*PI*(IDAY-1))/365.
+     38   EQTNEW   =  0.170*SIN(4.*PI*(IDAY-80)/373.)-0.129*SIN(2.*PI*(IDAY-8)/355.)
+     39   HH(JW)   =  0.261799*(HOUR-(LOCAL-STANDARD)*0.0666667+EQTNEW-12.0)
+     40   DECL(JW) =  0.006918-0.399912*COS(TAUD)+0.070257*SIN(TAUD)-0.006758*COS(2.*TAUD)+0.000907*SIN(2.*TAUD)-0.002697*COS(3.*TAU
+     40 D)        &
+     41               +0.001480*SIN(3.*TAUD)
+     42   SINAL    =  SIN(LAT(JW)*.0174533)*SIN(DECL(JW))+COS(LAT(JW)*.0174533)*COS(DECL(JW))*COS(HH(JW))
+     43   A00(JW)  =  57.2957795*ASIN(SINAL)
+     44   A0       =  A00(JW)
+     45   if(.not.Met_Regions)then
+     46   IF (A0 > 0.0) THEN
+     47     SRON(JW) = (1.0-CC_SW*CLOUD(JW)*CLOUD(JW))*24.0*(2.044*A0+0.1296*A0**2-1.941E-3*A0**3+7.591E-6*A0**4)*BTU_FT2_DAY_TO_W_M
+     47 2
+     48   ELSE
+     49     SRON(JW) = 0.0
+
+Page 2           Source Listing                  HEAT_EXCHANGE
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+     50   END IF
+     51   else
+     52   IF (A0 > 0.0) THEN
+     53     SRON(NMet) = (1.0-CC_SW*CLOUD(NMet)*CLOUD(NMet))*24.0*(2.044*A0+0.1296*A0**2-1.941E-3*A0**3+7.591E-6*A0**4)*BTU_FT2_DAY_
+     53 TO_W_M2
+     54   ELSE
+     55     SRON(NMet) = 0.0
+     56   END IF
+     57   endif
+     58   ENDIF
+     59   
+     60   
+     61 RETURN
+     62 
+     63 !***************************************************************************************************************************
+     63 ********
+     64 !**                                          E Q U I L I B R I U M  T E M P E R A T U R E                                   
+     64       **
+     65 !***************************************************************************************************************************
+     65 ********
+     66 
+     67 ENTRY EQUILIBRIUM_TEMPERATURE
+     68 
+     69 ! British units
+     70   if(.not.Met_Regions)then
+     71   TDEW_F   = DEG_F(TDEW(JW))
+     72   TAIR_F   = DEG_F(TAIR(JW))
+     73   SRO_BR   = SRON(JW)*W_M2_TO_BTU_FT2_DAY*SHADE(I)
+     74   else
+     75   TDEW_F   = DEG_F(TDEW(NMet))
+     76   TAIR_F   = DEG_F(TAIR(NMet))
+     77   SRO_BR   = SRON(NMet)*W_M2_TO_BTU_FT2_DAY*SHADE(I)   
+     78   endif
+     79   
+     80 !WIND_MPH = WIND(JW)*WSC(I)*MPS_TO_MPH
+     81 !WIND2M   = WIND_MPH*DLOG(2.0D0/Z0(JW))/DLOG(WINDH(JW)/Z0(JW))+NONZERO     ! SW 11/28/07  old version z0=0.003
+     82   WIND2M=WIND2(I)*MPS_TO_MPH    ! ALREADY COMPUTED IN w2 MAIN PROGRAM
+     83   ACONV    = W_M2_TO_BTU_FT2_DAY
+     84   IF (CFW(JW) == 1.0) BCONV = 3.401062
+     85   IF (CFW(JW) == 2.0) BCONV = 1.520411
+     86 ! SW Issues: CFW not determined for other values of CFW
+     87 
+     88 ! Equilibrium temperature and heat exchange coefficient
+     89 
+     90   ET(I)   =  TDEW_F
+     91   TSTAR   = (ET(I)+TDEW_F)*0.5
+     92   BETA    =  0.255-(8.5E-3*TSTAR)+(2.04E-4*TSTAR*TSTAR)
+     93   FW      =  ACONV*AFW(JW)+BCONV*BFW(JW)*WIND2M**CFW(JW)
+     94   CSHE(I) =  15.7+(0.26+BETA)*FW
+     95   RA      =  3.1872E-08*(TAIR_F+459.67)**4   ! original is missing the effect of cloud cover
+     96   ETP     = (SRO_BR+RA-1801.0)/CSHE(I)+(CSHE(I)-15.7)*(0.26*TAIR_F+BETA*TDEW_F)/(CSHE(I)*(0.26+BETA))
+     97   J       =  0
+     98   DO WHILE (ABS(ETP-ET(I)) > 0.05 .AND. J < 10)
+     99     ET(I)   =  ETP
+    100     TSTAR   = (ET(I)+TDEW_F)*0.5
+    101     BETA    =  0.255-(8.5E-3*TSTAR)+(2.04E-4*TSTAR*TSTAR)
+    102     CSHE(I) =  15.7+(0.26+BETA)*FW
+
+Page 3           Source Listing                  HEAT_EXCHANGE
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    103     ETP     = (SRO_BR+RA-1801.0)/CSHE(I)+(CSHE(I)-15.7)*(0.26*TAIR_F+BETA*TDEW_F)/(CSHE(I)*(0.26+BETA))
+    104     J       =  J+1
+    105   END DO
+    106 
+    107 ! SI units
+    108 
+    109   ET(I)   = DEG_C(ET(I))
+    110   CSHE(I) = CSHE(I)*FLUX_BR_TO_FLUX_SI/RHOWCP
+    111 RETURN
+    112 
+    113 !***************************************************************************************************************************
+    113 ********
+    114 !**                                                   S U R F A C E   T E R M S                                             
+    114       **
+    115 !***************************************************************************************************************************
+    115 ********
+    116 
+    117 ENTRY SURFACE_TERMS (TSUR)
+
+
+ENTRY POINTS
+
+ Address      Type  Name                      Address      Type  Name                    
+                                                                                         
+       EQUILIBRIUM_TEMPERATURE                      SHORT_WAVE_RADIATION                 
+       HEAT_EXCHANGE                                SURFACE_TERMS                        
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ A0                         Local  16       R(8)            8           scalar                    44,46,47,52,53                    
+ A00                        Local  43       R(4)            4     1     1        ALC              43,44                             
+ ABS                        Func   98                                   scalar                    98                                
+ ACONV                      Local  16       R(8)            8           scalar                    83,93                             
+ AFW                        Local  93       R(8)            8     1     1        ALC              93,149                            
+ ASIN                       Func   43                                   scalar                    43                                
+ BCONV                      Local  16       R(8)            8           scalar                    84,85,93                          
+ BETA                       Local  17       R(8)            8           scalar                    92,94,96,101,102,103              
+ BFW                        Local  93       R(8)            8     1     1        ALC              93,149                            
+ BOWEN_CONSTANT             Local  14       R(8)            8           scalar                    14,159,161                        
+ BTU_FT2_DAY_TO_W_M2        Local  15       R(8)            8           scalar                    15,47,53                          
+ CC_SW                      Local  8        R(8)            8           scalar                    8,47,53                           
+ CFW                        Local  84       R(8)            8     1     1        ALC              84,85,93,149                      
+ CLOUD                      Local  47       R(8)            8     1     1        ALC              47,53                             
+ COS                        Func   40                                   scalar                    40,42                             
+ CSHE                       Local  94       R(8)            8     1     1        ALC              94,96,102,103,110                 
+ DECL                       Local  40       R(4)            4     1     1        ALC              40,42                             
+ DEG_C                      Func   15       R(8)            8           scalar                    109                               
+ DEG_F                      Func   15       R(8)            8           scalar                    71,72,75,76                       
+ DEXP                       Func   122                                  scalar                    122,124,131,133                   
+ DTV                        Local  17       R(8)            8           scalar                    144,146,147                       
+ DTVL                       Local  17       R(8)            8           scalar                    145,146                           
+ EA                         Local  17       R(8)            8           scalar                    122,124,140,142,154               
+ EQTNEW                     Local  38       R(4)            4           scalar                    38,39                             
+ EQUILIBRIUM_TEMPERATURE    Subr   67                                                                                               
+
+Page 4           Source Listing                  HEAT_EXCHANGE
+2026-03-30 08:47 Symbol Table                    ..\..\..\heat-exchange.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ES                         Local  17       R(8)            8           scalar                    131,133,144,154                   
+ ET                         Local  90       R(8)            8     1     1        ALC              90,91,98,99,100,109               
+ ETP                        Local  17       R(8)            8           scalar                    96,98,99,103                      
+ FLUX_BR_TO_FLUX_SI         Local  14       R(8)            8           scalar                    14,110                            
+ FW                         Local  17       R(8)            8           scalar                    93,94,102,147,149,154,159,161     
+ GDAYC                      Module 8                                                              8                                 
+ GLOBAL                     Module 8                                                              8                                 
+ HEAT_EXCHANGE              Subr   7                                                                                                
+ HH                         Local  39       R(4)            4     1     1        ALC              39,42                             
+ HOUR                       Local  16       R(8)            8           scalar                    33,39                             
+ I                          Local  73       I(4)            4           scalar                    73,77,82,90,91,94,96,98,99,100,102
+                                                                                                  ,103,109,110,145,147,149,154,159,1
+                                                                                                  61,167                            
+ IDAY                       Local  18       I(4)            4           scalar                    34,36,37,38                       
+ INT                        Func   32                                   scalar                    32,33,34,36                       
+ I_SW                       Local  8        I(4)            4           scalar                    8,27                              
+ J                          Local  18       I(4)            4           scalar                    97,98,104                         
+ JDAY                       Dummy  12       R(4)            4           scalar   ARG,INOUT        33,34,36                          
+ JW                         Local  31       I(4)            4           scalar                    31,32,39,40,42,43,44,47,49,71,72,7
+                                                                                                  3,84,85,93,122,138,140,149,159    
+ LAT                        Local  42       R(8)            8     1     1        ALC              42                                
+ LOCAL                      Local  12       R(4)            4           scalar                    31,39                             
+ LONGIT                     Local  31       R(8)            8     1     1        ALC              31,32                             
+ MAIN                       Module 8                                                              8                                 
+ MEEUS                      Subr   28                                                             28                                
+ METFILEREGION              Module 8                                                              8                                 
+ MET_REGIONS                Local  45       L(4)            4           scalar                    45,70,121,139,158                 
+ MPS_TO_MPH                 Local  14       R(8)            8           scalar                    14,82                             
+ NMET                       Local  53       I(4)            4           scalar                    53,55,75,76,77,124,142,161        
+ PI                         Local  37       R(8)            8           scalar                    37,38                             
+ PREC                       Module 8                                                              8                                 
+ R8                         Param  13       I(4)            4           scalar                    13,14,15,16,17                    
+ RA                         Local  17       R(8)            8           scalar                    95,96,103                         
+ RB                         Local  167      R(8)            8     1     1        ALC              167                               
+ RC                         Local  159      R(8)            8     1     1        ALC              159,161                           
+ RE                         Local  154      R(8)            8     1     1        ALC              154                               
+ RHOWCP                     Local  110      R(8)            8           scalar                    110                               
+ RH_EVAP                    Local  138      L(4)            4     1     1        ALC              138                               
+ SHADE                      Local  73       R(8)            8     1     1        ALC              73,77                             
+ SHADEC                     Module 8                                                              8                                 
+ SHORT_WAVE_RADIATION       Subr   26                                                                                               
+ SIN                        Func   38                                   scalar                    38,40,41,42                       
+ SINAL                      Local  16       R(8)            8           scalar                    42,43                             
+ SRON                       Local  47       R(8)            8     1     1        ALC              47,49,53,55,73,77                 
+ SRO_BR                     Local  16       R(8)            8           scalar                    73,77,96,103                      
+ STANDARD                   Local  16       R(8)            8           scalar                    32,39                             
+ SURFACE_TERMS              Subr   117                                                                                              
+ SURFHE                     Module 8                                                              8                                 
+ TAIR                       Local  72       R(8)            8     1     1        ALC              72,76,140,142,159,161             
+ TAIRV                      Local  17       R(8)            8           scalar                    140,142,144                       
+ TAIR_F                     Local  16       R(8)            8           scalar                    72,76,95,96,103                   
+ TAUD                       Local  16       R(8)            8           scalar                    37,40,41                          
+ TDEW                       Local  71       R(8)            8     1     1        ALC              71,75,122,124                     
+ TDEW_F                     Local  16       R(8)            8           scalar                    71,75,90,91,96,100,103            
+ TSTAR                      Local  17       R(8)            8           scalar                    91,92,100,101                     
+
+Page 5           Source Listing                  HEAT_EXCHANGE
+2026-03-30 08:47 Symbol Table                    ..\..\..\heat-exchange.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ TSUR                       Dummy  13       R(8)            8           scalar   ARG,INOUT        130,131,133,144,159,161,167       
+ TVDC                       Module 8                                                              8                                 
+ WIND2                      Local  82       R(8)            8     1     1        ALC              82,145,147,149                    
+ WIND2M                     Local  16       R(8)            8           scalar                    82,93                             
+ WIND_MPH                   Local  16       R(8)            8           scalar                                                      
+ W_M2_TO_BTU_FT2_DAY        Local  14       R(8)            8           scalar                    14,73,77,83                       
+
+Page 6           Source Listing                  HEAT_EXCHANGE
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    118 
+    119 ! Partial water vapor pressure of air (mm hg)
+    120 
+    121 IF(.NOT.Met_regions)then
+    122   EA = DEXP(2.3026D0*(7.5D0*TDEW(JW)/(TDEW(JW)+237.3D0)+0.6609D0))
+    123 else
+    124   EA = DEXP(2.3026D0*(7.5D0*TDEW(NMet)/(TDEW(NMet)+237.3D0)+0.6609D0))
+    125 endif
+    126 
+    127 
+    128 ! Partial water vapor pressure at the water surface
+    129 
+    130   IF(TSUR<0.0)THEN
+    131   ES = DEXP(2.3026D0*(9.5D0*TSUR/(TSUR+265.5D0)+0.6609D0))
+    132   ELSE
+    133   ES = DEXP(2.3026D0*(7.5D0*TSUR/(TSUR+237.3D0)+0.6609D0))
+    134   ENDIF
+    135 
+    136 ! Wind function
+    137 
+    138   IF (RH_EVAP(JW)) THEN
+    139     if(.not.Met_Regions)then
+    140     TAIRV = (TAIR(JW)+273.0D0)/(1.0D0-0.378D0*EA/760.0D0)
+    141     else
+    142     TAIRV = (TAIR(NMet)+273.0D0)/(1.0D0-0.378D0*EA/760.0D0)
+    143     endif
+    144     DTV   = (TSUR+273.0D0)/(1.0D0-0.378D0*ES/760.0D0)-TAIRV
+    145     DTVL  =  0.0084D0*WIND2(I)**3
+    146     IF (DTV < DTVL) DTV = DTVL
+    147     FW = (3.59D0*DTV**0.3333D0+4.26D0*WIND2(I))
+    148   ELSE
+    149     FW = AFW(JW)+BFW(JW)*WIND2(I)**CFW(JW)
+    150   END IF
+    151 
+    152 ! Evaporative flux
+    153 
+    154   RE(I) = FW*(ES-EA)
+    155 !IF(RE(I) < 0.0)RE(I)=0.0     ! SW 6/22/2016  SHOULD WE USE THIS AS AN ANALOG FOR CONDENSATION WHEN LESS THAN 0? TVA(1972) S
+    155 UGGESTS YOU CAN - SEE SECTION 4 AND 5 but Ryan, Harleman suggest setting RE=0 if less than zero since the condensation coeff
+    155 icients are unknown...
+    156 
+    157 ! Conductive flux
+    158  if(.not.Met_Regions)then
+    159   RC(I) = FW*BOWEN_CONSTANT*(TSUR-TAIR(JW))
+    160  else
+    161   RC(I) = FW*BOWEN_CONSTANT*(TSUR-TAIR(NMet))  
+    162  endif
+    163  
+    164 
+    165 ! Back radiation flux
+    166 
+    167   RB(I) = 5.51D-8*(TSUR+273.15D0)**4
+    168   RETURN  
+    169 END SUBROUTINE HEAT_EXCHANGE
+    170 
+    171 ! Function declaration
+    172 
+
+Page 7           Source Listing                  DEG_F
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    173    REAL(R8) FUNCTION DEG_F(X)
+    174    USE PREC
+    175    REAL(R8) :: X
+    176    DEG_F =  X*1.8+32.0
+    177    END FUNCTION DEG_F
+
+
+ENTRY POINTS
+
+ Address      Type  Name  
+                          
+       DEG_F              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DEG_F                      Local  173      R(8)            8           scalar                                                      
+ DEG_F                      Func   173      R(8)            8           scalar                    176                               
+ PREC                       Module 174                                                            174                               
+ R8                         Param  173      I(4)            4           scalar                    173,175                           
+ X                          Dummy  175      R(8)            8           scalar   ARG,INOUT        176                               
+
+Page 8           Source Listing                  DEG_C
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    178    REAL(R8) FUNCTION DEG_C(X)
+    179    USE PREC
+    180    REAL(R8) :: X
+    181    DEG_C = (X-32.0)*5.0/9.0
+    182     END FUNCTION DEG_C
+
+
+ENTRY POINTS
+
+ Address      Type  Name  
+                          
+       DEG_C              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DEG_C                      Local  178      R(8)            8           scalar                                                      
+ DEG_C                      Func   178      R(8)            8           scalar                    181                               
+ PREC                       Module 179                                                            179                               
+ R8                         Param  178      I(4)            4           scalar                    178,180                           
+ X                          Dummy  180      R(8)            8           scalar   ARG,INOUT        181                               
+
+Page 9           Source Listing                  DEG_C
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    183     
+    184 Module Bird_Meeus
+    185 use prec
+    186     REAL(R8) :: B0, B1, BB, Beta, jme,rc1
+    187     REAL(R8) :: A9,B9, jd, t, LO, M, Mrad, sinM, sin2M, sin3M, c, TLO, v, Selev, Te
+    188     REAL(R8) :: omega, lambda, seconds, e0, e, tananum, tanadenom, alpha, sint, theta, ep,long2(100)
+    189     REAL(R8) :: y, sin2LO, cos2LO, sin4LO, Etime, EQT, solarazimuth
+    190     REAL(R8) :: day_decimal, HOUR_M, JDAYM                   ! real HOUR, day_decimal,Jdaym
+    191     REAL(R8) :: Zone, daySavings, hh, mm, ss, timenow
+    192     REAL(R8) :: solarTimeFix, trueSolarTime, hourangle, harad, csz, zenith, azDenom, azRad
+    193     REAL(R8) :: azimuth, exoatmElevation, step1, step2, step3, refractionCorrection
+    194     Real(R8) :: r, solarzen, RToD=57.2957796, DToR=0.017453293, solaralt, Uo     ! RToD = (180.0/PI)      DToR = (PI/180.0)
+    195     Real(R8) :: directHz, diffuseHz, globalHz
+    196     Integer  :: year9,month9                 !Debug_Meeus=1,
+    197     
+    198 End Module Bird_Meeus
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ A9                         Local  187      R(8)            8           scalar                                                      
+ ALPHA                      Local  188      R(8)            8           scalar                                                      
+ AZDENOM                    Local  192      R(8)            8           scalar                                                      
+ AZIMUTH                    Local  193      R(8)            8           scalar                                                      
+ AZRAD                      Local  192      R(8)            8           scalar                                                      
+ B0                         Local  186      R(8)            8           scalar                                                      
+ B1                         Local  186      R(8)            8           scalar                                                      
+ B9                         Local  187      R(8)            8           scalar                                                      
+ BB                         Local  186      R(8)            8           scalar                                                      
+ BETA                       Local  186      R(8)            8           scalar                                                      
+ BIRD_MEEUS                 Module 184                                                                                              
+ C                          Local  187      R(8)            8           scalar                                                      
+ COS2LO                     Local  189      R(8)            8           scalar                                                      
+ CSZ                        Local  192      R(8)            8           scalar                                                      
+ DAYSAVINGS                 Local  191      R(8)            8           scalar                                                      
+ DAY_DECIMAL                Local  190      R(8)            8           scalar                                                      
+ DIFFUSEHZ                  Local  195      R(8)            8           scalar                                                      
+ DIRECTHZ                   Local  195      R(8)            8           scalar                                                      
+ DTOR                       Local  194      R(8)            8           scalar                    194                               
+ E                          Local  188      R(8)            8           scalar                                                      
+ E0                         Local  188      R(8)            8           scalar                                                      
+ EP                         Local  188      R(8)            8           scalar                                                      
+ EQT                        Local  189      R(8)            8           scalar                                                      
+ ETIME                      Local  189      R(8)            8           scalar                                                      
+ EXOATMELEVATION            Local  193      R(8)            8           scalar                                                      
+ GLOBALHZ                   Local  195      R(8)            8           scalar                                                      
+ HARAD                      Local  192      R(8)            8           scalar                                                      
+ HH                         Local  191      R(8)            8           scalar                                                      
+ HOURANGLE                  Local  192      R(8)            8           scalar                                                      
+ HOUR_M                     Local  190      R(8)            8           scalar                                                      
+ JD                         Local  187      R(8)            8           scalar                                                      
+ JDAYM                      Local  190      R(8)            8           scalar                                                      
+ JME                        Local  186      R(8)            8           scalar                                                      
+ LAMBDA                     Local  188      R(8)            8           scalar                                                      
+ LO                         Local  187      R(8)            8           scalar                                                      
+
+Page 10          Source Listing                  DEG_C
+2026-03-30 08:47 Symbol Table                    ..\..\..\heat-exchange.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ LONG2                      Local  188      R(8)            8     1     100                                                         
+ M                          Local  187      R(8)            8           scalar                                                      
+ MM                         Local  191      R(8)            8           scalar                                                      
+ MONTH9                     Local  196      I(4)            4           scalar                                                      
+ MRAD                       Local  187      R(8)            8           scalar                                                      
+ OMEGA                      Local  188      R(8)            8           scalar                                                      
+ PREC                       Module 185                                                            185                               
+ R                          Local  194      R(8)            8           scalar                                                      
+ R8                         Param  186      I(4)            4           scalar                    186,187,188,189,190,191,192,193,19
+                                                                                                  4,195                             
+ RC1                        Local  186      R(8)            8           scalar                                                      
+ REFRACTIONCORRECTION       Local  193      R(8)            8           scalar                                                      
+ RTOD                       Local  194      R(8)            8           scalar                    194                               
+ SECONDS                    Local  188      R(8)            8           scalar                                                      
+ SELEV                      Local  187      R(8)            8           scalar                                                      
+ SIN2LO                     Local  189      R(8)            8           scalar                                                      
+ SIN2M                      Local  187      R(8)            8           scalar                                                      
+ SIN3M                      Local  187      R(8)            8           scalar                                                      
+ SIN4LO                     Local  189      R(8)            8           scalar                                                      
+ SINM                       Local  187      R(8)            8           scalar                                                      
+ SINT                       Local  188      R(8)            8           scalar                                                      
+ SOLARALT                   Local  194      R(8)            8           scalar                                                      
+ SOLARAZIMUTH               Local  189      R(8)            8           scalar                                                      
+ SOLARTIMEFIX               Local  192      R(8)            8           scalar                                                      
+ SOLARZEN                   Local  194      R(8)            8           scalar                                                      
+ SS                         Local  191      R(8)            8           scalar                                                      
+ STEP1                      Local  193      R(8)            8           scalar                                                      
+ STEP2                      Local  193      R(8)            8           scalar                                                      
+ STEP3                      Local  193      R(8)            8           scalar                                                      
+ T                          Local  187      R(8)            8           scalar                                                      
+ TANADENOM                  Local  188      R(8)            8           scalar                                                      
+ TANANUM                    Local  188      R(8)            8           scalar                                                      
+ TE                         Local  187      R(8)            8           scalar                                                      
+ THETA                      Local  188      R(8)            8           scalar                                                      
+ TIMENOW                    Local  191      R(8)            8           scalar                                                      
+ TLO                        Local  187      R(8)            8           scalar                                                      
+ TRUESOLARTIME              Local  192      R(8)            8           scalar                                                      
+ UO                         Local  194      R(8)            8           scalar                                                      
+ V                          Local  187      R(8)            8           scalar                                                      
+ Y                          Local  189      R(8)            8           scalar                                                      
+ YEAR9                      Local  196      I(4)            4           scalar                                                      
+ ZENITH                     Local  192      R(8)            8           scalar                                                      
+ ZONE                       Local  191      R(8)            8           scalar                                                      
+
+Page 11          Source Listing                  DEG_C
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    199 
+    200 SUBROUTINE MEEUS
+    201   USE GLOBAL; USE GDAYC; USE SURFHE; USE TVDC; USE SHADEC; USE MetFileRegion; USE MAIN, ONLY:CC_SW,TZONE
+    202   USE Bird_Meeus;use screenc, only: JDAY
+    203   IMPLICIT NONE
+    204 
+    205 ! Calculates Solar position and radiation from Meeus code, currently set up for clear skies only
+    206 !if(debug_Meeus==1.and.NIT==0)then
+    207 !  open(9595,file='meeus_debug.csv',status='unknown')
+    208 !  write(9595,'(A)')'jday,jdaym,t,jd,globalHz,solarzen,RC1,Selev,azimuth,azRad,csz,hourangle,ETime,y,LO,r,ep,EQT,day_decimal
+    208 ,year,imon,jdayg,zenith'
+    209 !  open(9596,file='meeus_debug2.csv',status='unknown')
+    210 !  write(9596,'(A)')'jdaym,Uo,AM,diffuseHz,global_hz,direct_Hz,Ias,toh,tum,tw,taa,am,tr,ta,birdetr,rs,Uw,tdew,sw_BA,sw_albed
+    210 o,ELWS(DS(BE(JW))),sw_k1'
+    211 !endif
+    212       
+    213     Jdaym=JDAY-TZONE/24.0
+    214 
+    215     HOUR_M  =  (Jdaym-INT(Jdaym))*24        
+    216     day_decimal = GDAY + HOUR_M/24.0
+    217     
+    218     if(IMON <= 2)then
+    219     year9 = year - 1
+    220     month9 = IMON + 12
+    221     else
+    222     year9=year
+    223     month9=imon
+    224     end if   
+    225 
+    226     A9 = FLOOR(year9/100.0)   
+    227     B9 = 2.0 - A9 + FLOOR(A9/4.0)   
+    228     jd = FLOOR(365.25*(year9+4716.0)) + FLOOR(30.6001*(month9+1))+day_decimal + B9 - 1524.5         ! Eq 7.1, pg 61
+    229 
+    230 ! time in Julian centuries from epoch J2000.0
+    231       t = (jd-2451545.0)/36525.0                                                               ! Eq 25.1, pg 163
+    232 ! julian ephemeris millennium
+    233       jme  = t/10.0
+    234 
+    235 ! calculate the Geometric Mean Longitude of the Sun, degrees
+    236       LO = 280.46646+t*(36000.76983+0.0003032*t)                                               ! Eq 25.2, pg 163
+    237 !      LO = 280.4664567+36000.76982779*t+0.0003032028*(t**2)+(t**3)/49931-(t**4)/15300-(t**5)/2000000 ! Eq 28.2, pg 183, dif
+    237 ference with line above is negligible
+    238       DO WHILE(LO > 360 .or. LO < 0)
+    239        If(LO > 360.0) LO = LO - 360
+    240        If(LO < 0.0)   LO = LO + 360
+    241       END DO
+    242 ! calculate the Geometric Mean Anomaly of the Sun, degrees
+    243       M = 357.52911 + t*(35999.05029-0.0001537*t)                                              ! Eq 25.3, pg 163
+    244 ! calculate the eccentricity of earth's orbit
+    245       e = 0.016708634 - t*(0.000042037+0.0000001267*t)                                         ! Eq 25.4, pg 163
+    246 ! calculate the equation of center for the sun, degrees
+    247       Mrad = DToR*M
+    248       sinM = Sin(Mrad)
+    249       sin2M = Sin(2*Mrad)
+    250       sin3M = Sin(3*Mrad)
+    251       c = sinM*(1.914602-t*(0.004817+0.000014*t))+sin2M*(0.019993-0.000101*t)+sin3M*0.000289   ! Between Eq 25.4 and Eq 25.5
+    251 , pg 164
+
+Page 12          Source Listing                  MEEUS
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    252 ! calculate the true longitude of the sun, degrees
+    253       TLO = LO + c                                                                             ! Between Eq 25.4 and Eq 25.5
+    253 , pg 164
+    254 ! calculate the true anomaly of the sun, degrees
+    255       v = M + c                                                                                ! Between Eq 25.4 and Eq 25.5
+    255 , pg 164
+    256 ! calculate the distance to the sun in AU
+    257       r = (1.000001018*(1 - e*e))/(1 + e*Cos(DToR*v))                                          ! Eq 25.5, pg 164
+    258 ! calculate the apparent longitude of the sun, degrees
+    259       omega = 125.04 - 1934.136*t                                                              ! Between Eq 25.5 and Eq 25.6
+    259 , pg 164
+    260 !      omega  = 125.04452 - 1934.136261*t+0.0020708*(t**2)+(t**3)/45000                        ! Equation on page 144, diffe
+    260 rence with line above is negligible
+    261       lambda = TLO - 0.00569 - 0.00478*Sin(DToR*omega)                                         ! Between Eq 25.5 and Eq 25.6
+    261 , pg 164
+    262 ! calculate the mean obliquity of the ecliptic, degrees
+    263       seconds = 21.448 - t*(46.8150 + t*(0.00059 - 0.001813*t))                                ! Eq 22.2, pg 147
+    264       e0 = 23.0 + (26.0 + (seconds/60.0))/60.0                                                 ! Eq 22.2, pg 147
+    265 ! calculate the corrected obliquity of the ecliptic, degrees
+    266       ep = e0 + 0.00256 * Cos(DToR*omega)
+    267 !      ep = e0 + (9.20/3600.0)*Cos(DToR*omega)+(0.57/3600.0)*cos(DToR*2*LO)                    ! Eq on page 144, still trunc
+    267 ated though here in code, difference with line above is negligible
+    268 
+    269 ! earth heliocentric latitude, BB, degrees, Equations 9 to 12, NREL/TP-560-34302
+    270 !B0   = 280.0*Cos(3.199+84334.662*jme)+102.0*Cos(5.422+5507.553*jme)+  &
+    271 !        80.0*Cos(3.880+ 5223.690*jme)+ 44.0*Cos(3.700+2352.870*jme)+  &
+    272 !        32.0*Cos(4.000+ 1577.340*jme)
+    273 !B1   =   9.0*Cos(3.900+ 5507.550*jme)+  6.0*Cos(1.730+5223.690*jme)
+    274 !BB   = ((B0+B1*jme)/100000000.0)*RToD
+    275 ! geocentric latitude, Beta, degrees
+    276 !      Beta = -1.0*BB
+    277 ! calculate the right ascension of the sun, degrees
+    278       tananum = Cos(DToR*ep) * Sin(DToR*lambda)
+    279 !      tananum   = Cos(DToR*ep)*Sin(DToR*lambda)-tan(DToR*Beta)*Sin(DToR*ep)                   ! Eq 13.3 on page 93, differe
+    279 nce with line above is negligible
+    280       tanadenom = Cos(DToR*lambda)                                                             ! Eq 13.3 on page 93
+    281 ! Javascript and FORTRAN use same format, Atan2(Y,X)
+    282       alpha = RtoD*atan2(tananum, tanadenom)                                                   ! Eq 13.3 on page 93
+    283 
+    284 ! calculate the declination of the sun, degrees
+    285       sint = Sin(DToR*ep) * Sin(DToR*lambda)
+    286 !      sint = Sin(DToR*ep)*Sin(DToR*lambda)*Cos(DToR*Beta)+Cos(DToR*ep)*Sin(DToR*Beta)         ! Eq 13.4 on page 93, differe
+    286 nce with line above is negligible
+    287       theta = RToD*Asin(sint)                                                                  ! Eq 13.4 on page 93
+    288 
+    289 ! calculate the equation of time, the difference between true solar time
+    290 ! and mean solar time, in minutes of time
+    291       y = (Tan(DToR*ep/2.0))**2
+    292       sin2LO = Sin(2.0*DToR*LO)
+    293       cos2LO = Cos(2.0*DToR*LO)
+    294       sin4LO = Sin(4.0*DToR*LO)
+    295       Etime = y*sin2LO - 2.0*e*sinM + 4.0*e*y*sinM*cos2LO - 0.5*y*y*sin4LO - 1.25*e*e*sin2M    ! Eq 28.3 on page 185
+    296       EQT = RToD*Etime*4.0
+    297 
+    298 ! change sign convention for longitude from negative to positive in western hemisphere
+    299       if(LongIT(JW) < 0.0)then
+    300        Long2(JW) = LongIT(JW)*-1.0
+
+Page 13          Source Listing                  MEEUS
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    301       else
+    302        Long2(JW) = LongIT(JW)
+    303       end if
+    304       if(Lat(JW) > 89.8)  Lat(JW) = 89.8
+    305       if(Lat(JW) < -89.8) Lat(JW) = -89.8
+    306 
+    307       solarTimeFix = EQT - 4.0*Long2(JW) !+ 60.0*TZ(i)  ! in minutes
+    308       trueSolarTime = HOUR_M*60.0 + solarTimeFix   !in minutes
+    309 
+    310       if(trueSolarTime > 1440)then
+    311        trueSolarTime = trueSolarTime - 1440
+    312       end if
+    313             
+    314       hourangle = trueSolarTime/4.0 - 180.0
+    315 
+    316 !Thanks to Louis Schwarzmayr for the next line:
+    317       if(hourangle < -180.0)hourangle = hourangle + 360.0
+    318 
+    319 !Solar zenith (Solar altitude)
+    320       harad = DToR*hourangle
+    321       csz = Sin(DToR*Lat(JW))*Sin(DToR*theta) + Cos(DToR*Lat(JW))*Cos(DToR*theta)*Cos(harad)
+    322       if(csz > 1.0) Then
+    323        csz = 1.0
+    324       else if(csz < -1.0) Then
+    325        csz = -1.0
+    326       end if
+    327       zenith = RToD*Acos(csz)
+    328 
+    329 !Solar azimuth
+    330       azDenom = Cos(DToR*Lat(JW))*Sin(DToR*zenith)
+    331       if(Abs(azDenom) > 0.001)then
+    332        azRad = ((Sin(DToR*Lat(JW))*Cos(DToR*zenith)) - Sin(DToR*theta))/azDenom
+    333        if(Abs(azRad) > 1.0)then
+    334         if(azRad < 0.0)then
+    335          azRad = -1.0
+    336         else
+    337          azRad = 1.0
+    338         end if
+    339        end if
+    340        azimuth = 180.0 - RToD*Acos(azRad)
+    341        if(hourangle > 0.0)then
+    342         azimuth = azimuth*-1.0
+    343        end if
+    344       else
+    345        if (Lat(JW) > 0.0)then
+    346         azimuth = 180.0
+    347        else
+    348         azimuth = 0.0
+    349        end if
+    350       end if
+    351 
+    352       if(azimuth < 0.0)then
+    353        azimuth = azimuth + 360.0
+    354       end if
+    355                         
+    356 ! Correction for the effect of atmospheric refraction, NOAA website (SElev is Solar Altitude)
+    357       SElev = 90.0 - zenith
+
+Page 14          Source Listing                  MEEUS
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    358       if(SElev > 85.0)then
+    359        RC1 = 0.0
+    360       else
+    361        Te = Tan(DToR*SElev)
+    362        if(SElev > 5.0 .and. SElev <= 85.0)   RC1 = (58.1/Te - 0.07/(Te**3) + 0.000086/(Te**5))/3600.0
+    363        if(SElev > -0.575 .and. SElev <= 5.0) RC1 = (1735-518.2*SElev+103.4*SElev**2-12.79*SElev**3+0.711*SElev**4)/3600.0
+    364        if(SElev < -0.575)                    RC1 = (-20.774/Te)/3600.0
+    365       end if
+    366 
+    367        solarzen     = zenith - RC1                    ! solar zenith, corrected, degrees
+    368        solarazimuth = azimuth                        ! solar azimuth, degrees
+    369        solaralt     = 90.0 - solarzen                ! solar altitude, degrees
+    370        solarzen     = solarzen*DToR                  ! solar zenith, radians
+    371 
+    372        Call Ozone
+    373        Call BirdModel
+    374        
+    375     if(.not.Met_Regions)then
+    376     SRON(JW) = globalHz*(1.0-CC_SW*CLOUD(JW)*CLOUD(JW))*0.94      ! assumes 6% reflection
+    377     else
+    378     SRON(NMet) = globalHz*(1.0-CC_SW*CLOUD(NMet)*CLOUD(NMet))*0.94
+    379     END IF
+    380   
+    381     
+    382 !if(debug_Meeus==1)then
+    383 !    write(9595,'(19(f14.6,","),i10,",",i10,","i10,",",5(f14.6,","))')jday,jdaym,t,jd,globalHz,solarzen,RC1,Selev,azimuth,az
+    383 Rad,csz,hourangle,ETime,y,LO,r,ep,EQT,day_decimal,year,imon,jdayg,zenith
+    384 !endif
+    385     RETURN
+    386 
+    387     END SUBROUTINE MEEUS
+
+Page 15          Source Listing                  MEEUS
+2026-03-30 08:47 Entry Points                    ..\..\..\heat-exchange.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name  
+                          
+       MEEUS              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ A9                         Local  226      R(8)            8           scalar                    226,227                           
+ ABS                        Func   331                                  scalar                    331,333                           
+ ACOS                       Func   327                                  scalar                    327,340                           
+ ALPHA                      Local  282      R(8)            8           scalar                    282                               
+ ASIN                       Func   287                                  scalar                    287                               
+ ATAN2                      Func   282                                  scalar                    282                               
+ AZDENOM                    Local  330      R(8)            8           scalar                    330,331,332                       
+ AZIMUTH                    Local  340      R(8)            8           scalar                    340,342,346,348,352,353,368       
+ AZRAD                      Local  332      R(8)            8           scalar                    332,333,334,335,337,340           
+ B9                         Local  227      R(8)            8           scalar                    227,228                           
+ BIRDMODEL                  Subr   373                                                            373                               
+ BIRD_MEEUS                 Module 202                                                            202                               
+ C                          Local  251      R(8)            8           scalar                    251,253,255                       
+ CC_SW                      Local  201      R(8)            8           scalar                    201,376,378                       
+ CLOUD                      Local  376      R(8)            8     1     1        ALC              376,378                           
+ COS                        Func   257                                  scalar                    257,266,278,280,293,321,330,332   
+ COS2LO                     Local  293      R(8)            8           scalar                    293,295                           
+ CSZ                        Local  321      R(8)            8           scalar                    321,322,323,324,325,327           
+ DAY_DECIMAL                Local  216      R(8)            8           scalar                    216,228                           
+ DTOR                       Local  247      R(8)            8           scalar                    247,257,261,266,278,280,285,291,29
+                                                                                                  2,293,294,320,321,330,332,361,370 
+ E                          Local  245      R(8)            8           scalar                    245,257,295                       
+ E0                         Local  264      R(8)            8           scalar                    264,266                           
+ EP                         Local  266      R(8)            8           scalar                    266,278,285,291                   
+ EQT                        Local  296      R(8)            8           scalar                    296,307                           
+ ETIME                      Local  295      R(8)            8           scalar                    295,296                           
+ FLOOR                      Func   226                                  scalar                    226,227,228                       
+ GDAY                       Local  216      I(4)            4           scalar                    216                               
+ GDAYC                      Module 201                                                            201                               
+ GLOBAL                     Module 201                                                            201                               
+ GLOBALHZ                   Local  376      R(8)            8           scalar                    376,378                           
+ HARAD                      Local  320      R(8)            8           scalar                    320,321                           
+ HOURANGLE                  Local  314      R(8)            8           scalar                    314,317,320,341                   
+ HOUR_M                     Local  215      R(8)            8           scalar                    215,216,308                       
+ IMON                       Local  218      I(4)            4           scalar                    218,220,223                       
+ INT                        Func   215                                  scalar                    215                               
+ JD                         Local  228      R(8)            8           scalar                    228,231                           
+ JDAY                       Local  202      R(8)            8           scalar                    202,213                           
+ JDAYM                      Local  213      R(8)            8           scalar                    213,215                           
+ JME                        Local  233      R(8)            8           scalar                    233                               
+ JW                         Local  299      I(4)            4           scalar                    299,300,302,304,305,307,321,330,33
+                                                                                                  2,345,376                         
+ LAMBDA                     Local  261      R(8)            8           scalar                    261,278,280,285                   
+ LAT                        Local  304      R(8)            8     1     1        ALC              304,305,321,330,332,345           
+
+Page 16          Source Listing                  MEEUS
+2026-03-30 08:47 Symbol Table                    ..\..\..\heat-exchange.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ LO                         Local  236      R(8)            8           scalar                    236,238,239,240,253,292,293,294   
+ LONG2                      Local  300      R(8)            8     1     100                       300,302,307                       
+ LONGIT                     Local  299      R(8)            8     1     1        ALC              299,300,302                       
+ M                          Local  243      R(8)            8           scalar                    243,247,255                       
+ MAIN                       Module 201                                                            201                               
+ MEEUS                      Subr   200                                                                                              
+ METFILEREGION              Module 201                                                            201                               
+ MET_REGIONS                Local  375      L(4)            4           scalar                    375                               
+ MONTH9                     Local  220      I(4)            4           scalar                    220,223,228                       
+ MRAD                       Local  247      R(8)            8           scalar                    247,248,249,250                   
+ NMET                       Local  378      I(4)            4           scalar                    378                               
+ OMEGA                      Local  259      R(8)            8           scalar                    259,261,266                       
+ OZONE                      Subr   372                                                            372                               
+ R                          Local  257      R(8)            8           scalar                    257                               
+ RC1                        Local  359      R(8)            8           scalar                    359,362,363,364,367               
+ RTOD                       Local  282      R(8)            8           scalar                    282,287,296,327,340               
+ SCREENC                    Module 202                                                            202                               
+ SECONDS                    Local  263      R(8)            8           scalar                    263,264                           
+ SELEV                      Local  357      R(8)            8           scalar                    357,358,361,362,363,364           
+ SHADEC                     Module 201                                                            201                               
+ SIN                        Func   248                                  scalar                    248,249,250,261,278,285,292,294,32
+                                                                                                  1,330,332                         
+ SIN2LO                     Local  292      R(8)            8           scalar                    292,295                           
+ SIN2M                      Local  249      R(8)            8           scalar                    249,251,295                       
+ SIN3M                      Local  250      R(8)            8           scalar                    250,251                           
+ SIN4LO                     Local  294      R(8)            8           scalar                    294,295                           
+ SINM                       Local  248      R(8)            8           scalar                    248,251,295                       
+ SINT                       Local  285      R(8)            8           scalar                    285,287                           
+ SOLARALT                   Local  369      R(8)            8           scalar                    369                               
+ SOLARAZIMUTH               Local  368      R(8)            8           scalar                    368                               
+ SOLARTIMEFIX               Local  307      R(8)            8           scalar                    307,308                           
+ SOLARZEN                   Local  367      R(8)            8           scalar                    367,369,370                       
+ SRON                       Local  376      R(8)            8     1     1        ALC              376,378                           
+ SURFHE                     Module 201                                                            201                               
+ T                          Local  231      R(8)            8           scalar                    231,233,236,243,245,251,259,263   
+ TAN                        Func   291                                  scalar                    291,361                           
+ TANADENOM                  Local  280      R(8)            8           scalar                    280,282                           
+ TANANUM                    Local  278      R(8)            8           scalar                    278,282                           
+ TE                         Local  361      R(8)            8           scalar                    361,362,364                       
+ THETA                      Local  287      R(8)            8           scalar                    287,321,332                       
+ TLO                        Local  253      R(8)            8           scalar                    253,261                           
+ TRUESOLARTIME              Local  308      R(8)            8           scalar                    308,310,311,314                   
+ TVDC                       Module 201                                                            201                               
+ TZONE                      Local  201      I(4)            4           scalar                    201,213                           
+ V                          Local  255      R(8)            8           scalar                    255,257                           
+ Y                          Local  291      R(8)            8           scalar                    291,295                           
+ YEAR                       Local  219      I(4)            4           scalar                    219,222                           
+ YEAR9                      Local  219      I(4)            4           scalar                    219,222,226,228                   
+ ZENITH                     Local  327      R(8)            8           scalar                    327,330,332,357,367               
+
+Page 17          Source Listing                  MEEUS
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    388 
+    389     SUBROUTINE Ozone
+    390     USE Bird_Meeus
+    391 ! Calculate ozone concentration, Van Heuklon (1979) Eq 4
+    392      USE GLOBAL; USE GDAYC; USE SURFHE; USE TVDC; USE SHADEC; USE MetFileRegion
+    393   IMPLICIT NONE
+    394     Real A7, B7, C7, F7, H7, P7
+    395 
+    396     if(Lat(jw) >= 0.0)then
+    397       A7 = 150.0; C7 = 40.0; F7 = -30.000; H7 = 3.0; B7 = 1.28
+    398       if(-Longit(jw) >= 0.0)then   ! Convention in W2 is to use a Long W or a positive #, so actual Longit should be "-" in 
+    398 Western hemisphere, hence the minus sign SW
+    399        P7 = 20.0
+    400       else
+    401        P7 =  0.0
+    402       end if
+    403     else
+    404       A7 = 100.0; C7 = 30.0; F7 = 152.625; H7 = 2.0; B7 = 1.50; P7 = -75.0
+    405     end if
+    406 ! D converts the number of days to a fraction part of 360 degrees, in degrees
+    407 !    D  = 360.0/365.25, 0.98562628
+    408 ! Uo is calculated in atm-cm
+    409     Uo  = (235+(A7+C7*Sin(DToR*0.9856*(int(Jdaym)+F7))+20.0*Sin(DToR*H7*(Longit(JW)+P7)))*(sin(DToR*B7*Lat(jw))**2))/1000.0
+    410 
+    411 END SUBROUTINE Ozone
+
+
+ENTRY POINTS
+
+ Address      Type  Name  
+                          
+       OZONE              
+
+Page 18          Source Listing                  OZONE
+2026-03-30 08:47 Symbol Table                    ..\..\..\heat-exchange.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ A7                         Local  394      R(4)            4           scalar                    397,404,409                       
+ B7                         Local  394      R(4)            4           scalar                    397,404,409                       
+ BIRD_MEEUS                 Module 390                                                            390                               
+ C7                         Local  394      R(4)            4           scalar                    397,404,409                       
+ DTOR                       Local  409      R(8)            8           scalar                    409                               
+ F7                         Local  394      R(4)            4           scalar                    397,404,409                       
+ GDAYC                      Module 392                                                            392                               
+ GLOBAL                     Module 392                                                            392                               
+ H7                         Local  394      R(4)            4           scalar                    397,404,409                       
+ INT                        Func   409                                  scalar                    409                               
+ JDAYM                      Local  409      R(8)            8           scalar                    409                               
+ JW                         Local  396      I(4)            4           scalar                    396,398,409                       
+ LAT                        Local  396      R(8)            8     1     1        ALC              396,409                           
+ LONGIT                     Local  398      R(8)            8     1     1        ALC              398,409                           
+ METFILEREGION              Module 392                                                            392                               
+ OZONE                      Subr   389                                                                                              
+ P7                         Local  394      R(4)            4           scalar                    399,401,404,409                   
+ SHADEC                     Module 392                                                            392                               
+ SIN                        Func   409                                  scalar                    409                               
+ SURFHE                     Module 392                                                            392                               
+ TVDC                       Module 392                                                            392                               
+ UO                         Local  409      R(8)            8           scalar                    409                               
+
+Page 19          Source Listing                  OZONE
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    412 
+    413 
+    414 SUBROUTINE BirdModel
+    415   USE Bird_Meeus; USE GEOMC
+    416   USE GLOBAL; USE GDAYC; USE SURFHE; USE TVDC; USE SHADEC; USE MetFileRegion; USE MAIN, ONLY:SW_ALBEDO,SW_BA,SW_K1,AOD380NM,
+    416 AOD500NM
+    417   IMPLICIT NONE
+    418 
+    419     Real AM, tauA, TR, Toh, TUM, Tw, TA, AMP, Xo,uw,xw
+    420     Real TAA, rs, mp, numI, denI, Ias, BirdETR
+    421 
+    422 ! Atmospheric Pressure
+    423 !     P         = 1013
+    424 ! Ratio of forward-scattered irradiance to the total scattered, see SERI pages 8 & 9
+    425 !     Ba        = 0.84  --> input variable SW_BA
+    426 ! Constant used in Bird Model associated with aerosol absorptance, see SERI pages 7 & 9
+    427 !     K1        = 0.10   --> input variable SW_K1
+    428 ! Used same albdeo from other code for Methods 1 to 3
+    429 !     albedo    = 0.10   --> input variable SW_ALBEDO
+    430 ! NREL solar constant of 1367 W/m^2
+    431 !     SROCON    = 1367.00
+    432 ! Bras/TVA (Io=Wo(sin(solaralt))/r2, Equation 2.9 on page 26) adjustment of ETR normal to beam for earth sun distance
+    433      birdETR   = 1367.0/(r*r)
+    434 ! broadband aerosol optical depth from surface in a vertical path (broadband turbidity)
+    435      tauA      = 0.2758*AOD380nm + 0.35*AOD500nm
+    436 !     tauA      = 0.05
+    437     if(RToD*solarzen < 89.0)then
+    438 ! Relative Optical Air Mass, SERI, pg 8
+    439      AM      = (((288.0-0.0065*ELWS(DS(BE(JW))))/288.)**5.256)/(Sin(DToR*solaralt)+0.1500*(solaralt+3.885)**-1.253)         
+    439            ! Equation 23, optical air mass
+    440 ! Pressure corrected air mass
+    441      AMP       = AM*1013.0/1013                     !Atm Pressure assumed==1013.
+    442 ! Total amount of ozone in a slanted path (cm)
+    443      Xo        = Uo*AM
+    444 ! Amount of Precipitable water in a vertical column  from surface (cm), used 1.50 cm for Mt Vernon, range from MLS and USS m
+    444 odels 1.42 to 2.93
+    445      if(.not.Met_Regions)then
+    446      Uw        = exp(-0.0592+0.06912*TDEW(JW))           
+    447      else
+    448      Uw        = exp(-0.0592+0.06912*TDEW(NMET))     
+    449      endif
+    450 ! Equation 27, mean hourly precipitable water content, cm
+    451 ! Total amount of precipitable water in a slanted path (cm)
+    452      Xw        = Uw*AM
+    453 ! Transmittance of Rayleigh Scattering, SERI, pg 8
+    454      TR        = Exp(-0.0903*(AMP**0.84)*(1+AMP-AMP**1.01))
+    455 ! Transmittance of ozone absorptance, SERI, pg 8
+    456      Toh       = 1-0.1611*Xo*(1+139.48*Xo)**-0.3035-0.002715*Xo/(1+0.044*Xo+0.0003*Xo*Xo)
+    457 ! Transmittance of absorptance of uniformly mixed gases (carbon dioxide and oxygen)
+    458      TUM       = Exp(-0.0127*AMP**0.26)
+    459 ! Transmittance of water vapor absoptance (1-aw)
+    460      Tw        = 1-2.4959*Xw/((1 + 79.034*Xw)**0.6828+6.385*Xw)
+    461 ! Transmittance of aerosol aborptance and scattering
+    462      TA        = Exp(-(tauA**0.873)*(1+tauA-tauA**0.7088)*AM**0.9108)
+    463 ! Transmittance of aerosol aborptance
+    464      TAA       = 1-SW_K1*(1-AM+AM**1.06)*(1-TA)
+    465 ! Sky, or atmospheric, albedo
+
+Page 20          Source Listing                  BIRDMODEL
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+    466      rs        = 0.0685+(1-SW_Ba)*(1-(TA/TAA))
+    467 ! Direct solar irradiance on a horizontal ground surface (W/m^2)
+    468      if(RToD*solarzen < 90.0)then
+    469       directHz = birdETR*Cos(solarzen)*0.9662*TA*Tw*TUM*Toh*TR
+    470      else
+    471       directHz = 0.0
+    472      end if
+    473 ! Solar irradiance on a horizontal surface from atmospheric scattering (W/m2)
+    474      numI      = 0.5*(1-TR)+ SW_Ba * (1-(TA/TAA))
+    475      denI      = 1-AM+AM**1.02
+    476      Ias       = birdETR*Cos(solarzen)*0.79*Toh*TUM*Tw*TAA*(numI/DenI)
+    477    else
+    478      AM = 0.0; TR = 0.0; Toh = 0.0; TUM = 0.0; Tw = 0.0; TA = 0.0; TAA = 0.0; rs = 0.0; Ias = 0.0; AMP = 0.0
+    479      Xw = 0.0; Xo = 0.0; mp = 0.0
+    480    end if
+    481 
+    482 !global radiation on a horizontal ground surface (W/m^2)
+    483    if(AM > 0.0)then
+    484     globalHz   = (directHz+Ias)/(1-SW_albedo*rs)
+    485    else
+    486     globalHz   = 0.0
+    487    end if
+    488 
+    489 !diffuse radiation on a horizontal ground surface (W/m^2)
+    490    diffuseHz = globalHz - directHz
+    491    
+    492 !   if(debug_Meeus==1)then
+    493 !    write(9596,'(25(f14.6,","))')jdaym,Uo,AM,diffuseHz,globalhz,directHz,Ias,toh,tum,tw,taa,am,tr,ta,birdetr,rs,Uw,tdew(jw)
+    493 ,sw_BA,sw_albedo,ELWS(DS(BE(JW))),sw_k1
+    494 !endif
+    495 
+    496 
+    497 END SUBROUTINE BirdModel
+
+Page 21          Source Listing                  BIRDMODEL
+2026-03-30 08:47 Entry Points                    ..\..\..\heat-exchange.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name      
+                              
+       BIRDMODEL              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ AM                         Local  419      R(4)            4           scalar                    439,441,443,452,462,464,475,478,48
+                                                                                                  3                                 
+ AMP                        Local  419      R(4)            4           scalar                    441,454,458,478                   
+ AOD380NM                   Local  416      R(8)            8           scalar                    416,435                           
+ AOD500NM                   Local  416      R(8)            8           scalar                    416,435                           
+ BE                         Local  439      I(4)            4     1     1        ALC              439                               
+ BIRDETR                    Local  420      R(4)            4           scalar                    433,469,476                       
+ BIRDMODEL                  Subr   414                                                                                              
+ BIRD_MEEUS                 Module 415                                                            415                               
+ COS                        Func   469                                  scalar                    469,476                           
+ DENI                       Local  420      R(4)            4           scalar                    475,476                           
+ DIFFUSEHZ                  Local  490      R(8)            8           scalar                    490                               
+ DIRECTHZ                   Local  469      R(8)            8           scalar                    469,471,484,490                   
+ DS                         Local  439      I(4)            4     1     1        ALC              439                               
+ DTOR                       Local  439      R(8)            8           scalar                    439                               
+ ELWS                       Local  439      R(8)            8     1     1        ALC              439                               
+ EXP                        Func   446                                  scalar                    446,448,454,458,462               
+ GDAYC                      Module 416                                                            416                               
+ GEOMC                      Module 415                                                            415                               
+ GLOBAL                     Module 416                                                            416                               
+ GLOBALHZ                   Local  484      R(8)            8           scalar                    484,486,490                       
+ IAS                        Local  420      R(4)            4           scalar                    476,478,484                       
+ JW                         Local  439      I(4)            4           scalar                    439,446                           
+ MAIN                       Module 416                                                            416                               
+ METFILEREGION              Module 416                                                            416                               
+ MET_REGIONS                Local  445      L(4)            4           scalar                    445                               
+ MP                         Local  420      R(4)            4           scalar                    479                               
+ NMET                       Local  448      I(4)            4           scalar                    448                               
+ NUMI                       Local  420      R(4)            4           scalar                    474,476                           
+ R                          Local  433      R(8)            8           scalar                    433                               
+ RS                         Local  420      R(4)            4           scalar                    466,478,484                       
+ RTOD                       Local  437      R(8)            8           scalar                    437,468                           
+ SHADEC                     Module 416                                                            416                               
+ SIN                        Func   439                                  scalar                    439                               
+ SOLARALT                   Local  439      R(8)            8           scalar                    439                               
+ SOLARZEN                   Local  437      R(8)            8           scalar                    437,468,469,476                   
+ SURFHE                     Module 416                                                            416                               
+ SW_ALBEDO                  Local  416      R(8)            8           scalar                    416,484                           
+ SW_BA                      Local  416      R(8)            8           scalar                    416,466,474                       
+ SW_K1                      Local  416      R(8)            8           scalar                    416,464                           
+ TA                         Local  419      R(4)            4           scalar                    462,464,466,469,474,478           
+ TAA                        Local  420      R(4)            4           scalar                    464,466,474,476,478               
+ TAUA                       Local  419      R(4)            4           scalar                    435,462                           
+ TDEW                       Local  446      R(8)            8     1     1        ALC              446,448                           
+
+Page 22          Source Listing                  BIRDMODEL
+2026-03-30 08:47 Symbol Table                    ..\..\..\heat-exchange.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ TOH                        Local  419      R(4)            4           scalar                    456,469,476,478                   
+ TR                         Local  419      R(4)            4           scalar                    454,469,474,478                   
+ TUM                        Local  419      R(4)            4           scalar                    458,469,476,478                   
+ TVDC                       Module 416                                                            416                               
+ TW                         Local  419      R(4)            4           scalar                    460,469,476,478                   
+ UO                         Local  443      R(8)            8           scalar                    443                               
+ UW                         Local  419      R(4)            4           scalar                    446,448,452                       
+ XO                         Local  419      R(4)            4           scalar                    443,456,479                       
+ XW                         Local  419      R(4)            4           scalar                    452,460,479                       
+
+Page 23          Source Listing                  BIRDMODEL
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\heat-exchange.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ BIRDMODEL                  Subr   414                                                                                              
+ BIRD_MEEUS                 Module 184                                                                                              
+ DEG_C                      Func   178      R(8)            8           scalar                    181                               
+ DEG_F                      Func   173      R(8)            8           scalar                    176                               
+ HEAT_EXCHANGE              Subr   7                                                                                                
+ MEEUS                      Subr   200                                                                                              
+ OZONE                      Subr   389                                                                                              
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+
+Page 24          Source Listing                  BIRDMODEL
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:heat-exchange.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+
+Page 25          Source Listing                  BIRDMODEL
+2026-03-30 08:47                                 ..\..\..\heat-exchange.f90
+
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : heat-exchange.lst
+  /object:heat-exchange.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

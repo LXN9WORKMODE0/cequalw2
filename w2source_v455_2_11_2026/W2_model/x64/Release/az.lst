@@ -1,0 +1,1505 @@
+Page 1           Source Listing                  CALCULATE_AZ
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\34180704.i90
+
+      1 # 1 "..\..\..\az.f90"
+      2 
+      3 !***************************************************************************************************************************
+      3 ********
+      4 !**                                        S U B R O U T I N E   C A L C U L A T E  A Z                                     
+      4       **
+      5 !***************************************************************************************************************************
+      5 ********
+      6 MODULE AZ_LOCAL
+      7   USE GEOMC; USE GLOBAL; USE TRANS; USE PREC; USE EDDY; USE KINETIC; use macrophytec; USE LOGICC; USE MAIN, ONLY:WARNING_OPE
+      7 N, IUT,IDT
+      8   REAL(R8), DIMENSION (2) :: SIG
+      9   REAL(R8)            :: TKEMIN1=1.25D-7,TKEMIN2=1.0D-9,RIAZ0,AZ0,RIAZ1,EXPAZ,DEPTHL,DEPTHR,ZDLR,DEPTH,USTAR,ZD
+     10   REAL(R8)            :: SLM,VISCK,VISCF,HRAD,EFFRIC,GC2,RI,BUOY,USTARBKT,WALLFUNCTION,UDR,UDL,CONVKX,CONVEX,CONVKZ,CONVEZ,A
+     10 TA,AB
+     11   INTEGER             :: K,KL,J,JJ
+     12   REAL(R8)            :: BOUK,PRDK,PRHE,PRHK,UNST,UNSE,USTARB
+     13   EXTERNAL WALLFUNCTION
+     14 END MODULE AZ_LOCAL
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ AB                         Local  10       R(8)            8           scalar                                                      
+ ATA                        Local  10       R(8)            8           scalar                                                      
+ AZ0                        Local  9        R(8)            8           scalar                                                      
+ AZ_LOCAL                   Module 6                                                                                                
+ BOUK                       Local  12       R(8)            8           scalar                                                      
+ BUOY                       Local  10       R(8)            8           scalar                                                      
+ CONVEX                     Local  10       R(8)            8           scalar                                                      
+ CONVEZ                     Local  10       R(8)            8           scalar                                                      
+ CONVKX                     Local  10       R(8)            8           scalar                                                      
+ CONVKZ                     Local  10       R(8)            8           scalar                                                      
+ DEPTH                      Local  9        R(8)            8           scalar                                                      
+ DEPTHL                     Local  9        R(8)            8           scalar                                                      
+ DEPTHR                     Local  9        R(8)            8           scalar                                                      
+ EDDY                       Module 7                                                              7                                 
+ EFFRIC                     Local  10       R(8)            8           scalar                                                      
+ EXPAZ                      Local  9        R(8)            8           scalar                                                      
+ GC2                        Local  10       R(8)            8           scalar                                                      
+ GEOMC                      Module 7                                                              7                                 
+ GLOBAL                     Module 7                                                              7                                 
+ HRAD                       Local  10       R(8)            8           scalar                                                      
+ IDT                        Local  7        I(4)            4           scalar                    7                                 
+ IUT                        Local  7        I(4)            4           scalar                    7                                 
+ J                          Local  11       I(4)            4           scalar                                                      
+ JJ                         Local  11       I(4)            4           scalar                                                      
+ K                          Local  11       I(4)            4           scalar                                                      
+ KINETIC                    Module 7                                                              7                                 
+ KL                         Local  11       I(4)            4           scalar                                                      
+ LOGICC                     Module 7                                                              7                                 
+ MACROPHYTEC                Module 7                                                              7                                 
+ MAIN                       Module 7                                                              7                                 
+ PRDK                       Local  12       R(8)            8           scalar                                                      
+ PREC                       Module 7                                                              7                                 
+
+Page 2           Source Listing                  CALCULATE_AZ
+2026-03-30 08:47 Symbol Table                    ..\..\..\az.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ PRHE                       Local  12       R(8)            8           scalar                                                      
+ PRHK                       Local  12       R(8)            8           scalar                                                      
+ R8                         Param  8        I(4)            4           scalar                    8,9,10,12                         
+ RI                         Local  10       R(8)            8           scalar                                                      
+ RIAZ0                      Local  9        R(8)            8           scalar                                                      
+ RIAZ1                      Local  9        R(8)            8           scalar                                                      
+ SIG                        Local  8        R(8)            8     1     2                                                           
+ SLM                        Local  10       R(8)            8           scalar                                                      
+ TKEMIN1                    Local  9        R(8)            8           scalar                    9                                 
+ TKEMIN2                    Local  9        R(8)            8           scalar                    9                                 
+ TRANS                      Module 7                                                              7                                 
+ UDL                        Local  10       R(8)            8           scalar                                                      
+ UDR                        Local  10       R(8)            8           scalar                                                      
+ UNSE                       Local  12       R(8)            8           scalar                                                      
+ UNST                       Local  12       R(8)            8           scalar                                                      
+ USTAR                      Local  9        R(8)            8           scalar                                                      
+ USTARB                     Local  12       R(8)            8           scalar                                                      
+ USTARBKT                   Local  10       R(8)            8           scalar                                                      
+ VISCF                      Local  10       R(8)            8           scalar                                                      
+ VISCK                      Local  10       R(8)            8           scalar                                                      
+ WALLFUNCTION               Func   10       R(8)            8           scalar                                                      
+ WARNING_OPEN               Local  7        L(4)            4           scalar                    7                                 
+ ZD                         Local  9        R(8)            8           scalar                                                      
+ ZDLR                       Local  9        R(8)            8           scalar                                                      
+
+Page 3           Source Listing                  CALCULATE_AZ
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+     15 
+     16   SUBROUTINE CALCULATE_AZ
+     17 ! USE GEOMC; USE GLOBAL; USE TRANS; USE PREC; USE EDDY; USE KINETIC; use macrophytec; USE LOGICC; USE MAIN, ONLY:WARNING_OPE
+     17 N
+     18   USE AZ_LOCAL
+     19   IMPLICIT NONE
+     20   SAVE
+     21   SIG(1)=1.0D0; SIG(2)=1.3D0
+     22 
+     23   IF     (AZC(JW) == '     TKE') THEN
+     24     CALL CALCULATE_TKE
+     25   ELSEIF (AZC(JW) == '    TKE1') THEN
+     26     CALL CALCULATE_TKE1
+     27   ELSE
+     28     DO K=KT,KBMIN(I)-1
+     29     VSH(K,I) = ((U(K+1,I)-U(K,I))/((AVH2(K,I)+AVH2(K,I+1))*0.5))**2
+     30     END DO
+     31 
+     32     DO K=KT,KBMIN(I)-1
+     33       CALL CALCULATE_AZ0
+     34       BUOY    = (RHO(K+1,I)-RHO(K,I)+RHO(K+1,I+1)-RHO(K,I+1))/(AVH2(K,I)+AVH2(K,I+1))            ! 2.0*AVH2(K,I)
+     35       RIAZ0   =  DLOG(AZ0/AZMAX(JW))*0.666666667D0                                                  ! /1.5
+     36       RI      =  G*BUOY/(RHOW*VSH(K,I)+NONZERO)
+     37       RIAZ1   =  DMAX1(RI,RIAZ0)
+     38       RIAZ1   =  DMIN1(RIAZ1,10.0D0)
+     39       EXPAZ   =  DEXP(-1.5D0*RIAZ1)
+     40       AZ(K,I) = DMAX1(AZMIN,AZ0*EXPAZ+AZMIN*(1.0D0-EXPAZ))              ! AZ computed at lower edge of cell
+     41       DZT(K,I) = DMAX1(DZMIN,FRAZDZ*(AZ0*EXPAZ+DZMIN*(1.0-EXPAZ)))     ! DZ computed at lower edge of cell - later averaged 
+     41 to cell center lower edge
+     42     END DO
+     43   END IF
+     44 RETURN
+     45 END SUBROUTINE CALCULATE_AZ
+
+Page 4           Source Listing                  CALCULATE_AZ
+2026-03-30 08:47 Entry Points                    ..\..\..\az.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name         
+                                 
+       CALCULATE_AZ              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ AVH2                       Local  29       R(8)            8     2     1        ALC              29,34                             
+ AZ                         Local  40       R(8)            8     2     1        PTR              40                                
+ AZ0                        Local  35       R(8)            8           scalar                    35,40,41                          
+ AZC                        Local  23       CHAR            8     1     1        ALC              23,25                             
+ AZMAX                      Local  35       R(8)            8     1     1        ALC              35                                
+ AZMIN                      Param  40       R(8)            8           scalar                    40                                
+ AZ_LOCAL                   Module 18                                                             18                                
+ BUOY                       Local  34       R(8)            8           scalar                    34,36                             
+ CALCULATE_AZ               Subr   16                                                                                               
+ CALCULATE_AZ0              Subr   33                                                             33                                
+ CALCULATE_TKE              Subr   24                                                             24                                
+ CALCULATE_TKE1             Subr   26                                                             26                                
+ DEXP                       Func   39                                   scalar                    39                                
+ DLOG                       Func   35                                   scalar                    35                                
+ DMAX1                      Func   37                                   scalar                    37,40,41                          
+ DMIN1                      Func   38                                   scalar                    38                                
+ DZMIN                      Param  41       R(8)            8           scalar                    41                                
+ DZT                        Local  41       R(8)            8     2     1        ALC              41                                
+ EXPAZ                      Local  39       R(8)            8           scalar                    39,40,41                          
+ FRAZDZ                     Param  41       R(8)            8           scalar                    41                                
+ G                          Local  36       R(8)            8           scalar                    36                                
+ I                          Local  28       I(4)            4           scalar                    28,29,32,34,36,40,41              
+ JW                         Local  23       I(4)            4           scalar                    23,25,35                          
+ K                          Local  28       I(4)            4           scalar                    28,29,32,34,36,40,41              
+ KBMIN                      Local  28       I(4)            4     1     1        ALC              28,32                             
+ KT                         Local  28       I(4)            4           scalar                    28,32                             
+ NONZERO                    Param  36       R(8)            8           scalar                    36                                
+ RHO                        Local  34       R(8)            8     2     1        PTR              34                                
+ RHOW                       Param  36       R(8)            8           scalar                    36                                
+ RI                         Local  36       R(8)            8           scalar                    36,37                             
+ RIAZ0                      Local  35       R(8)            8           scalar                    35,37                             
+ RIAZ1                      Local  37       R(8)            8           scalar                    37,38,39                          
+ SIG                        Local  21       R(8)            8     1     2                         21                                
+ U                          Local  29       R(8)            8     2     1        PTR              29                                
+ VSH                        Local  29       R(8)            8     2     1        PTR              29,36                             
+
+Page 5           Source Listing                  CALCULATE_AZ
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+     46     
+     47 SUBROUTINE CALCULATE_AZ0
+     48   USE AZ_LOCAL
+     49   IMPLICIT NONE
+     50   SAVE
+     51 
+     52   IF (K == KT) THEN
+     53     DEPTHL = (ELWS(I)-EL(KB(I),I)    +H2(KB(I),I)  *COSA(JB))/COSA(JB)      !(EL(KT,I)  -Z(I)  *COSA(JB)-EL(KB(I),I)    +H2(
+     53 KB(I),I)  *COSA(JB))/COSA(JB)
+     54     DEPTHR = (ELWS(I+1)-EL(KB(I+1),I+1)+H2(KB(I+1),I)*COSA(JB))/COSA(JB)    !(EL(KT,I+1)-Z(I+1)*COSA(JB)-EL(KB(I+1),I+1)+H2(
+     54 KB(I+1),I)*COSA(JB))/COSA(JB)
+     55     ZDLR   =  DEPTHL-H2(KT,I)+DEPTHR-H2(KT,I+1)
+     56     IF (AZC(JW) == '     RNG' .OR. AZC(JW) == '   PARAB') THEN
+     57       DEPTH = (DEPTHR+DEPTHL)*0.5
+     58       USTAR =  SQRT(G*DEPTH*SLOPEC(JB))
+     59       IF (SLOPEC(JB) == 0.0) THEN
+     60         USTAR = 0.0
+     61         DO KL=KT,KBMIN(I)
+     62           USTAR = USTAR+SQRT(AZ(KL-1,I)*SQRT(VSH(KL-1,I))/RHO(KL,I))
+     63         END DO
+     64         USTAR = USTAR/(KBMIN(I)-KT+1)
+     65       END IF
+     66     END IF
+     67   ELSE
+     68     ZDLR = (EL(K-1,I)-EL(KB(I),I)+H2(KB(I),I)*COSA(JB))/COSA(JB)+(EL(K-1,I+1)-EL(KB(I),I+1)+H2(KB(I+1),I)*COSA(JB))/COSA(JB)
+     69   END IF
+     70   ZD = ZDLR/(DEPTHL+DEPTHR)
+     71   IF (AZC(JW) == '    NICK') THEN
+     72     SLM = ((DEPTHR+DEPTHL)*0.5*(0.14-0.08*(1.0-ZD)**2-0.06*(1.0-ZD)**4))**2         ! SR 7/2024
+     73     AZ0 =  MAX(AZMIN,SLM*SQRT(VSH(K,I)))
+     74   ELSE IF (AZC(JW) == '     RNG') THEN
+     75     VISCK = DEXP((T2(K,I)+495.691)/(-37.3877))
+     76     IF (T2(K,I) > 30.0)  VISCK = DEXP((T2(K,I)+782.190)/(-57.7600))
+     77     VISCF = MAX(0.0,0.08477*((ZDLR*0.5*USTAR/VISCK)**3)*((1.0-ZDLR*0.5/DEPTH)**3)-100.0)
+     78     VISCF = (1.0+VISCF)**0.33333333333333
+     79     AZ0   = MAX(AZMIN,VISCK*VISCF)
+     80   ELSE IF (AZC(JW) == '   PARAB') THEN
+     81     AZ0 = MAX(AZMIN,0.41*USTAR*ZDLR*0.5*(1.0-ZD))
+     82   ELSE
+     83     SLM = HMAX2
+     84     IF (AZC(JW) == '     W2N') SLM = ((DEPTHR+DEPTHL)*0.5*(0.14-0.08*(1.0-ZD)**2-0.06*(1.0-ZD)**4))**2
+     85     AZ0 = 0.4*SLM*SQRT(VSH(K,I)+((FRICBR(K,I)+WSHY(I)*DECAY(K,I))/(AZ(K,I)+NONZERO))**2)+AZMIN
+     86   END IF
+     87 RETURN
+     88 END SUBROUTINE CALCULATE_AZ0
+
+Page 6           Source Listing                  CALCULATE_AZ0
+2026-03-30 08:47 Entry Points                    ..\..\..\az.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name          
+                                  
+       CALCULATE_AZ0              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ AZ                         Local  62       R(8)            8     2     1        PTR              62,85                             
+ AZ0                        Local  73       R(8)            8           scalar                    73,79,81,85                       
+ AZC                        Local  56       CHAR            8     1     1        ALC              56,71,74,80,84                    
+ AZMIN                      Param  73       R(8)            8           scalar                    73,79,81,85                       
+ AZ_LOCAL                   Module 48                                                             48                                
+ CALCULATE_AZ0              Subr   47                                                                                               
+ COSA                       Local  53       R(8)            8     1     1        ALC              53,54,68                          
+ DECAY                      Local  85       R(8)            8     2     1        ALC              85                                
+ DEPTH                      Local  57       R(8)            8           scalar                    57,58,77                          
+ DEPTHL                     Local  53       R(8)            8           scalar                    53,55,57,70,72,84                 
+ DEPTHR                     Local  54       R(8)            8           scalar                    54,55,57,70,72,84                 
+ DEXP                       Func   75                                   scalar                    75,76                             
+ EL                         Local  53       R(8)            8     2     1        ALC              53,54,68                          
+ ELWS                       Local  53       R(8)            8     1     1        ALC              53,54                             
+ FRICBR                     Local  85       R(8)            8     2     1        ALC              85                                
+ G                          Local  58       R(8)            8           scalar                    58                                
+ H2                         Local  53       R(8)            8     2     1        ALC              53,54,55,68                       
+ HMAX2                      Local  83       R(8)            8           scalar                    83                                
+ I                          Local  53       I(4)            4           scalar                    53,54,55,61,62,64,68,73,75,76,85  
+ JB                         Local  53       I(4)            4           scalar                    53,54,58,59,68                    
+ JW                         Local  56       I(4)            4           scalar                    56,71,74,80,84                    
+ K                          Local  52       I(4)            4           scalar                    52,68,73,75,76,85                 
+ KB                         Local  53       I(4)            4     1     1        ALC              53,54,68                          
+ KBMIN                      Local  61       I(4)            4     1     1        ALC              61,64                             
+ KL                         Local  61       I(4)            4           scalar                    61,62                             
+ KT                         Local  52       I(4)            4           scalar                    52,55,61,64                       
+ MAX                        Func   73                                   scalar                    73,77,79,81                       
+ NONZERO                    Param  85       R(8)            8           scalar                    85                                
+ RHO                        Local  62       R(8)            8     2     1        PTR              62                                
+ SLM                        Local  72       R(8)            8           scalar                    72,73,83,84,85                    
+ SLOPEC                     Local  58       R(8)            8     1     1        ALC              58,59                             
+ SQRT                       Func   58                                   scalar                    58,62,73,85                       
+ T2                         Local  75       R(8)            8     2     1        PTR              75,76                             
+ USTAR                      Local  58       R(8)            8           scalar                    58,60,62,64,77,81                 
+ VISCF                      Local  77       R(8)            8           scalar                    77,78,79                          
+ VISCK                      Local  75       R(8)            8           scalar                    75,76,77,79                       
+ VSH                        Local  62       R(8)            8     2     1        PTR              62,73,85                          
+ WSHY                       Local  85       R(8)            8     1     1        ALC              85                                
+ ZD                         Local  70       R(8)            8           scalar                    70,72,81,84                       
+ ZDLR                       Local  55       R(8)            8           scalar                    55,68,70,77,81                    
+
+Page 7           Source Listing                  CALCULATE_AZ0
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+     89 
+     90 SUBROUTINE CALCULATE_TKE
+     91   USE AZ_LOCAL
+     92   IMPLICIT NONE
+     93   SAVE
+     94   USTAR = SQRT(1.25*CZ(I)*WIND10(I)**2/RHO(KT,I))
+     95   IF (MANNINGS_N(JW)) THEN
+     96    HRAD = BH1(KT,I)/(B(KTI(I),I)-B(KT+1,I)+2.*AVH1(KT,I))      ! HRAD = BHR1(KT,I)/(BR(KTI(I),I)-BR(KT+1,I)+2.*AVH1(KT,I))  
+     96 SW 10/5/07  These calculations are at the segment centers and vertical center of a layer
+     97     if(macrophyte_on.and.mannings_n(jw))then
+     98       call macrophyte_friction(hrad,fric(i),effric,kt,i)
+     99       gc2=g*effric*effric/hrad**0.33333333
+    100     else if(.not.macrophyte_on.and.mannings_n(jw))then
+    101       gc2=g*fric(i)*fric(i)/hrad**0.33333333
+    102     end if
+    103   ELSE
+    104     GC2 = 0.0
+    105     IF (FRIC(I) /= 0.0) GC2 = G/(FRIC(I)*FRIC(I))
+    106   END IF
+    107   USTARBKT     = SQRT(GC2)*ABS(0.5*(U(KT,I)+U(KT,I-1)))                                                 ! SG 10/4/07
+    108   TKE(KT,I,1) = (3.33*(USTAR*USTAR+USTARBKT*USTARBKT))*BHRATIO(KT,I)   !(BH2(KT,I)/BH1(KT,I))                            ! S
+    108 G 10/4/07
+    109   TKE(KT,I,2) = (USTAR*USTAR*USTAR+USTARBKT*USTARBKT*USTARBKT)*5.0/H1(KT,I)*BHRATIO(KT,I)   !*(BH2(KT,I)/BH1(KT,I))       ! 
+    109 SG 10/4/07
+    110   DO K=KT+1,KB(I)-1
+    111     BOUK = MAX(AZ(K,I)*G*(RHO(K+1,I)-RHO(K,I))/(H(K,JW)*RHOW),0.0)
+    112     PRDK = AZ(K,I)*(0.5*(U(K,I)+U(K,I-1)-U(K+1,I)-U(K+1,I-1))/(H(K,JW)*0.5 + H(K+1,JW)*0.5))**2.0       ! SG 10/4/07
+    113     PRHE = 10.0*GC2**1.25*ABS(0.5*(U(K,I)+U(K,I-1)))**4.0/(0.5*B(K,I))**2.0
+    114     IF (MANNINGS_N(JW)) THEN
+    115       HRAD = BH(K,I)/(B(K,I)-B(K+1,I)+2.0*H(K,JW))          ! HRAD = BHR(K,I)/(BR(K,I)-BR(K+1,I)+2.0*H(K,JW))  SW 10/5/07
+    116       if(macrophyte_on.and.mannings_n(jw))then
+    117         call macrophyte_friction(hrad,fric(i),effric,k,i)
+    118         gc2=g*effric*effric/hrad**0.33333333
+    119       else if (.not.macrophyte_on.and.mannings_n(jw))then
+    120         gc2=g*fric(i)*fric(i)/hrad**0.33333333
+    121       end if
+    122     END IF
+    123     PRHK       = GC2/(0.5*B(K,I))*ABS(0.5*(U(K,I)+U(K,I-1)))**3.0
+    124     UNST       = PRDK-TKE(K,I,2)
+    125     UNSE       = 1.44*TKE(K,I,2)/TKE(K,I,1)*PRDK-1.92*(TKE(K,I,2)/TKE(K,I,1)*TKE(K,I,2))
+    126     TKE(K,I,1) = TKE(K,I,1)+DLT*(UNST+PRHK-BOUK)
+    127     TKE(K,I,2) = TKE(K,I,2)+DLT*(UNSE+PRHE)
+    128   END DO
+    129   USTARB         = SQRT(GC2)*ABS(0.5*(U(KB(I),I)+U(KB(I),I-1)))
+    130   TKE(KB(I),I,1) = 0.5*(3.33*USTARB*USTARB+TKE(KB(I),I,1))
+    131   TKE(KB(I),I,2) = 0.5*(USTARB*USTARB*USTARB*5.0/H(KB(I),JW)+TKE(KB(I),I,2))
+    132 
+    133   DO J=1,2                                                    ! SG 10/4/07 Series of bug fixes for TKE
+    134 	  K=KT			
+    135 	  AT(K,I) = 0.0
+    136 	  CT(K,I) = 0.0
+    137 	  VT(K,I) = 1.0
+    138 	  DT(K,I) = TKE(K,I,J)	
+    139 	  DO K = KT+1,KB(I)-1
+    140       AT(K,I) = -DLT/BH1(K,I)*BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I)
+    141       CT(K,I) = -DLT/BH1(K,I)*BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I)
+    142       VT(K,I) =  1.0-AT(K,I)-CT(K,I)
+
+Page 8           Source Listing                  CALCULATE_TKE
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    143       DT(K,I) =  TKE(K,I,J)
+    144     END DO
+    145 	  K = KB(I)
+    146 	  AT(K,I) = 0.0
+    147 	  CT(K,I) = 0.0
+    148 	  VT(K,I) = 1.0
+    149 	  DT(K,I) = TKE(K,I,J)
+    150 	  CALL TRIDIAG(AT(:,I),VT(:,I),CT(:,I),DT(:,I),KT,KB(I),KMX,TKE(:,I,J))
+    151   END DO
+    152 
+    153   DO K=KT,KB(I)
+    154     TKE(K,I,1) = MAX(TKE(K,I,1),TKEMIN1)
+    155     TKE(K,I,2) = MAX(TKE(K,I,2),TKEMIN2)
+    156     AZT(K,I)     = 0.09*TKE(K,I,1)*TKE(K,I,1)/TKE(K,I,2)
+    157   END DO
+    158 
+    159   DO K=KT,KB(I)-1
+    160     AZ(K,I) = 0.5*(AZT(K,I)+AZT(K+1,I))
+    161     AZ(K,I) = MAX(AZMIN,AZ(K,I))
+    162     AZ(K,I) = MIN(AZMAX(JW),AZ(K,I))
+    163     DZ(K,I) = MAX(DZMIN,FRAZDZ*AZ(K,I))            ! No need to average DZ further since defined at cell, center bottom. AZ 
+    163 needs to be averaged to RHS of cell.
+    164   END DO
+    165   AZ(KB(I),I) = AZMIN
+    166   AZT(KB(I),I)= AZMIN
+    167   RETURN
+    168     END SUBROUTINE CALCULATE_TKE
+
+
+ENTRY POINTS
+
+ Address      Type  Name          
+                                  
+       CALCULATE_TKE              
+
+Page 9           Source Listing                  CALCULATE_TKE
+2026-03-30 08:47 Symbol Table                    ..\..\..\az.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ABS                        Func   107                                  scalar                    107,113,123,129                   
+ AT                         Local  135      R(8)            8     2     1        ALC              135,140,142,146,150               
+ AVH1                       Local  96       R(8)            8     2     1        ALC              96,140,141                        
+ AZ                         Local  111      R(8)            8     2     1        PTR              111,112,140,141,160,161,162,163,16
+                                                                                                  5                                 
+ AZMAX                      Local  162      R(8)            8     1     1        ALC              162                               
+ AZMIN                      Param  161      R(8)            8           scalar                    161,165,166                       
+ AZT                        Local  156      R(8)            8     2     1        ALC              156,160,166                       
+ AZ_LOCAL                   Module 91                                                             91                                
+ B                          Local  96       R(8)            8     2     1        ALC              96,113,115,123                    
+ BB                         Local  140      R(8)            8     2     1        ALC              140,141                           
+ BH                         Local  115      R(8)            8     2     1        ALC              115                               
+ BH1                        Local  96       R(8)            8     2     1        ALC              96,140,141                        
+ BHRATIO                    Local  108      R(8)            8     2     1        ALC              108,109                           
+ BOUK                       Local  111      R(8)            8           scalar                    111,126                           
+ CALCULATE_TKE              Subr   90                                                                                               
+ CT                         Local  136      R(8)            8     2     1        ALC              136,141,142,147,150               
+ CZ                         Local  94       R(8)            8     1     1        ALC              94                                
+ DLT                        Local  126      R(8)            8           scalar                    126,127,140,141                   
+ DT                         Local  138      R(8)            8     2     1        ALC              138,143,149,150                   
+ DZ                         Local  163      R(8)            8     2     1        ALC              163                               
+ DZMIN                      Param  163      R(8)            8           scalar                    163                               
+ EFFRIC                     Local  98       R(8)            8           scalar                    98,99,117,118                     
+ FRAZDZ                     Param  163      R(8)            8           scalar                    163                               
+ FRIC                       Local  98       R(8)            8     1     1        ALC              98,101,105,117,120                
+ G                          Local  99       R(8)            8           scalar                    99,101,105,111,118,120            
+ GC2                        Local  99       R(8)            8           scalar                    99,101,104,105,107,113,118,120,123
+                                                                                                  ,129                              
+ H                          Local  111      R(8)            8     2     1        ALC              111,112,115,131                   
+ H1                         Local  109      R(8)            8     2     1        ALC              109                               
+ HRAD                       Local  96       R(8)            8           scalar                    96,98,99,101,115,117,118,120      
+ I                          Local  94       I(4)            4           scalar                    94,96,98,101,105,107,108,109,110,1
+                                                                                                  11,112,113,115,117,120,123,124,125
+                                                                                                  ,126,127,129,130,131,135,136,137,1
+                                                                                                  38,139,140,141,142,143,145,146,147
+                                                                                                  ,148,149,150,153,154,155,156,159,1
+                                                                                                  60,161,162,163,165,166            
+ J                          Local  133      I(4)            4           scalar                    133,138,140,141,143,149,150       
+ JW                         Local  95       I(4)            4           scalar                    95,97,100,111,112,114,115,116,119,
+                                                                                                  131,162                           
+ K                          Local  110      I(4)            4           scalar                    110,111,112,113,115,117,123,124,12
+                                                                                                  5,126,127,134,135,136,137,138,139,
+                                                                                                  140,141,142,143,145,146,147,148,14
+                                                                                                  9,153,154,155,156,159,160,161,162,
+                                                                                                  163                               
+ KB                         Local  110      I(4)            4     1     1        ALC              110,129,130,131,139,145,150,153,15
+                                                                                                  9,165,166                         
+ KMX                        Local  150      I(4)            4           scalar                    150                               
+ KT                         Local  94       I(4)            4           scalar                    94,96,98,107,108,109,110,134,139,1
+                                                                                                  50,153,159                        
+ KTI                        Local  96       I(4)            4     1     1        ALC              96                                
+
+Page 10          Source Listing                  CALCULATE_TKE
+2026-03-30 08:47 Symbol Table                    ..\..\..\az.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ MACROPHYTE_FRICTION        Subr   98                                                             98,117                            
+ MACROPHYTE_ON              Local  97       L(4)            4           scalar                    97,100,116,119                    
+ MANNINGS_N                 Local  95       L(4)            4     1     1        ALC              95,97,100,114,116,119             
+ MAX                        Func   111                                  scalar                    111,154,155,161,163               
+ MIN                        Func   162                                  scalar                    162                               
+ PRDK                       Local  112      R(8)            8           scalar                    112,124,125                       
+ PRHE                       Local  113      R(8)            8           scalar                    113,127                           
+ PRHK                       Local  123      R(8)            8           scalar                    123,126                           
+ RHO                        Local  94       R(8)            8     2     1        PTR              94,111                            
+ RHOW                       Param  111      R(8)            8           scalar                    111                               
+ SIG                        Local  140      R(8)            8     1     2                         140,141                           
+ SQRT                       Func   94                                   scalar                    94,107,129                        
+ TKE                        Local  108      R(8)            8     3     1        ALC              108,109,124,125,126,127,130,131,13
+                                                                                                  8,143,149,150,154,155,156         
+ TKEMIN1                    Local  154      R(8)            8           scalar                    154                               
+ TKEMIN2                    Local  155      R(8)            8           scalar                    155                               
+ TRIDIAG                    Subr   150                                                            150                               
+ U                          Local  107      R(8)            8     2     1        PTR              107,112,113,123,129               
+ UNSE                       Local  125      R(8)            8           scalar                    125,127                           
+ UNST                       Local  124      R(8)            8           scalar                    124,126                           
+ USTAR                      Local  94       R(8)            8           scalar                    94,108,109                        
+ USTARB                     Local  129      R(8)            8           scalar                    129,130,131                       
+ USTARBKT                   Local  107      R(8)            8           scalar                    107,108,109                       
+ VT                         Local  137      R(8)            8     2     1        ALC              137,142,148,150                   
+ WIND10                     Local  94       R(8)            8     1     1        ALC              94                                
+
+Page 11          Source Listing                  CALCULATE_TKE
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    169     
+    170 SUBROUTINE CALCULATE_TKE1
+    171   USE AZ_LOCAL
+    172   IMPLICIT NONE
+    173   SAVE
+    174 ! Subroutine based on work of Gould(2006) RODI WITHOUT WIND
+    175 ! SW 6-28-04 DEADSEA  TKE
+    176 ! BASED ON SUBROUTINE FIRST DEVELOPED BY CHAPMAN AND COLE (1995)
+    177 ! BUG FIXES, CORRECTIONS, ADDITIONS SCOTT WELLS (2001)
+    178 
+    179 ! BOTTOM LAYER BC
+    180   IF(ABS((U(KB(I),I)+U(KB(I),I-1))*.5)>NONZERO)THEN
+    181 	USTARB = WALLFUNCTION()
+    182 ! ERROR TRAPPING
+    183     IF(USTARB == 0.0)THEN
+    184 !	        IF (MANNINGS_N(JW)) THEN
+    185 !	        HRAD = BH1(KT,I)/(B(KTI(I),I)-B(KT+1,I)+2.*AVH1(KT,I))
+    186 !            if(macrophyte_on.and.mannings_n(jw))then
+    187 !                call macrophyte_friction(hrad,fric(i),effric,kt,i)
+    188 !                gc2=g*effric*effric/hrad**0.33333333
+    189 !            else if(.not.macrophyte_on.and.mannings_n(jw))then
+    190 !                gc2=g*fric(i)*fric(i)/hrad**0.33333333
+    191 !            end if
+    192 !            ELSE
+    193 !            GC2 = 0.0
+    194 !            IF (FRIC(I) /= 0.0) GC2 = G/(FRIC(I)*FRIC(I))
+    195 !            END IF
+    196 !	    USTARB = SQRT(GC2)*ABS(0.5*(U(KB(I),I)+U(KB(I),I-1)))
+    197 ! END ERROR TRAPPING
+    198 	ENDIF
+    199 	TKE(KB(I),I,1) = (3.33*USTARB*USTARB)
+    200 	TKE(KB(I),I,2) = (USTARB*USTARB*USTARB)/(0.41*(H(KB(I),JW))*0.5)                      !/2.0
+    201     USTARBTKE(I) = USTARB
+    202 	IF(STRICKON(JW))THEN
+    203 	  CALL CALCFRIC()
+    204 	ENDIF
+    205   ELSE
+    206 	USTARB = 0
+    207 	TKE(KB(I),I,1) = TKEMIN1
+    208 	TKE(KB(I),I,2) = TKEMIN2
+    209     USTARBTKE(I) = USTARB
+    210   ENDIF
+    211 
+    212 !INLET SET TO MOLECULAR CONDITIONS
+    213 ! IUT = FIRSTI(JW)
+    214   IF(I==IUT)THEN
+    215 	DO K= KT, KB(I)
+    216 	  TKE(K,IUT-1,2) = TKEMIN2
+    217 	  TKE(K,IUT-1,1) = TKEMIN1
+    218 	ENDDO
+    219   ENDIF
+    220 !OUTLET SET TO EQUAL TO I=I_OUTLET - 1
+    221 !IDT = LASTI(JW)
+    222   IF(I==IDT-1)THEN
+    223     DO K= KT, KB(I)
+    224 	  TKE(K,IDT,2) = TKE(K,IDT-1,2)
+    225 	  TKE(K,IDT,1) = TKE(K,IDT-1,1)
+
+Page 12          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    226 	ENDDO
+    227   ENDIF
+    228 
+    229 !CALCULATE HORIZONTAL PORTION OF THE SPLIT K-E EQUATIONS FOR INTERIOR LAYERS
+    230   DO K = KT+1,KB(I)-1		
+    231 	IF (MANNINGS_N(JW)) THEN
+    232 	   HRAD = BH1(KT,I)/(B(KTI(I),I)-B(KT+1,I)+2.D0*AVH1(KT,I))                                !HRAD = BHR(K,I)/(BR(K,I)
+    232 -BR(K+1,I)+2.0*H(K,JW))
+    233 	   GC2  = G*FRIC(I)*FRIC(I)/HRAD**0.333
+    234 	ELSE
+    235            GC2 = 0.0
+    236            IF (FRIC(I) /= 0.0) GC2 = G/(FRIC(I)*FRIC(I))
+    237 	END IF
+    238 
+    239 	BOUK = DMAX1(AZ(K,I)*G*(RHO(K+1,I)-RHO(K,I))/(H(K,JW)*RHOW),0.0D0)
+    240 	PRDK = AZ(K,I)*(0.5D0*(U(K,I)+U(K,I-1)-U(K+1,I)-U(K+1,I-1))/(H(K,JW)*0.5D0 + H(K+1,JW)*0.5D0))**2.0                 
+    240 !/2.0  /2.0
+    241 	IF(.NOT.TKELATPRD(JW))THEN
+    242 	  PRHE = 0.0
+    243 	  PRHK = 0.0
+    244 	ELSE
+    245 	  PRHE = TKELATPRDCONST(JW)*GC2**1.25*DABS(0.5D0*(U(K,I)+U(K,I-1)))**4.0/(0.5D0*B(K,I))**2.0
+    246       PRHK = GC2/(0.5D0*B(K,I))*DABS(0.5D0*(U(K,I)+U(K,I-1)))**3.0
+    247     ENDIF
+    248 	UNST	   = PRDK-TKE(K,I,2)
+    249 	UNSE	   = 1.44D0*TKE(K,I,2)/TKE(K,I,1)*PRDK-1.92D0*(TKE(K,I,2)/TKE(K,I,1)*TKE(K,I,2))
+    250 
+    251 	UDR		= (1.0D0+DSIGN(1.0D0,U(K,I)))*0.5D0
+    252 	UDL		= (1.0D0+DSIGN(1.0D0,U(K,I-1)))*0.5D0
+    253 	CONVKX 	= DLT/(DLX(I)*BH1(K,I))*((U(K,I)*(UDR*TKE(K,I,1)+(1.0-UDR)*TKE(K,I+1,1))*BR(K,I)*H2(K,I)-U(K,I-1)*(UDL*TKE(K
+    253 ,I-1,1)+(1.0-UDL)*TKE(K,I,1))*BR(K,I-1)*H2(K,I-1)))
+    254 	CONVEX 	= DLT/(DLX(I)*BH1(K,I))*((U(K,I)*(UDR*TKE(K,I,2)+(1.0-UDR)*TKE(K,I+1,2))*BR(K,I)*H2(K,I)-U(K,I-1)*(UDL*TKE(K
+    254 ,I-1,2)+(1.0-UDL)*TKE(K,I,2))*BR(K,I-1)*H2(K,I-1)))
+    255 	IF(IMPTKE(JW) == '     IMP')THEN
+    256 	  TKE(K,I,1) = TKE(K,I,1) - CONVKX + DLT*(UNST+PRHK-BOUK)		
+    257 	  TKE(K,I,2) = TKE(K,I,2) - CONVEX + DLT*(UNSE+PRHE)
+    258 	ELSE
+    259 	  ATA		  = (1.D00+DSIGN(1.0D0,W(K-1,I)))*0.5D0
+    260 	  AB		  = (1.0D0+DSIGN(1.0D0,W(K,I)))*0.5D0
+    261 	
+    262 	  CONVKZ	  = DLT/(H2(K,I)*BH1(K,I))*((AB*TKE(K,I,1)+(1.0-AB)*TKE(K+1,I,1))*W(K,I)*BB(K,I)*AVH2(K,I)-(ATA*(TKE
+    262 (K-1,I,1)+(1.0-ATA)*TKE(K,I,1))*W(K-1,I)*BB(K-1,I)*AVH2(K-1,I)))
+    263       CONVEZ	  = DLT/(H2(K,I)*BH1(K,I))*((AB*TKE(K,I,2)+(1.0-AB)*TKE(K+1,I,2))*W(K,I)*BB(K,I)*AVH2(K,I)-(ATA*(TKE(K-1,I,2
+    263 )+(1.0-ATA)*TKE(K,I,2))*W(K-1,I)*BB(K-1,I)*AVH2(K-1,I)))
+    264 
+    265 	  TKE(K,I,1) = TKE(K,I,1) - CONVKX - CONVKZ + DLT*(UNST+PRHK-BOUK)		
+    266 	  TKE(K,I,2) = TKE(K,I,2) - CONVEX - CONVEZ + DLT*(UNSE+PRHE)
+    267 	ENDIF
+    268   END DO
+    269 
+    270 !CALCULATE TOP LAYER BOUNDARY CONDITION AND SOLVE THE K-E EQUATION USING TRIDIAGONAL SOLVER
+    271 500 IF(TKEBC(JW)==1)THEN
+    272 !RODI NOWIND
+    273     DEPTHL = (ELWS(I)-EL(KB(I),I)	  +H2(KB(I),I)	*COSA(JB))/COSA(JB)                                !EL(KT,I)  -Z(I) 
+    273  *COSA(JB)
+    274     DEPTHR = (ELWS(I+1)-EL(KB(I+1),I+1)+H2(KB(I+1),I)*COSA(JB))/COSA(JB)                                !EL(KT,I+1)-Z(I+1)*C
+    274 OSA(JB)
+
+Page 13          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    275     DEPTH = (DEPTHR+DEPTHL)*0.5
+    276 	DO J=1,2
+    277 	  K=KT	
+    278 	  IF(J==1)THEN		
+    279 		AT(K,I) = 0.0
+    280 		CT(K,I) =-1.0
+    281 		VT(K,I) = 1.0
+    282 		DT(K,I) = 0.0
+    283 	  ELSE
+    284 		TKE(KT,I,2) = TKE(K,I,1)**(1.5)/(ARODI(JW)*DEPTH)*BHRATIO(K,I)   !*BH2(KT,I)/BH1(KT,I)                      
+    284                !3.0/2.0
+    285 		AT(K,I) = 0.0
+    286 		CT(K,I) = 0.0
+    287 		VT(K,I) = 1.0
+    288 		DT(K,I) = TKE(KT,I,2)
+    289 	  ENDIF
+    290 	  DO K = KT+1,KB(I)-1
+    291 		 IF(IMPTKE(JW)=='     IMP')THEN
+    292 		   AT(K,I) =  -DLT/BH1(K,I)*(BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I) + 0.5*W(K-1,I)*BB(K-1,I))
+    293 		   CT(K,I) =  -DLT/BH1(K,I)*(BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I) - 0.5*W(K,I)*BB(K,I))
+    294 		   VT(K,I) =  1 +&
+    295 				      DLT/BH1(K,I)*(BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I) +&
+    296 				      BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I) +&
+    297 					  0.5*(W(K,I)*BB(K,I)-W(K-1,I)*BB(K-1,I)))
+    298 		   DT(K,I) =  TKE(K,I,J)
+    299 		 ELSE
+    300 		   AT(K,I) = -DLT/BH1(K,I)*BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I)
+    301 		   CT(K,I) = -DLT/BH1(K,I)*BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I)
+    302 		   VT(K,I) =  1.0-AT(K,I)-CT(K,I)
+    303 		   DT(K,I) =  TKE(K,I,J)
+    304 		 ENDIF
+    305 	  END DO
+    306 	  K = KB(I)
+    307 	  AT(K,I) = 0.0
+    308 	  CT(K,I) = 0.0
+    309 	  VT(K,I) = 1.0
+    310 	  DT(K,I) = TKE(K,I,J)
+    311 	  CALL TRIDIAG(AT(:,I),VT(:,I),CT(:,I),DT(:,I),KT,KB(I),KMX,TKE(:,I,J))
+    312 	END DO
+    313   ELSEIF(TKEBC(JW)==2)THEN
+    314 !RODI WIND
+    315     DEPTHL = (EL(KT,I)  -Z(I)  *COSA(JB)-EL(KB(I),I)	  +H2(KB(I),I)	*COSA(JB))/COSA(JB)
+    316     DEPTHR = (EL(KT,I+1)-Z(I+1)*COSA(JB)-EL(KB(I+1),I+1)+H2(KB(I+1),I)*COSA(JB))/COSA(JB)
+    317     DEPTH = (DEPTHR+DEPTHL)*0.5
+    318 	DO JJ=1,3
+    319 	  IF(JJ==1)THEN
+    320 		J=1
+    321 		DO K = KT+1,KB(I)-1
+    322 		  TKE(K,I,3) = TKE(K,I,1)
+    323 		ENDDO
+    324 	  ELSEIF(JJ==2)THEN
+    325 		J=1
+    326 	  ELSEIF(JJ==3)THEN
+    327 		J=2
+    328 	  ENDIF
+    329 ! WIND SHEAR AT SURFACE
+    330 	  USTAR = SQRT(1.25*CZ(I)*WIND10(I)**2/RHO(KT,I))	
+
+Page 14          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    331 	  IF(JJ==1)THEN 	
+    332 		AT(KT,I) = 0.0
+    333 		CT(KT,I) =-1.0
+    334 		VT(KT,I) = 1.0
+    335 		DT(KT,I) = 0.0
+    336 	  ELSEIF(JJ==2)THEN
+    337 		IF(TKE(KT,I,1)*0.3<(USTAR*USTAR))THEN
+    338 		  TKE(KT,I,1) = (USTAR*USTAR)*3.33333*BHRATIO(KT,I)   !*BH2(KT,I)/BH1(KT,I)
+    339 		  AT(KT,I) = 0.0
+    340 		  CT(KT,I) = 0.0
+    341 		  VT(KT,I) = 1.0
+    342 		  DT(KT,I) = TKE(KT,I,J)
+    343 		  DO K = KT+1,KB(I)-1
+    344 			TKE(K,I,1) = TKE(K,I,3)
+    345 		  ENDDO
+    346 		ELSE
+    347 		  AT(KT,I) = 0.0
+    348 		  CT(KT,I) =-1.0
+    349 		  VT(KT,I) = 1.0
+    350 		  DT(KT,I) = 0.0		
+    351 		ENDIF
+    352 	  ENDIF
+    353 	  IF(JJ==3)THEN
+    354 		TKE(KT,I,2) = (TKE(KT,I,1)*0.3)**(1.5)/(0.41*(H2(KT,I)*0.5 + ARODI(JW)*DEPTH*   &
+    355 		              (1-(USTAR*USTAR)/(TKE(KT,I,1)*0.3))))*BHRATIO(KT,I)   !*BH2(KT,I)/BH1(KT,I)		   !
+    355 3.0/2.0    /2.0
+    356 		AT(KT,I) = 0.0
+    357 		CT(KT,I) = 0.0
+    358 		VT(KT,I) = 1.0
+    359 		DT(KT,I) = TKE(KT,I,2)
+    360 	  ENDIF
+    361 	  DO K = KT+1,KB(I)-1
+    362 		 IF(IMPTKE(JW)=='     IMP')THEN
+    363 		   AT(K,I) =  -DLT/BH1(K,I)*(BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I) + 0.5*W(K-1,I)*BB(K-1,I))
+    364 		   CT(K,I) =  -DLT/BH1(K,I)*(BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I) - 0.5*W(K,I)*BB(K,I))
+    365 		   VT(K,I) =  1 +&
+    366 				      DLT/BH1(K,I)*(BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I) +&
+    367 				      BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I) +&
+    368 					  0.5*(W(K,I)*BB(K,I)-W(K-1,I)*BB(K-1,I)))
+    369 		   DT(K,I) =  TKE(K,I,J)
+    370 		 ELSE
+    371 		   AT(K,I) = -DLT/BH1(K,I)*BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I)
+    372 		   CT(K,I) = -DLT/BH1(K,I)*BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I)
+    373 		   VT(K,I) =  1.0-AT(K,I)-CT(K,I)
+    374 		   DT(K,I) =  TKE(K,I,J)
+    375 		 ENDIF
+    376 	  END DO
+    377 	  K = KB(I)
+    378 	  AT(K,I) = 0.0
+    379 	  CT(K,I) = 0.0
+    380 	  VT(K,I) = 1.0
+    381 	  DT(K,I) = TKE(K,I,J)
+    382 	  CALL TRIDIAG(AT(:,I),VT(:,I),CT(:,I),DT(:,I),KT,KB(I),KMX,TKE(:,I,J))
+    383 	END DO
+    384   ELSEIF(TKEBC(JW)==3)THEN
+    385 !CEQUALW2 WIND
+    386 ! TOP LAYER BC
+
+Page 15          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    387   USTAR = SQRT(1.25*CZ(I)*WIND10(I)**2/RHO(KT,I))
+    388   IF (MANNINGS_N(JW)) THEN
+    389 	HRAD = BH1(KT,I)/(B(KTI(I),I)-B(KT+1,I)+2.*AVH1(KT,I))                   !HRAD = BHR1(KT,I)/(BR(KTI(I),I)-BR(KT+1,I)
+    389 +2.*AVH1(KT,I))
+    390 	GC2  = G*FRIC(I)*FRIC(I)/HRAD**0.333
+    391   ELSE
+    392 	GC2 = 0.0
+    393 	IF (FRIC(I) /= 0.0) GC2 = G/(FRIC(I)*FRIC(I))
+    394   END IF
+    395   USTARBKT	  = SQRT(GC2)*ABS(0.5*(U(KT,I)+U(KT,I-1)))
+    396   TKE(KT,I,1) = (3.33*(USTAR*USTAR+USTARBKT*USTARBKT))*BHRATIO(KT,I)   !*(BH2(KT,I)/BH1(KT,I))
+    397   TKE(KT,I,2) = (USTAR*USTAR*USTAR+USTARBKT*USTARBKT*USTARBKT)*5.0/H1(KT,I)*BHRATIO(KT,I)   !*(BH2(KT,I)/BH1(KT,I))
+    398 	DO J=1,2
+    399 	  K=KT			
+    400 	  AT(K,I) = 0.0
+    401 	  CT(K,I) = 0.0
+    402 	  VT(K,I) = 1.0
+    403 	  DT(K,I) = TKE(K,I,J)	
+    404 	  DO K = KT+1,KB(I)-1
+    405 		 IF(IMPTKE(JW)=='     IMP')THEN
+    406 		   AT(K,I) =  -DLT/BH1(K,I)*(BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I) + 0.5*W(K-1,I)*BB(K-1,I))
+    407 		   CT(K,I) =  -DLT/BH1(K,I)*(BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I) - 0.5*W(K,I)*BB(K,I))
+    408 		   VT(K,I) =  1 +&
+    409 				      DLT/BH1(K,I)*(BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I) +&
+    410 				      BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I) +&
+    411 					  0.5*(W(K,I)*BB(K,I)-W(K-1,I)*BB(K-1,I)))
+    412 		   DT(K,I) =  TKE(K,I,J)
+    413 		 ELSE
+    414 		   AT(K,I) = -DLT/BH1(K,I)*BB(K-1,I)/SIG(J)*AZ(K-1,I)/AVH1(K-1,I)
+    415 		   CT(K,I) = -DLT/BH1(K,I)*BB(K,I)/SIG(J)*AZ(K,I)/AVH1(K,I)
+    416 		   VT(K,I) =  1.0-AT(K,I)-CT(K,I)
+    417 		   DT(K,I) =  TKE(K,I,J)
+    418 		 ENDIF
+    419 	  END DO
+    420 	  K = KB(I)
+    421 	  AT(K,I) = 0.0
+    422 	  CT(K,I) = 0.0
+    423 	  VT(K,I) = 1.0
+    424 	  DT(K,I) = TKE(K,I,J)
+    425 	  CALL TRIDIAG(AT(:,I),VT(:,I),CT(:,I),DT(:,I),KT,KB(I),KMX,TKE(:,I,J))
+    426 	END DO
+    427   ELSE
+    428     WARNING_OPEN    = .TRUE.
+    429     WRITE(WRN,*)'UNKNOWN TKEBC OPTION CHECK W2_CON.NPT'
+    430     WRITE(WRN,*)'Setting TKE calculation to TKEBC(JW)=3'
+    431     TKEBC(JW)=3
+    432     GOTO 500
+    433   ENDIF
+    434 
+    435   DO K=KT,KB(I)
+    436     TKE(K,I,1) = MAX(TKE(K,I,1),TKEMIN1)
+    437     TKE(K,I,2) = MAX(TKE(K,I,2),TKEMIN2)
+    438     AZT(K,I)     = 0.09*TKE(K,I,1)*TKE(K,I,1)/TKE(K,I,2)
+    439   END DO
+    440 
+    441   DO K=KT,KB(I)-1
+    442 	AZ(K,I) = 0.5*(AZT(K,I)+AZT(K+1,I))
+
+Page 16          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    443 	AZ(K,I) = MAX(AZMIN,AZ(K,I))
+    444 	AZ(K,I) = MIN(AZMAX(JW),AZ(K,I))
+    445 	DZ(K,I) = MAX(DZMIN,FRAZDZ*AZ(K,I))      ! No need to average further, DZ is now defined at cell bottom, AZ will nee
+    445 d to be averaged to the RHS of cell
+    446   END DO
+    447   AZ(KB(I),I) = AZMIN
+    448   AZT(KB(I),I)= AZMIN
+    449 RETURN
+    450 END SUBROUTINE CALCULATE_TKE1
+
+
+ENTRY POINTS
+
+ Address      Type  Name           
+                                   
+       CALCULATE_TKE1              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 500                        Label  271                                                            432                               
+ AB                         Local  260      R(8)            8           scalar                    260,262,263                       
+ ABS                        Func   180                                  scalar                    180,395                           
+ ARODI                      Local  284      R(8)            8     1     1        ALC              284,354                           
+ AT                         Local  279      R(8)            8     2     1        ALC              279,285,292,300,302,307,311,332,33
+                                                                                                  9,347,356,363,371,373,378,382,400,
+                                                                                                  406,414,416,421,425               
+ ATA                        Local  259      R(8)            8           scalar                    259,262,263                       
+ AVH1                       Local  232      R(8)            8     2     1        ALC              232,292,293,295,296,300,301,363,36
+                                                                                                  4,366,367,371,372,389,406,407,409,
+                                                                                                  410,414,415                       
+ AVH2                       Local  262      R(8)            8     2     1        ALC              262,263                           
+ AZ                         Local  239      R(8)            8     2     1        PTR              239,240,292,293,295,296,300,301,36
+                                                                                                  3,364,366,367,371,372,406,407,409,
+                                                                                                  410,414,415,442,443,444,445,447   
+ AZMAX                      Local  444      R(8)            8     1     1        ALC              444                               
+ AZMIN                      Param  443      R(8)            8           scalar                    443,447,448                       
+ AZT                        Local  438      R(8)            8     2     1        ALC              438,442,448                       
+ AZ_LOCAL                   Module 171                                                            171                               
+ B                          Local  232      R(8)            8     2     1        ALC              232,245,246,389                   
+ BB                         Local  262      R(8)            8     2     1        ALC              262,263,292,293,295,296,297,300,30
+                                                                                                  1,363,364,366,367,368,371,372,406,
+                                                                                                  407,409,410,411,414,415           
+ BH1                        Local  232      R(8)            8     2     1        ALC              232,253,254,262,263,292,293,295,30
+                                                                                                  0,301,363,364,366,371,372,389,406,
+                                                                                                  407,409,414,415                   
+ BHRATIO                    Local  284      R(8)            8     2     1        ALC              284,338,355,396,397               
+ BOUK                       Local  239      R(8)            8           scalar                    239,256,265                       
+ BR                         Local  253      R(8)            8     2     1        ALC              253,254                           
+ CALCFRIC                   Subr   203                                                            203                               
+ CALCULATE_TKE1             Subr   170                                                                                              
+ CONVEX                     Local  254      R(8)            8           scalar                    254,257,266                       
+ CONVEZ                     Local  263      R(8)            8           scalar                    263,266                           
+ CONVKX                     Local  253      R(8)            8           scalar                    253,256,265                       
+ CONVKZ                     Local  262      R(8)            8           scalar                    262,265                           
+
+Page 17          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47 Symbol Table                    ..\..\..\az.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ COSA                       Local  273      R(8)            8     1     1        ALC              273,274,315,316                   
+ CT                         Local  280      R(8)            8     2     1        ALC              280,286,293,301,302,308,311,333,34
+                                                                                                  0,348,357,364,372,373,379,382,401,
+                                                                                                  407,415,416,422,425               
+ CZ                         Local  330      R(8)            8     1     1        ALC              330,387                           
+ DABS                       Func   245                                  scalar                    245,246                           
+ DEPTH                      Local  275      R(8)            8           scalar                    275,284,317,354                   
+ DEPTHL                     Local  273      R(8)            8           scalar                    273,275,315,317                   
+ DEPTHR                     Local  274      R(8)            8           scalar                    274,275,316,317                   
+ DLT                        Local  253      R(8)            8           scalar                    253,254,256,257,262,263,265,266,29
+                                                                                                  2,293,295,300,301,363,364,366,371,
+                                                                                                  372,406,407,409,414,415           
+ DLX                        Local  253      R(8)            8     1     1        ALC              253,254                           
+ DMAX1                      Func   239                                  scalar                    239                               
+ DSIGN                      Func   251                                  scalar                    251,252,259,260                   
+ DT                         Local  282      R(8)            8     2     1        ALC              282,288,298,303,310,311,335,342,35
+                                                                                                  0,359,369,374,381,382,403,412,417,
+                                                                                                  424,425                           
+ DZ                         Local  445      R(8)            8     2     1        ALC              445                               
+ DZMIN                      Param  445      R(8)            8           scalar                    445                               
+ EL                         Local  273      R(8)            8     2     1        ALC              273,274,315,316                   
+ ELWS                       Local  273      R(8)            8     1     1        ALC              273,274                           
+ FRAZDZ                     Param  445      R(8)            8           scalar                    445                               
+ FRIC                       Local  233      R(8)            8     1     1        ALC              233,236,390,393                   
+ G                          Local  233      R(8)            8           scalar                    233,236,239,390,393               
+ GC2                        Local  233      R(8)            8           scalar                    233,235,236,245,246,390,392,393,39
+                                                                                                  5                                 
+ H                          Local  200      R(8)            8     2     1        ALC              200,239,240                       
+ H1                         Local  397      R(8)            8     2     1        ALC              397                               
+ H2                         Local  253      R(8)            8     2     1        ALC              253,254,262,263,273,274,315,316,35
+                                                                                                  4                                 
+ HRAD                       Local  232      R(8)            8           scalar                    232,233,389,390                   
+ I                          Local  180      I(4)            4           scalar                    180,199,200,201,207,208,209,214,21
+                                                                                                  5,222,223,230,232,233,236,239,240,
+                                                                                                  245,246,248,249,251,252,253,254,25
+                                                                                                  6,257,259,260,262,263,265,266,273,
+                                                                                                  274,279,280,281,282,284,285,286,28
+                                                                                                  7,288,290,292,293,294,295,296,297,
+                                                                                                  298,300,301,302,303,306,307,308,30
+                                                                                                  9,310,311,315,316,321,322,330,332,
+                                                                                                  333,334,335,337,338,339,340,341,34
+                                                                                                  2,343,344,347,348,349,350,354,355,
+                                                                                                  356,357,358,359,361,363,364,365,36
+                                                                                                  6,367,368,369,371,372,373,374,377,
+                                                                                                  378,379,380,381,382,387,389,390,39
+                                                                                                  3,395,396,397,400,401,402,403,404,
+                                                                                                  406,407,408,409,410,411,412,414,41
+                                                                                                  5,416,417,420,421,422,423,424,425,
+                                                                                                  435,436,437,438,441,442,443,444,44
+                                                                                                  5,447,448                         
+ IDT                        Local  222      I(4)            4           scalar                    222,224,225                       
+ IMPTKE                     Local  255      CHAR            8     1     1        ALC              255,291,362,405                   
+ IUT                        Local  214      I(4)            4           scalar                    214,216,217                       
+ J                          Local  276      I(4)            4           scalar                    276,278,292,293,295,296,298,300,30
+                                                                                                  1,303,310,311,320,325,327,342,363,
+
+Page 18          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47 Symbol Table                    ..\..\..\az.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  364,366,367,369,371,372,374,381,38
+                                                                                                  2,398,403,406,407,409,410,412,414,
+                                                                                                  415,417,424,425                   
+ JB                         Local  273      I(4)            4           scalar                    273,274,315,316                   
+ JJ                         Local  318      I(4)            4           scalar                    318,319,324,326,331,336,353       
+ JW                         Local  200      I(4)            4           scalar                    200,202,231,239,240,241,245,255,27
+                                                                                                  1,284,291,313,354,362,384,388,405,
+                                                                                                  431,444                           
+ K                          Local  215      I(4)            4           scalar                    215,216,217,223,224,225,230,239,24
+                                                                                                  0,245,246,248,249,251,252,253,254,
+                                                                                                  256,257,259,260,262,263,265,266,27
+                                                                                                  7,279,280,281,282,284,285,286,287,
+                                                                                                  288,290,292,293,294,295,296,297,29
+                                                                                                  8,300,301,302,303,306,307,308,309,
+                                                                                                  310,321,322,343,344,361,363,364,36
+                                                                                                  5,366,367,368,369,371,372,373,374,
+                                                                                                  377,378,379,380,381,399,400,401,40
+                                                                                                  2,403,404,406,407,408,409,410,411,
+                                                                                                  412,414,415,416,417,420,421,422,42
+                                                                                                  3,424,435,436,437,438,441,442,443,
+                                                                                                  444,445                           
+ KB                         Local  180      I(4)            4     1     1        ALC              180,199,200,207,208,215,223,230,27
+                                                                                                  3,274,290,306,311,315,316,321,343,
+                                                                                                  361,377,382,404,420,425,435,441,44
+                                                                                                  7,448                             
+ KMX                        Local  311      I(4)            4           scalar                    311,382,425                       
+ KT                         Local  215      I(4)            4           scalar                    215,223,230,232,277,284,288,290,31
+                                                                                                  1,315,316,321,330,332,333,334,335,
+                                                                                                  337,338,339,340,341,342,343,347,34
+                                                                                                  8,349,350,354,355,356,357,358,359,
+                                                                                                  361,382,387,389,395,396,397,399,40
+                                                                                                  4,425,435,441                     
+ KTI                        Local  232      I(4)            4     1     1        ALC              232,389                           
+ MANNINGS_N                 Local  231      L(4)            4     1     1        ALC              231,388                           
+ MAX                        Func   436                                  scalar                    436,437,443,445                   
+ MIN                        Func   444                                  scalar                    444                               
+ NONZERO                    Param  180      R(8)            8           scalar                    180                               
+ PRDK                       Local  240      R(8)            8           scalar                    240,248,249                       
+ PRHE                       Local  242      R(8)            8           scalar                    242,245,257,266                   
+ PRHK                       Local  243      R(8)            8           scalar                    243,246,256,265                   
+ RHO                        Local  239      R(8)            8     2     1        PTR              239,330,387                       
+ RHOW                       Param  239      R(8)            8           scalar                    239                               
+ SIG                        Local  292      R(8)            8     1     2                         292,293,295,296,300,301,363,364,36
+                                                                                                  6,367,371,372,406,407,409,410,414,
+                                                                                                  415                               
+ SQRT                       Func   330                                  scalar                    330,387,395                       
+ STRICKON                   Local  202      L(4)            4     1     1        ALC              202                               
+ TKE                        Local  199      R(8)            8     3     1        ALC              199,200,207,208,216,217,224,225,24
+                                                                                                  8,249,253,254,256,257,262,263,265,
+                                                                                                  266,284,288,298,303,310,311,322,33
+                                                                                                  7,338,342,344,354,355,359,369,374,
+                                                                                                  381,382,396,397,403,412,417,424,42
+                                                                                                  5,436,437,438                     
+ TKEBC                      Local  271      I(4)            4     1     1        ALC              271,313,384,431                   
+ TKELATPRD                  Local  241      L(4)            4     1     1        ALC              241                               
+
+Page 19          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47 Symbol Table                    ..\..\..\az.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ TKELATPRDCONST             Local  245      R(8)            8     1     1        ALC              245                               
+ TKEMIN1                    Local  207      R(8)            8           scalar                    207,217,436                       
+ TKEMIN2                    Local  208      R(8)            8           scalar                    208,216,437                       
+ TRIDIAG                    Subr   311                                                            311,382,425                       
+ U                          Local  180      R(8)            8     2     1        PTR              180,240,245,246,251,252,253,254,39
+                                                                                                  5                                 
+ UDL                        Local  252      R(8)            8           scalar                    252,253,254                       
+ UDR                        Local  251      R(8)            8           scalar                    251,253,254                       
+ UNSE                       Local  249      R(8)            8           scalar                    249,257,266                       
+ UNST                       Local  248      R(8)            8           scalar                    248,256,265                       
+ USTAR                      Local  330      R(8)            8           scalar                    330,337,338,355,387,396,397       
+ USTARB                     Local  181      R(8)            8           scalar                    181,183,199,200,201,206,209       
+ USTARBKT                   Local  395      R(8)            8           scalar                    395,396,397                       
+ USTARBTKE                  Local  201      R(8)            8     1     1        ALC              201,209                           
+ VT                         Local  281      R(8)            8     2     1        ALC              281,287,294,302,309,311,334,341,34
+                                                                                                  9,358,365,373,380,382,402,408,416,
+                                                                                                  423,425                           
+ W                          Local  259      R(8)            8     2     1        PTR              259,260,262,263,292,293,297,363,36
+                                                                                                  4,368,406,407,411                 
+ WALLFUNCTION               Func   181      R(8)            8           scalar                    181                               
+ WARNING_OPEN               Local  428      L(4)            4           scalar                    428                               
+ WIND10                     Local  330      R(8)            8     1     1        ALC              330,387                           
+ WRN                        Local  429      I(4)            4           scalar                    429,430                           
+ Z                          Local  315      R(8)            8     1     1        ALC              315,316                           
+
+Page 20          Source Listing                  CALCULATE_TKE1
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    451 
+    452 REAL(R8) FUNCTION WALLFUNCTION()
+    453 USE GLOBAL;USE GEOMC;USE EDDY;USE LOGICC;USE MAIN, ONLY:WARNING_OPEN; USE SCREENC, ONLY:JDAY
+    454 IMPLICIT NONE
+    455 EXTERNAL SEMILOG, RTBIS
+    456 REAL(R8) :: KS, UBOUND,LBOUND,VISCK,SEMILOG,RTBIS,UST,PERIMETER,AREA,BS1                                  !,USTARB
+    457 REAL(R8) :: V
+    458 INTEGER :: K,MULTIPLIER
+    459     VISCK = DEXP(-(T2(KB(I),I)+495.691)*0.026746764)                                                     !/(-37.3877)
+    460     IF (T2(KB(I),I) > 30.0)  VISCK = DEXP(-(T2(KB(I),I)+782.190)*0.01731301939)                          !/(-57.7600)
+    461   	UBOUND = ABS((U(KB(I),I)+U(KB(I),I-1))*.5)
+    462     IF(SEMILOG(UBOUND,ABS((U(KB(I),I)+U(KB(I),I-1))*.5),(H(KB(I),JW))/2.0,VISCK)>0) THEN               !FRIC(I),
+    463 	  MULTIPLIER = 2
+    464 	  DO WHILE(SEMILOG(UBOUND,ABS((U(KB(I),I)+U(KB(I),I-1))*.5),(H(KB(I),JW))/2.0,VISCK)>0)            !,FRIC(I)
+    465   		UBOUND = ABS((U(KB(I),I)+U(KB(I),I-1))*.5)*REAL(MULTIPLIER)
+    466 		MULTIPLIER = MULTIPLIER + 1
+    467 		IF(MULTIPLIER>30)THEN
+    468 		  WARNING_OPEN    = .TRUE.
+    469 		  WRITE(WRN,*)'WALLFUNCTION: UPPER BOUND NOT FOUND IN TKE1 ROUTINE ON JDAY:',JDAY
+    470 		  WRITE(WRN,*)'Setting TKE calculation to TKE from TKE1'
+    471 		  AZC(JW)='     TKE'
+    472 		  WALLFUNCTION=0.0
+    473 		  RETURN
+    474 		ENDIF
+    475 	  ENDDO
+    476 	ENDIF
+    477 	LBOUND = VISCK/(E(I)*(H(KB(I),JW))/2.0D0)+NONZERO
+    478 	MULTIPLIER = 1
+    479 	DO WHILE(SEMILOG(LBOUND,DABS((U(KB(I),I)+U(KB(I),I-1))*.5D0),(H(KB(I),JW))/2.0D0,VISCK)<0)
+    480  		LBOUND = VISCK/(E(I)*(H(KB(I),JW))/2.0)+10**MULTIPLIER*NONZERO
+    481 		MULTIPLIER = MULTIPLIER + 1
+    482 		IF(MULTIPLIER>30)THEN
+    483 		  WARNING_OPEN    = .TRUE.
+    484 		  WRITE(WRN,*)'WALLFUNCTION: LOWER BOUND NOT FOUND IN TKE1 ROUTINE ON JDAY:',JDAY
+    485 		  WRITE(WRN,*)'Setting TKE calculation to TKE from TKE1'
+    486 		  AZC(JW)='     TKE'
+    487 		  WALLFUNCTION=0.0
+    488 		  RETURN
+    489 		ENDIF
+    490 	ENDDO    	
+    491     WALLFUNCTION = RTBIS(LBOUND,UBOUND,1D-15,DABS((U(KB(I),I)+U(KB(I),I-1))*.5D0),(H(KB(I),JW))/2.0D0,VISCK)           !,FRI
+    491 C(I)
+    492     IF(STRICKON(JW))THEN
+    493 	  V = VISCK
+    494 	  UST = WALLFUNCTION
+    495 	  IF (MANNINGS_N(JW)) THEN
+    496         KS = ((STRICK(JW)*FRIC(I))**6)
+    497 	  ELSE
+    498         PERIMETER = B(KB(I),I)+2.0D0*H(KB(I),JW)
+    499         DO K=KT,KB(I)-1
+    500           PERIMETER = PERIMETER + (B(K,I)-B(K+1,I)+2.0D0*H(K,JW))
+    501         END DO
+    502         AREA = 0
+    503         DO K=KT,KB(I)
+    504           AREA = AREA + BH1(K,I)
+    505         END DO
+    506 	    KS = ((STRICK(JW)*1.0D0/FRIC(I)*(AREA/PERIMETER)**(0.16666666667D0))**6)        !1.0/6.0
+
+Page 21          Source Listing                  WALLFUNCTION
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    507 	  ENDIF
+    508       IF(UST*KS/V>1.0)THEN
+    509         BS1 = (5.5D0+2.5D0*DLOG(UST*KS/V))*DEXP(-0.217D0*DLOG(UST*KS/V)**2)+8.5D0*(1-DEXP(-0.217D0*DLOG(UST*KS/V)**2))
+    510         E(I) = DEXP((.41*BS1)/(UST*KS/V))
+    511       ELSE
+    512         E(I) = 9.535D0
+    513       ENDIF	
+    514 	ENDIF
+    515 ENDFUNCTION WALLFUNCTION
+
+
+ENTRY POINTS
+
+ Address      Type  Name         
+                                 
+       WALLFUNCTION              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ABS                        Func   461                                  scalar                    461,462,464,465                   
+ AREA                       Local  456      R(8)            8           scalar                    502,504,506                       
+ AZC                        Local  471      CHAR            8     1     1        ALC              471,486                           
+ B                          Local  498      R(8)            8     2     1        ALC              498,500                           
+ BH1                        Local  504      R(8)            8     2     1        ALC              504                               
+ BS1                        Local  456      R(8)            8           scalar                    509,510                           
+ DABS                       Func   479                                  scalar                    479,491                           
+ DEXP                       Func   459                                  scalar                    459,460,509,510                   
+ DLOG                       Func   509                                  scalar                    509                               
+ E                          Local  477      R(8)            8     1     1        ALC              477,480,510,512                   
+ EDDY                       Module 453                                                            453                               
+ FRIC                       Local  496      R(8)            8     1     1        ALC              496,506                           
+ GEOMC                      Module 453                                                            453                               
+ GLOBAL                     Module 453                                                            453                               
+ H                          Local  462      R(8)            8     2     1        ALC              462,464,477,479,480,491,498,500   
+ I                          Local  459      I(4)            4           scalar                    459,460,461,462,464,465,477,479,48
+                                                                                                  0,491,496,498,499,500,503,504,506,
+                                                                                                  510,512                           
+ JDAY                       Local  453      R(8)            8           scalar                    453,469,484                       
+ JW                         Local  462      I(4)            4           scalar                    462,464,471,477,479,480,486,491,49
+                                                                                                  2,495,496,498,500,506             
+ K                          Local  458      I(4)            4           scalar                    499,500,503,504                   
+ KB                         Local  459      I(4)            4     1     1        ALC              459,460,461,462,464,465,477,479,48
+                                                                                                  0,491,498,499,503                 
+ KS                         Local  456      R(8)            8           scalar                    496,506,508,509,510               
+ KT                         Local  499      I(4)            4           scalar                    499,503                           
+ LBOUND                     Local  456      R(8)            8           scalar                    477,479,480,491                   
+ LOGICC                     Module 453                                                            453                               
+ MAIN                       Module 453                                                            453                               
+ MANNINGS_N                 Local  495      L(4)            4     1     1        ALC              495                               
+ MULTIPLIER                 Local  458      I(4)            4           scalar                    463,465,466,467,478,480,481,482   
+ NONZERO                    Param  477      R(8)            8           scalar                    477,480                           
+ PERIMETER                  Local  456      R(8)            8           scalar                    498,500,506                       
+ R8                         Param  452      I(4)            4           scalar                    452,456,457                       
+ REAL                       Func   465                                  scalar                    465                               
+
+Page 22          Source Listing                  WALLFUNCTION
+2026-03-30 08:47 Symbol Table                    ..\..\..\az.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ RTBIS                      Func   455      R(8)            8           scalar                    491                               
+ SCREENC                    Module 453                                                            453                               
+ SEMILOG                    Func   455      R(8)            8           scalar                    462,464,479                       
+ STRICK                     Local  496      R(8)            8     1     1        ALC              496,506                           
+ STRICKON                   Local  492      L(4)            4     1     1        ALC              492                               
+ T2                         Local  459      R(8)            8     2     1        PTR              459,460                           
+ U                          Local  461      R(8)            8     2     1        PTR              461,462,464,465,479,491           
+ UBOUND                     Local  456      R(8)            8           scalar                    461,462,464,465,491               
+ UST                        Local  456      R(8)            8           scalar                    494,508,509,510                   
+ V                          Local  457      R(8)            8           scalar                    493,508,509,510                   
+ VISCK                      Local  456      R(8)            8           scalar                    459,460,462,464,477,479,480,491,49
+                                                                                                  3                                 
+ WALLFUNCTION               Local  452      R(8)            8           scalar                                                      
+ WALLFUNCTION               Func   452      R(8)            8           scalar                    472,487,491,494                   
+ WARNING_OPEN               Local  453      L(4)            4           scalar                    453,468,483                       
+ WRN                        Local  469      I(4)            4           scalar                    469,470,484,485                   
+
+Page 23          Source Listing                  WALLFUNCTION
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    516 
+    517 FUNCTION SEMILOG(UST,URES,Y,V)
+    518 USE EDDY;USE GLOBAL
+    519 IMPLICIT NONE
+    520 REAL(R8), INTENT(IN) :: UST,URES,Y,V
+    521 REAL(R8) :: SEMILOG
+    522   SEMILOG = 0.41*URES/DLOG(E(I)*Y*UST/V) - UST
+    523 END FUNCTION SEMILOG
+
+
+ENTRY POINTS
+
+ Address      Type  Name    
+                            
+       SEMILOG              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ DLOG                       Func   522                                  scalar                    522                               
+ E                          Local  522      R(8)            8     1     1        ALC              522                               
+ EDDY                       Module 518                                                            518                               
+ GLOBAL                     Module 518                                                            518                               
+ I                          Local  522      I(4)            4           scalar                    522                               
+ R8                         Param  520      I(4)            4           scalar                    520,521                           
+ SEMILOG                    Local  517      R(8)            8           scalar                                                      
+ SEMILOG                    Func   517      R(8)            8           scalar                    522                               
+ URES                       Dummy  520      R(8)            8           scalar   ARG,IN           522                               
+ UST                        Dummy  520      R(8)            8           scalar   ARG,IN           522                               
+ V                          Dummy  520      R(8)            8           scalar   ARG,IN           522                               
+ Y                          Dummy  520      R(8)            8           scalar   ARG,IN           522                               
+
+Page 24          Source Listing                  SEMILOG
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    524 
+    525 FUNCTION RTBIS(X1,X2,XACC,U,Y,V)
+    526 USE GLOBAL, ONLY:WRN,JW; USE EDDY, ONLY:AZC; USE SCREENC, ONLY:JDAY; USE PREC
+    527 IMPLICIT NONE
+    528 REAL(R8), INTENT(IN) :: X1,X2,XACC,U,Y,V
+    529 REAL(R8) :: RTBIS,SEMILOG
+    530 EXTERNAL SEMILOG
+    531 INTEGER, PARAMETER :: MAXIT=70                                                    !80
+    532 ! USING BISECTION, FIND THE ROOT OF A FUNCTION FUNC KNOWN TO LIE BETWEEN X1 AND X2. THE
+    533 ! ROOT, RETURNED AS RTBIS, WILL BE REFINED UNTIL ITS ACCURACY IS �XACC.
+    534 ! PARAMETER: MAXIT IS THE MAXIMUM ALLOWED NUMBER OF BISECTIONS.
+    535 INTEGER  :: J
+    536 REAL(R8) :: DX,F,FMID,XMID
+    537   FMID = SEMILOG(X2,U,Y,V)
+    538   F = SEMILOG(X1,U,Y,V)
+    539   IF (F*FMID >= 0.0) THEN
+    540           WRITE(WRN,*)'RTBIS: ROOT MUST BE BRACKETED IN TKE1 ROUTINE ON JDAY:',JDAY
+    541 		  WRITE(WRN,*)'Setting TKE calculation to TKE from TKE1'
+    542 		  RTBIS=X1
+    543 		  AZC(JW)='     TKE'
+    544           RETURN
+    545   ENDIF
+    546   IF (F < 0.0) THEN !ORIENT THE SEARCH SO THAT F>0 LIES AT X+DX.
+    547     RTBIS = X1
+    548     DX = X2-X1
+    549   ELSE
+    550     RTBIS = X2
+    551     DX = X1-X2
+    552   END IF
+    553   DO J=1,MAXIT !BISECTION LOOP.
+    554     DX = DX*0.5
+    555     XMID = RTBIS+DX
+    556     FMID = SEMILOG(XMID,U,Y,V)
+    557     IF (FMID <= 0.0) RTBIS=XMID
+    558     IF (ABS(DX) < XACC .OR. FMID == 0.0) THEN
+    559 	  RETURN
+    560 	ENDIF
+    561   END DO
+    562   WRITE(WRN,*)'RTBIS: TOO MANY BISECTIONS IN TKE1 ROUTINE ON JDAY:',JDAY
+    563   WRITE(WRN,*)'Setting TKE calculation to TKE from TKE1'
+    564   AZC(JW)='     TKE'
+    565 END FUNCTION RTBIS
+
+Page 25          Source Listing                  RTBIS
+2026-03-30 08:47 Entry Points                    ..\..\..\az.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name  
+                          
+       RTBIS              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ABS                        Func   558                                  scalar                    558                               
+ AZC                        Local  526      CHAR            8     1     1        ALC              526,543,564                       
+ DX                         Local  536      R(8)            8           scalar                    548,551,554,555,558               
+ EDDY                       Module 526                                                            526                               
+ F                          Local  536      R(8)            8           scalar                    538,539,546                       
+ FMID                       Local  536      R(8)            8           scalar                    537,539,556,557,558               
+ GLOBAL                     Module 526                                                            526                               
+ J                          Local  535      I(4)            4           scalar                    553                               
+ JDAY                       Local  526      R(8)            8           scalar                    526,540,562                       
+ JW                         Local  526      I(4)            4           scalar                    526,543,564                       
+ MAXIT                      Param  531      I(4)            4           scalar                    553                               
+ PREC                       Module 526                                                            526                               
+ R8                         Param  528      I(4)            4           scalar                    528,529,536                       
+ RTBIS                      Local  525      R(8)            8           scalar                                                      
+ RTBIS                      Func   525      R(8)            8           scalar                    542,547,550,555,557               
+ SCREENC                    Module 526                                                            526                               
+ SEMILOG                    Func   529      R(8)            8           scalar                    537,538,556                       
+ U                          Dummy  528      R(8)            8           scalar   ARG,IN           537,538,556                       
+ V                          Dummy  528      R(8)            8           scalar   ARG,IN           537,538,556                       
+ WRN                        Local  526      I(4)            4           scalar                    526,540,541,562,563               
+ X1                         Dummy  528      R(8)            8           scalar   ARG,IN           538,542,547,548,551               
+ X2                         Dummy  528      R(8)            8           scalar   ARG,IN           537,548,550,551                   
+ XACC                       Dummy  528      R(8)            8           scalar   ARG,IN           558                               
+ XMID                       Local  536      R(8)            8           scalar                    555,556,557                       
+ Y                          Dummy  528      R(8)            8           scalar   ARG,IN           537,538,556                       
+
+Page 26          Source Listing                  RTBIS
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    566 
+    567 SUBROUTINE CALCFRIC()
+    568 USE GLOBAL;USE GEOMC;USE EDDY;USE KINETIC;USE LOGICC
+    569 IMPLICIT NONE
+    570 REAL(R8)    :: DEPTHL,DEPTHR,DEPTH,PERIMETER,AREA,UAVG
+    571 INTEGER :: K
+    572   DEPTHL = (ELWS(I)-EL(KB(I),I)    +H2(KB(I),I)  *COSA(JB))/COSA(JB)                                              !EL(KT,I) 
+    572  -Z(I)  *COSA(JB)
+    573   DEPTHR = (ELWS(I+1)-EL(KB(I+1),I+1)+H2(KB(I+1),I)*COSA(JB))/COSA(JB)                                                     !
+    573 EL(KT,I+1)-Z(I+1)*COSA(JB)
+    574   DEPTH = (DEPTHR+DEPTHL)*0.5
+    575   PERIMETER = 0.0
+    576   PERIMETER = BR(KB(I),I)+2.0*H(KB(I),JW)
+    577   DO K=KT,KB(I)-1
+    578     PERIMETER = PERIMETER + (B(K,I)-B(K+1,I)+2.0*H(K,JW))
+    579   END DO
+    580   AREA = 0.0
+    581   DO K=KT,KB(I)
+    582     AREA = AREA + BH1(K,I)
+    583   END DO
+    584   UAVG = 0.5*(QC(I)+QC(I-1))/AREA
+    585   IF(ABS(UAVG)>NONZERO)THEN
+    586     IF (MANNINGS_N(JW)) THEN
+    587 	  FRIC(I) = (AREA/PERIMETER)**(0.16666666667)/SQRT(9.81*(UAVG/USTARBTKE(I))**2)                      !1.0/6.0   (9.8
+    587 1/(USTARBTKE(I)/UAVG)**2)
+    588 	ELSE
+    589 	  FRIC(I) = SQRT(9.81*(UAVG/USTARBTKE(I))**2)
+    590 	ENDIF
+    591   ENDIF
+    592 END SUBROUTINE
+
+Page 27          Source Listing                  CALCFRIC
+2026-03-30 08:47 Entry Points                    ..\..\..\az.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name     
+                             
+       CALCFRIC              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ABS                        Func   585                                  scalar                    585                               
+ AREA                       Local  570      R(8)            8           scalar                    580,582,584,587                   
+ B                          Local  578      R(8)            8     2     1        ALC              578                               
+ BH1                        Local  582      R(8)            8     2     1        ALC              582                               
+ BR                         Local  576      R(8)            8     2     1        ALC              576                               
+ CALCFRIC                   Subr   567                                                                                              
+ COSA                       Local  572      R(8)            8     1     1        ALC              572,573                           
+ DEPTH                      Local  570      R(8)            8           scalar                    574                               
+ DEPTHL                     Local  570      R(8)            8           scalar                    572,574                           
+ DEPTHR                     Local  570      R(8)            8           scalar                    573,574                           
+ EDDY                       Module 568                                                            568                               
+ EL                         Local  572      R(8)            8     2     1        ALC              572,573                           
+ ELWS                       Local  572      R(8)            8     1     1        ALC              572,573                           
+ FRIC                       Local  587      R(8)            8     1     1        ALC              587,589                           
+ GEOMC                      Module 568                                                            568                               
+ GLOBAL                     Module 568                                                            568                               
+ H                          Local  576      R(8)            8     2     1        ALC              576,578                           
+ H2                         Local  572      R(8)            8     2     1        ALC              572,573                           
+ I                          Local  572      I(4)            4           scalar                    572,573,576,577,578,581,582,584,58
+                                                                                                  7,589                             
+ JB                         Local  572      I(4)            4           scalar                    572,573                           
+ JW                         Local  576      I(4)            4           scalar                    576,578,586                       
+ K                          Local  571      I(4)            4           scalar                    577,578,581,582                   
+ KB                         Local  572      I(4)            4     1     1        ALC              572,573,576,577,581               
+ KINETIC                    Module 568                                                            568                               
+ KT                         Local  577      I(4)            4           scalar                    577,581                           
+ LOGICC                     Module 568                                                            568                               
+ MANNINGS_N                 Local  586      L(4)            4     1     1        ALC              586                               
+ NONZERO                    Param  585      R(8)            8           scalar                    585                               
+ PERIMETER                  Local  570      R(8)            8           scalar                    575,576,578,587                   
+ QC                         Local  584      R(8)            8     1     1        ALC              584                               
+ R8                         Param  570      I(4)            4           scalar                    570                               
+ SQRT                       Func   587                                  scalar                    587,589                           
+ UAVG                       Local  570      R(8)            8           scalar                    584,585,587,589                   
+ USTARBTKE                  Local  587      R(8)            8     1     1        ALC              587,589                           
+
+Page 28          Source Listing                  CALCFRIC
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+    593 
+    594 
+    595 
+
+Page 29          Source Listing                  CALCFRIC
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\az.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ AZ_LOCAL                   Module 6                                                                                                
+ CALCFRIC                   Subr   567                                                                                              
+ CALCULATE_AZ               Subr   16                                                                                               
+ CALCULATE_AZ0              Subr   47                                                                                               
+ CALCULATE_TKE              Subr   90                                                                                               
+ CALCULATE_TKE1             Subr   170                                                                                              
+ RTBIS                      Func   525      R(8)            8           scalar                    542,547,550,555,557               
+ SEMILOG                    Func   517      R(8)            8           scalar                    522                               
+ WALLFUNCTION               Func   452      R(8)            8           scalar                    472,487,491,494                   
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+
+Page 30          Source Listing                  CALCFRIC
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:az.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+
+Page 31          Source Listing                  CALCFRIC
+2026-03-30 08:47                                 ..\..\..\az.f90
+
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : az.lst
+  /object:az.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

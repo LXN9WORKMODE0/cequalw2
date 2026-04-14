@@ -1,0 +1,395 @@
+Page 1           Source Listing                  SHADING
+2026-03-30 08:47                                 C:\Users\NING\AppData\Local\Temp\341801004.i90
+
+      1 # 1 "..\..\..\shading.f90"
+      2 
+      3 !***************************************************************************************************************************
+      3 ********
+      4 !**                                                S U B R O U T I N E   S H A D I N G                                      
+      4       **
+      5 !***************************************************************************************************************************
+      5 ********
+      6 
+      7 SUBROUTINE SHADING
+      8   USE SHADEC; USE GLOBAL; USE GDAYC; USE SURFHE; USE GEOMC; USE SCREENC; USE LOGICC
+      9   IMPLICIT NONE
+     10   CHARACTER(1) :: BANK
+     11   REAL         :: LOCAL,STANDARD,HOUR,TAUD,SINAL,A02,AZ00,A0,AX,ANG1,ANG2,TOPOANG,SFACT,HT,CLINE,SRED,STLEN,EDGE,EDAZ,SN,AZT
+     12   INTEGER      :: IDAY,J
+     13 
+     14 ! Calculate solar altitude, declination, and local hour angle when short-wave solar radiation is provided as input
+     15 
+     16   IF (READ_RADIATION(JW)) THEN
+     17     LOCAL    =  LONGIT(JW)
+     18     STANDARD =  15.0*INT(LONGIT(JW)/15.0)
+     19     HOUR     = (JDAY-INT(JDAY))*24.0
+     20     IDAY     =  JDAY-((INT(JDAY/365))*365)
+     21 !IDAY     =  IDAY+INT(INT(JDAY/365)/4)    SR 12/2018 IDAY FIX
+     22     IDAY     =  IDAY-INT(INT(JDAY/365)/4)
+     23     TAUD     = (2*PI*(IDAY-1))/365
+     24     EQTNEW   =  0.170*SIN(4*PI*(IDAY-80)/373)-0.129*SIN(2*PI*(IDAY-8)/355)
+     25     HH(JW)   =  0.261799*(HOUR-(LOCAL-STANDARD)*0.0666667+EQTNEW-12.0)
+     26     DECL(JW) =  0.006918-0.399912*COS(TAUD)+0.070257*SIN(TAUD)-0.006758*COS(2*TAUD)+0.000907*SIN(2*TAUD)-0.002697*COS(3*TAUD
+     26 )      &
+     27                 +0.001480*SIN(3*TAUD)
+     28     SINAL    =  SIN(LAT(JW)*.0174533)*SIN(DECL(JW))+COS(LAT(JW)*.0174533)*COS(DECL(JW))*COS(HH(JW))
+     29     A00(JW)  =  57.2957795*ASIN(SINAL)
+     30   END IF
+     31 
+     32 ! If the sun is below the horizon, set SHADE(I) to 0
+     33 
+     34   IF (A00(JW) < 0.0) THEN
+     35     SHADE(I) = 0.0
+     36   ELSE
+     37 
+     38 !** Calculate solar azimuth angle
+     39 
+     40     A02 = A00(JW)/57.2957795
+     41     AX  = (SIN(DECL(JW))*COS(LAT(JW)*0.017453)-COS(DECL(JW))*COS(HH(JW))*SIN(LAT(JW)*0.017453))/COS(A02)
+     42     IF (AX >  1.0) AX =  1.0
+     43     IF (AX < -1.0) AX = -1.0
+     44     AZT = ACOS(AX)
+     45     IF (HH(JW) < 0.0) THEN
+     46      AZ00 = AZT
+     47     ELSE
+     48      AZ00 = 2.0*PI-AZT
+     49     END IF
+     50     A0 = A02
+     51 
+     52 !** Interpolate the topographic shade angle
+     53 
+
+Page 2           Source Listing                  SHADING
+2026-03-30 08:47                                 ..\..\..\shading.f90
+
+     54     DO J=1,IANG-1
+     55       IF (AZ00 > ANG(J) .AND. AZ00 <= ANG(J+1)) THEN
+     56         ANG1    =  AZ00-ANG(J)
+     57         ANG2    = (TOPO(I,J+1)-TOPO(I,J))/GAMA                 ! SW 10/17/05
+     58         TOPOANG =  TOPO(I,J)+ANG2*ANG1
+     59       END IF
+     60     END DO
+     61     IF (AZ00 > ANG(IANG) .AND. AZ00 <= 2*PI) THEN
+     62       ANG1    =  AZ00-ANG(IANG)
+     63       ANG2    = (TOPO(I,1)-TOPO(I,IANG))/GAMA                  ! SW 10/17/05
+     64       TOPOANG =  TOPO(I,IANG)+ANG2*ANG1
+     65     END IF
+     66 
+     67 !** Complete topographic shading if solar altitude less than topo angle
+     68 
+     69     IF (A0 <= TOPOANG) THEN
+     70       SFACT = 0.90
+     71       GO TO 100
+     72     END IF
+     73 
+     74 !** No vegetative shading if azimuth angle is oriented parallel to stream
+     75 
+     76     IF (AZ00 == PHI0(I) .OR. AZ00 == PHI0(I)+PI .OR. AZ00+PI == PHI0(I)) THEN
+     77       SFACT = 0.0
+     78       GO TO 100
+     79     END IF
+     80 
+     81 !** Bank with the controlling vegetation
+     82 
+     83     IF (PHI0(I) > 0.0 .AND. PHI0(I) <= PI) THEN
+     84       IF (AZ00 > PHI0(I)     .AND. AZ00 <= PHI0(I)+PI) BANK = 'L'
+     85       IF (AZ00 > 0.0         .AND. AZ00 <= PHI0(I))    BANK = 'R'
+     86       IF (AZ00 > PHI0(I)+PI  .AND. AZ00 <  2.0*PI)     BANK = 'R'
+     87     ELSE IF (PHI0(I) > PI .AND. PHI0(I) <= 2.0*PI) THEN
+     88       IF (AZ00 >= PHI0(I)    .AND. AZ00 < 2.0*PI)      BANK = 'L'
+     89       IF (AZ00 >= 0.0        .AND. AZ00 < PHI0(I)-PI)  BANK = 'L'
+     90       IF (AZ00 >= PHI0(I)-PI .AND. AZ00 < PHI0(I))     BANK = 'R'
+     91     END IF
+     92 
+     93 !** No topographic shading
+     94 
+     95     IF (BANK == 'L') THEN
+     96       IF (TTLB(I) < ELWS(I)) THEN
+     97         SFACT = 0.0
+     98         GO TO 100
+     99       ELSE
+    100         HT    = TTLB(I)-ELWS(I)
+    101         CLINE = CLLB(I)
+    102         SRED  = SRLB2(I)
+    103         IF (JDAYG > SRFJD1(I) .AND. JDAYG <= SRFJD2(I)) SRED = SRLB1(I)
+    104       END IF
+    105     ELSE
+    106       IF (TTRB(I) < ELWS(I)) THEN
+    107         SFACT = 0.0
+    108         GO TO 100
+    109       ELSE
+    110         HT    = TTRB(I)-ELWS(I)
+
+Page 3           Source Listing                  SHADING
+2026-03-30 08:47                                 ..\..\..\shading.f90
+
+    111         CLINE = CLRB(I)
+    112         SRED  = SRRB2(I)
+    113         IF (JDAYG > SRFJD1(I) .AND. JDAYG <= SRFJD2(I)) SRED = SRRB1(I)
+    114       END IF
+    115     END IF
+    116     STLEN = HT/TAN (A0)
+    117     EDGE  = MAX (0.0,CLINE-BI(KT,I)/2.0)
+    118 
+    119 !** Distance from vegetation to water edge on line parallel to azimuth
+    120 
+    121     EDAZ = EDGE/ABS(SIN(PHI0(I)-AZ00))
+    122     IF (STLEN <= EDAZ) THEN
+    123       SFACT = 0.0
+    124       GO TO 100
+    125     END IF
+    126 
+    127 !** Distance shadow extends over water (perpendicular to segment orientation)
+    128 
+    129     SN    = MIN (HT*ABS (SIN (ABS (PHI0(I)-AZ00)))/TAN (A0)-EDGE,BI(KT,I))
+    130     SFACT = SRED*SN/BI(KT,I)
+    131 100 CONTINUE
+    132     SHADE(I) = MAX (0.0,1.0-SFACT)
+    133     SHADE(I) = MIN(ABS(SHADEI(I)),SHADE(I))              ! SW 10/2/2017 Allows for fixed canopy cover over top of channel - 
+    133 only used if shade is less than shadei only valid for -0.99 and 0.0
+    134   END IF
+    135   RETURN
+    136 END SUBROUTINE SHADING
+
+
+ENTRY POINTS
+
+ Address      Type  Name    
+                            
+       SHADING              
+
+Page 4           Source Listing                  SHADING
+2026-03-30 08:47 Symbol Table                    ..\..\..\shading.f90
+
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 100                        Label  131                                                            71,78,98,108,124                  
+ A0                         Local  11       R(4)            4           scalar                    50,69,116,129                     
+ A00                        Local  29       R(4)            4     1     1        ALC              29,34,40                          
+ A02                        Local  11       R(4)            4           scalar                    40,41,50                          
+ ABS                        Func   121                                  scalar                    121,129,133                       
+ ACOS                       Func   44                                   scalar                    44                                
+ ANG                        Local  55       R(4)            4     1     18                        55,56,61,62                       
+ ANG1                       Local  11       R(4)            4           scalar                    56,58,62,64                       
+ ANG2                       Local  11       R(4)            4           scalar                    57,58,63,64                       
+ ASIN                       Func   29                                   scalar                    29                                
+ AX                         Local  11       R(4)            4           scalar                    41,42,43,44                       
+ AZ00                       Local  11       R(4)            4           scalar                    46,48,55,56,61,62,76,84,85,86,88,8
+                                                                                                  9,90,121,129                      
+ AZT                        Local  11       R(4)            4           scalar                    44,46,48                          
+ BANK                       Local  10       CHAR            1           scalar                    84,85,86,88,89,90,95              
+ BI                         Local  117      R(8)            8     2     1        ALC              117,129,130                       
+ CLINE                      Local  11       R(4)            4           scalar                    101,111,117                       
+ CLLB                       Local  101      R(4)            4     1     1        ALC              101                               
+ CLRB                       Local  111      R(4)            4     1     1        ALC              111                               
+ COS                        Func   26                                   scalar                    26,28,41                          
+ DECL                       Local  26       R(4)            4     1     1        ALC              26,28,41                          
+ EDAZ                       Local  11       R(4)            4           scalar                    121,122                           
+ EDGE                       Local  11       R(4)            4           scalar                    117,121,129                       
+ ELWS                       Local  96       R(8)            8     1     1        ALC              96,100,106,110                    
+ EQTNEW                     Local  24       R(4)            4           scalar                    24,25                             
+ GAMA                       Param  57       R(4)            4           scalar                    57,63                             
+ GDAYC                      Module 8                                                              8                                 
+ GEOMC                      Module 8                                                              8                                 
+ GLOBAL                     Module 8                                                              8                                 
+ HH                         Local  25       R(4)            4     1     1        ALC              25,28,41,45                       
+ HOUR                       Local  11       R(4)            4           scalar                    19,25                             
+ HT                         Local  11       R(4)            4           scalar                    100,110,116,129                   
+ I                          Local  35       I(4)            4           scalar                    35,57,58,63,64,76,83,84,85,86,87,8
+                                                                                                  8,89,90,96,100,101,102,103,106,110
+                                                                                                  ,111,112,113,117,121,129,130,132,1
+                                                                                                  33                                
+ IANG                       Param  54       I(4)            4           scalar                    54,61,62,63,64                    
+ IDAY                       Local  12       I(4)            4           scalar                    20,22,23,24                       
+ INT                        Func   18                                   scalar                    18,19,20,22                       
+ J                          Local  12       I(4)            4           scalar                    54,55,56,57,58                    
+ JDAY                       Local  19       R(8)            8           scalar                    19,20,22                          
+ JDAYG                      Local  103      I(4)            4           scalar                    103,113                           
+ JW                         Local  16       I(4)            4           scalar                    16,17,18,25,26,28,29,34,40,41,45  
+ KT                         Local  117      I(4)            4           scalar                    117,129,130                       
+ LAT                        Local  28       R(8)            8     1     1        ALC              28,41                             
+ LOCAL                      Local  11       R(4)            4           scalar                    17,25                             
+ LOGICC                     Module 8                                                              8                                 
+ LONGIT                     Local  17       R(8)            8     1     1        ALC              17,18                             
+ MAX                        Func   117                                  scalar                    117,132                           
+ MIN                        Func   129                                  scalar                    129,133                           
+ PHI0                       Local  76       R(8)            8     1     1        ALC              76,83,84,85,86,87,88,89,90,121,129
+
+Page 5           Source Listing                  SHADING
+2026-03-30 08:47 Symbol Table                    ..\..\..\shading.f90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ PI                         Local  23       R(8)            8           scalar                    23,24,48,61,76,83,84,86,87,88,89,9
+                                                                                                  0                                 
+ READ_RADIATION             Local  16       L(4)            4     1     1        ALC              16                                
+ SCREENC                    Module 8                                                              8                                 
+ SFACT                      Local  11       R(4)            4           scalar                    70,77,97,107,123,130,132          
+ SHADE                      Local  35       R(8)            8     1     1        ALC              35,132,133                        
+ SHADEC                     Module 8                                                              8                                 
+ SHADEI                     Local  133      R(4)            4     1     1        ALC              133                               
+ SHADING                    Subr   7                                                                                                
+ SIN                        Func   24                                   scalar                    24,26,27,28,41,121,129            
+ SINAL                      Local  11       R(4)            4           scalar                    28,29                             
+ SN                         Local  11       R(4)            4           scalar                    129,130                           
+ SRED                       Local  11       R(4)            4           scalar                    102,103,112,113,130               
+ SRFJD1                     Local  103      R(4)            4     1     1        ALC              103,113                           
+ SRFJD2                     Local  103      R(4)            4     1     1        ALC              103,113                           
+ SRLB1                      Local  103      R(4)            4     1     1        ALC              103                               
+ SRLB2                      Local  102      R(4)            4     1     1        ALC              102                               
+ SRRB1                      Local  113      R(4)            4     1     1        ALC              113                               
+ SRRB2                      Local  112      R(4)            4     1     1        ALC              112                               
+ STANDARD                   Local  11       R(4)            4           scalar                    18,25                             
+ STLEN                      Local  11       R(4)            4           scalar                    116,122                           
+ SURFHE                     Module 8                                                              8                                 
+ TAN                        Func   116                                  scalar                    116,129                           
+ TAUD                       Local  11       R(4)            4           scalar                    23,26,27                          
+ TOPO                       Local  57       R(4)            4     2     1        ALC              57,58,63,64                       
+ TOPOANG                    Local  11       R(4)            4           scalar                    58,64,69                          
+ TTLB                       Local  96       R(4)            4     1     1        ALC              96,100                            
+ TTRB                       Local  106      R(4)            4     1     1        ALC              106,110                           
+
+Page 6           Source Listing                  SHADING
+2026-03-30 08:47 Subprograms/Common Blocks       ..\..\..\shading.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ SHADING                    Subr   7                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 7           Source Listing                  SHADING
+2026-03-30 08:47                                 ..\..\..\shading.f90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:shading.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 8           Source Listing                  SHADING
+2026-03-30 08:47                                 ..\..\..\shading.f90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : shading.lst
+  /object:shading.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

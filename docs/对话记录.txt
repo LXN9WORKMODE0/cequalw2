@@ -1,0 +1,151 @@
+{ok，我现在希望你帮我审核一下现在的代码现状，是否已经符合我预期的设想，精简掉水质，只保留天气、水温等基础水动力模拟。}
+{
+整理好了。
+
+现在文档已经集中到 docs/README.md 下面，分成三层：
+
+docs/current：当前状态、当前基线、最近工作记录
+docs/reference：架构和代码梳理材料
+docs/history：旧的构建/调试记录
+这次新增和整理的关键文档是：
+
+CURRENT_PROJECT_STATUS.md
+REDUCED_MODEL_BASELINE.md
+RECENT_WORK_LOG.md
+根目录只保留了一个简短入口 PROJECT_DOCUMENTATION_CONSOLIDATED.md，它现在只负责把人引到 docs/README.md。同时我把旧的调试材料和不支持案例对应的说明也统一切到了归档路径 _workspace_archive，所以“当前文档”和“历史文档”现在是分开的。
+
+如果你愿意，下一步我可以继续做一个更进一步的整理：把 temp_case_work 和 示例文件2 也加一层简短说明文件，让每个目录一打开就知道它的角色。
+}
+
+{在这里告诉我精简目的是否已经达成。}
+
+{没有完全达成，只能说“阶段性达成”。
+
+如果你的精简目标是：
+
+做出一个能运行、能打包、能用原 GUI 启动的减配版
+那这个目标基本达成了。现在的 ReducedGUI 包和 Bonneville 基线 case 已经能跑，temp_case_work / 示例文件2 也能运行并产出结果。
+
+但如果你的精简目标是：
+
+从代码层真正去掉水质，只保留天气、水温、基础水动力
+那这个目标还没有达成。原因很明确：
+
+主流程里还保留水质调用开关：w2_4_win.f90#L1505
+构建脚本仍然在编水质相关单元：build_reduced_gui.bat、build_reduced_console.bat
+input.F90 现在是“兼容旧 case 以便跑起来”，不是“干净的无水质输入模型”：input.F90#L1636
+init.F90、time-varying-data.f90、outputinitw2tools.F90、outputa2w2tools.F90 里仍大量保留 CONSTITUENTS 分支
+一句话判断：
+
+“可交付的减配运行版”已经有了
+“真正只剩基础水动力+天气+水温的干净代码库”还没有
+所以我建议你把当前成果定义为：
+
+v1 可运行减配版：已完成
+v2 彻底去水质代码：未完成
+如果你要，我下一步可以直接帮你列一个“从当前状态继续走到真正无水质版”的最短技术路径。
+}
+
+{好的，你来列一下这个技术路径吧。}
+
+{可以，最短技术路径我建议分成 4 步走，不要一步到位硬删。
+
+目标定义
+终态不是“把水质开关关掉”，而是这三件事同时成立：
+
+主流程不再执行任何水质计算
+输入文件不再需要水质区块兼容
+构建链不再编译水质相关源码
+阶段 1：先做“运行时彻底断水质”
+先不追求删代码，先让减配版在逻辑上只跑水动力+气象+水温。
+
+在主流程里把水质调用从“受 CONSTITUENTS 控制”改成“ReducedGUI 下绝不调用”，重点是 w2_4_win.f90。
+在输入结束后统一把 CONSTITUENTS 固定为 .FALSE.，不要再让 case 里的 CCC 决定行为，重点是 input.F90。
+回归这些仍受 CONSTITUENTS 影响的核心文件，确认关掉后不会影响水动力/温度主线：
+init.F90
+time-varying-data.f90
+outputinitw2tools.F90
+outputa2w2tools.F90
+update.F90
+balances.F90
+这一阶段验收标准：ReducedGUI 和 console 都能跑，且无论 CCC 怎么填，都不再进入水质计算。
+阶段 2：把输入契约改成“真正无水质”
+现在的 input.F90 还是为了兼容旧 Bonneville case 才保留大量 legacy 读取，这不算真正精简。
+
+新建一条明确的 hydrodynamics-only CSV 契约，只保留：
+维度与时间控制
+水体/分支/结构物
+气象、边界、温度
+输出与必要文件名
+把当前 LEGACY_ZERO_WQ_CASE 这种 Bonneville 特判从主线里降级成“兼容模式”或直接移除。
+包里的 minimal_case_inputs 改成新契约，minimal_case_verified 也切到同一契约重新生成。
+这一阶段验收标准：新的 clean case 不含水质区块，也不需要 CCC/SED_DIAG 这类历史兼容字段。
+阶段 3：把水质从构建链里摘掉
+等运行和输入都不依赖水质后，再动构建。
+
+从 GUI/console 构建脚本里移除：
+water-quality.f90
+wqconstituents.F90
+gas-transfer.f90
+shading.f90
+同步从 VS 工程 ReducedGUI|x64 文件集中去掉这些源文件。
+如果还残留编译依赖，就回到上一层文件把引用断干净，而不是把水质文件硬保留。
+这一阶段验收标准：GUI 和 console 都能在不编译上述水质文件的情况下通过。
+阶段 4：最后再做“代码层真精简”
+这一步才是把代码库从“禁用水质”变成“没有水质包袱”。
+
+清理 w2modules.F90 里只服务于水质的变量、数组和名字表。
+清理 init.F90、outputinitw2tools.F90、outputa2w2tools.F90 里只服务于水质输出的编号、标题和文件分配。
+删除水质相关的 legacy 文案、占位字段和兼容分支。
+重新定义包和文档，把它明确命名为 hydrodynamics + temperature baseline，而不是“reduced WQ-compatible build”。
+执行建议
+不要先做阶段 4。正确顺序是：
+
+先断运行时水质
+再换输入契约
+再摘构建依赖
+最后删模块和变量
+这样风险最低，也最容易每一步都拿到可验证结果。
+
+如果你愿意，我下一步可以直接从阶段 1 开始，先把“无论 CCC 如何都不执行水质”的那一层做掉。}
+
+{你刚才不是规划了四个阶段的工作吗。我现在要求你开始第一阶段的工作。}
+
+{Stage 1 Status
+
+阶段 1 已经实现了，但它实现的是“运行时彻底断水质”，不是“从源码和构建里删光水质”。
+
+我做了这几处关键改动：
+
+在 w2modules.F90 增加了阶段 1 的统一开关 REDUCED_HYDRO_TEMP_ONLY = .TRUE.。
+在 input.F90 把 CONSTITUENTS 在减配构建路径下强制置为 .FALSE.，并把 CCC 统一改成 OFF，不再依赖 Bonneville 特判才能关水质。
+在 w2_4_win.f90 和 w2_main.f90 里，把 wqconstituents 调用改成显式受阶段 1 开关约束。
+在 update.F90 里把 UPDATE_KINETICS 的周期更新也加上了 CONSTITUENTS 保护，避免水质关闭后还继续更新水质速率状态。
+Verification
+
+我重新构建并回归了当前支持基线：
+
+console 构建成功
+GUI 构建成功
+包重新打包成功，最新包是 ReducedGUI.zip
+clean-input case 的干净克隆在阶段 1 改动后仍能启动并生成输出，例如 flowbal.csv、BON_spr.csv、BON_snp.opt、TDG_output.csv、Bonneville.w2l
+GUI 进程仍能正常启动
+我也把这个思路记录进文档了：
+
+CURRENT_PROJECT_STATUS.md
+REDUCED_MODEL_BASELINE.md
+RECENT_WORK_LOG.md
+What This Means
+现在的 ReducedGUI / console 基线，在当前支持 case 上，已经按“天气 + 水温 + 基础水动力”在运行。
+
+但要明确：
+
+现在还没有把水质源码从构建链里移除
+build_reduced_gui.bat 和 build_reduced_console.bat 仍然在编 water-quality.f90、wqconstituents.F90、gas-transfer.f90、shading.f90
+所以阶段 1 可以视为：
+
+目标：已完成
+性质：运行时去水质
+未完成部分：阶段 2/3/4 的输入契约收敛、构建链摘除、源码层真精简
+如果你要，我下一步就继续做阶段 2。
+}

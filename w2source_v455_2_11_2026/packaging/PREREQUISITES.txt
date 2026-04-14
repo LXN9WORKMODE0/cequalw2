@@ -1,0 +1,20 @@
+ReducedGUI Runtime Prerequisites
+
+This package does not currently bundle redistributable runtime installers.
+Target machines should already have compatible compiler/runtime support available.
+
+Recommended environment
+- Intel oneAPI Fortran runtime compatible with compiler version 2025.0
+- Microsoft Visual C++ x64 runtime compatible with Visual Studio 2019 toolchain
+- Windows x64
+
+If the GUI fails to start
+- Confirm the target machine can run Intel ifx-built executables.
+- Confirm the Visual C++ x64 runtime is installed.
+- Retry from a short local path without special permissions.
+
+If the model starts but fails during execution
+- Check w2.err in the case directory.
+- Check that the selected run directory contains w2_con.csv or w2_con.npt and all referenced input files.
+- Check that the selected run directory does not contain TDG files such as `w2_systdg.npt`, `w2_TDGtarget.csv`, or `TDGdyntarget.csv`.
+- Keep the run directory writable so the model can create outputs and logs.

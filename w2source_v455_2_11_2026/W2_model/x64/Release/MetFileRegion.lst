@@ -1,0 +1,353 @@
+Page 1           Source Listing                  READMETREGIONS
+2026-03-30 08:48                                 C:\Users\NING\AppData\Local\Temp\341801514.i90
+
+      1 # 1 "..\..\..\MetFileRegion.f90"
+      2 Module MetFileRegion    ! SW 12/13/2023
+      3 
+      4     Integer :: NMetFileRegions,IJUNK,NMet,FNMetRegion
+      5     Integer, Allocatable, Dimension(:) :: MetRegWB,MetRegStart,MetRegEnd,WB_MetRegions,I_MetRegions
+      6     Character*160, Allocatable,  Dimension(:) :: FNMetFileReg
+      7     Character*2 :: MetRegOn
+      8     Logical :: Met_Regions
+      9 
+     10     
+     11     Contains
+     12     
+     13     Subroutine ReadMetRegions
+     14     Use MAIN, ONLY: CON    
+     15     Implicit None   
+     16     Integer :: J
+     17 
+     18         
+     19       Met_Regions=.FALSE.
+     20       INQUIRE(FILE='w2_MetRegions.csv',EXIST=Met_Regions)    
+     21      if(Met_regions)then
+     22               FNMetRegion=CON
+     23               OPEN(FNMetRegion,FILE='W2_MetRegions.csv',status='old')
+     24               READ(FNMetRegion,*)
+     25               READ(FNMetRegion,'(A2)')MetRegOn
+     26           if(MetRegOn =='ON') then
+     27                   READ(FNMetRegion,*)
+     28                   READ(FNMetRegion,*)NMetFileRegions
+     29                   ALLOCATE(MetRegWB(NMetFileRegions),MetRegStart(NMetFileRegions),MetRegEnd(NMetFileRegions),FNMetFileReg(NM
+     29 etFileRegions))
+     30                   READ(FNMetRegion,*)
+     31               DO J=1,NMetFileRegions
+     32                   READ(FNMetRegion,*)IJUNK,MetRegStart(J),MetRegEnd(J),FNMetFileReg(J)
+     33               ENDDO
+     34           else
+     35                   Met_Regions=.FALSE.            
+     36           endif
+     37           CLOSE(CON)
+     38      endif
+     39 
+     40     RETURN
+     41     
+     42     End Subroutine ReadMetRegions
+
+Page 2           Source Listing                  READMETREGIONS
+2026-03-30 08:48 Entry Points                    ..\..\..\MetFileRegion.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name                            
+                                                    
+       METFILEREGION_mp_READMETREGIONS              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ CON                        Local  14       I(4)            4           scalar                    14,22,37                          
+ FNMETFILEREG               Local  29       CHAR            160   1     1        ALC              29,32,99                          
+ FNMETREGION                Local  22       I(4)            4           scalar                    22,23,24,25,27,28,30,32           
+ IJUNK                      Local  32       I(4)            4           scalar                    32                                
+ J                          Local  16       I(4)            4           scalar                    31,32                             
+ MAIN                       Module 14                                                             14                                
+ METREGEND                  Local  29       I(4)            4     1     1        ALC              29,32,56,75,86,99                 
+ METREGON                   Local  25       CHAR            2           scalar                    25,26                             
+ METREGSTART                Local  29       I(4)            4     1     1        ALC              29,32,56,64,75,86,99              
+ METREGWB                   Local  29       I(4)            4     1     1        ALC              29,50,57,62,65,99                 
+ MET_REGIONS                Local  19       L(4)            4           scalar                    19,20,21,35                       
+ NMETFILEREGIONS            Local  28       I(4)            4           scalar                    28,29,31,53,74,85                 
+ READMETREGIONS             Subr   13                                                                                               
+
+Page 3           Source Listing                  READMETREGIONS
+2026-03-30 08:48                                 ..\..\..\MetFileRegion.f90
+
+     43     
+     44     Subroutine MetRegionsWB
+     45     Use GLOBAL
+     46     Implicit None    
+     47     integer :: NMet
+     48 
+     49     Allocate(WB_MetRegions(NWB),I_MetRegions(IMX))
+     50     MetRegWB=0
+     51     WB_MetRegions=0
+     52     I_MetRegions=0
+     53     DO NMet=1,NMetFileRegions
+     54     
+     55     DO JW=1,NWB
+     56             IF(MetRegStart(NMet) >= US(BS(JW))-1 .AND. MetRegEnd(NMet) <=  DS(BE(JW))+1)THEN
+     57                  MetRegWB(NMet)=JW
+     58                  WB_MetRegions(JW)=NMet
+     59                  EXIT
+     60             ENDIF
+     61     ENDDO
+     62     if(MetRegWB(NMet)==0)then
+     63         DO JW=1,NWB
+     64         if(MetRegStart(NMet) >= US(BS(JW))-1.and.MetRegStart(NMet) <= DS(BS(JW))-1 )THEN
+     65                  MetRegWB(NMet)=JW
+     66                  EXIT
+     67         ENDIF
+     68         ENDDO
+     69     endif
+     70     ENDDO
+     71     
+     72     DO JW=1,NWB
+     73         if(WB_MetRegions(JW)==0)then
+     74         DO NMet=1,NMetFileRegions
+     75         IF(MetRegStart(NMet) <= US(BS(JW))-1 .AND. MetRegEnd(NMet) >=  DS(BE(JW))+1)then
+     76             WB_MetRegions(JW)=NMet
+     77             exit
+     78         endif
+     79         ENDDO
+     80         endif
+     81     ENDDO
+     82     
+     83     DO JW=1,NWB
+     84     DO I=US(BS(JW))-1,DS(BE(JW))+1
+     85         DO NMet=1,NMetFileRegions
+     86         IF(MetRegStart(NMet) <= I .and. MetRegEnd(NMet) >= I)then
+     87             I_MetRegions(I)=NMet
+     88             exit
+     89         ENDIF   
+     90     ENDDO
+     91     ENDDO
+     92     ENDDO
+     93     
+     94     RETURN
+     95     
+     96     End Subroutine MetRegionsWB
+
+Page 4           Source Listing                  METREGIONSWB
+2026-03-30 08:48 Entry Points                    ..\..\..\MetFileRegion.f90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name                          
+                                                  
+       METFILEREGION_mp_METREGIONSWB              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ BE                         Local  56       I(4)            4     1     1        ALC              56,75,84                          
+ BS                         Local  56       I(4)            4     1     1        ALC              56,64,75,84                       
+ DS                         Local  56       I(4)            4     1     1        ALC              56,64,75,84                       
+ GLOBAL                     Module 45                                                             45                                
+ I                          Local  84       I(4)            4           scalar                    84,86,87                          
+ IMX                        Local  49       I(4)            4           scalar                    49                                
+ I_METREGIONS               Local  49       I(4)            4     1     1        ALC              49,52,87,99                       
+ JW                         Local  55       I(4)            4           scalar                    55,56,57,58,63,64,65,72,73,75,76,8
+                                                                                                  3,84                              
+ METREGIONSWB               Subr   44                                                                                               
+ NMET                       Local  47       I(4)            4           scalar                    53,56,57,58,62,64,65,74,75,76,85,8
+                                                                                                  6,87                              
+ NWB                        Local  49       I(4)            4           scalar                    49,55,63,72,83                    
+ US                         Local  56       I(4)            4     1     1        ALC              56,64,75,84                       
+ WB_METREGIONS              Local  49       I(4)            4     1     1        ALC              49,51,58,73,76,99                 
+
+Page 5           Source Listing                  METREGIONSWB
+2026-03-30 08:48                                 ..\..\..\MetFileRegion.f90
+
+     97     
+     98     Subroutine EndMetRegion
+     99     DEALLOCATE(MetRegWB,MetRegStart,MetRegEnd,FNMetFileReg,WB_MetRegions,I_MetRegions)
+    100     RETURN
+    101     
+    102     End Subroutine EndMetRegion
+
+
+ENTRY POINTS
+
+ Address      Type  Name                          
+                                                  
+       METFILEREGION_mp_ENDMETREGION              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ENDMETREGION               Subr   98                                                                                               
+
+Page 6           Source Listing                  ENDMETREGION
+2026-03-30 08:48                                 ..\..\..\MetFileRegion.f90
+
+    103     
+    104 End Module MetFileRegion
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ METFILEREGION              Module 2                                                                                                
+ NMET                       Local  4        I(4)            4           scalar                                                      
+
+Page 7           Source Listing                  ENDMETREGION
+2026-03-30 08:48                                 ..\..\..\MetFileRegion.f90
+
+    105     
+
+Page 8           Source Listing                  ENDMETREGION
+2026-03-30 08:48 Subprograms/Common Blocks       ..\..\..\MetFileRegion.f90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ ENDMETREGION               Subr   98                                                                                               
+ METFILEREGION              Module 2                                                                                                
+ METREGIONSWB               Subr   44                                                                                               
+ READMETREGIONS             Subr   13                                                                                               
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+
+Page 9           Source Listing                  ENDMETREGION
+2026-03-30 08:48                                 ..\..\..\MetFileRegion.f90
+
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:MetFileRegion.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+
+Page 10          Source Listing                  ENDMETREGION
+2026-03-30 08:48                                 ..\..\..\MetFileRegion.f90
+
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : MetFileRegion.lst
+  /object:MetFileRegion.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205

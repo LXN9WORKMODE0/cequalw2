@@ -1,0 +1,2678 @@
+Page 1           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 C:\Users\NING\AppData\Local\Temp\341801544.i90
+
+      1 # 1 "..\..\..\outputinitw2tools.F90"
+      2 SUBROUTINE OUTPUTINIT  
+      3     
+      4   USE MAIN  
+      5   USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINETIC; USE SHADEC; USE EDDY  
+      6   USE STRUCTURES; USE TRANS;  USE TVDC;   USE SELWC;  USE GDAYC; USE SCREENC; USE TDGAS;   USE RSTART  
+      7   USE MACROPHYTEC; USE POROSITYC; USE ZOOPLANKTONC;  USE BIOENERGETICS
+      8   USE ALGAE_TOXINS
+      9   IMPLICIT NONE
+     10   EXTERNAL RESTART_OUTPUT  
+     11     
+     12   REAL    DIST  
+     13   REAL(4) :: DLX_OLD
+     14   INTEGER*4,ALLOCATABLE,DIMENSION(:,:) :: ICOMP  
+     15     
+     16   INTEGER JN,IW, IC, JJ, JAD 
+     17   INTEGER*4 IFLAG  
+     18   CHARACTER(60) :: TITLEWITH2  
+     19   CHARACTER(100) :: TITLEWITH  
+     20   CHARACTER(3) :: ICHAR3
+     21   CHARACTER(1), DIMENSION(:) :: CNUM(9)
+     22   INTEGER, ALLOCATABLE, DIMENSION(:) :: IBR
+     23     
+     24   ALLOCATE(ICOMP(KMX,IMX))  
+     25   CNUM(1)='1';CNUM(2)='2';CNUM(3)='3';CNUM(4)='4';CNUM(5)='5';CNUM(6)='6';CNUM(7)='7';CNUM(8)='8';CNUM(9)='9'
+     26     
+     27 !***************************************************************************************************************************
+     27 ********
+     28 !*                                                           Task 1.5: Outputs                                              
+     28       **
+     29 !***************************************************************************************************************************
+     29 ********
+     30     
+     31       ALLOCATE(IBR(NBR))
+     32       INQUIRE(FILE='w2_tecplotbr.csv',EXIST=BR_NOTECPLOT(1))     
+     33     IF(BR_NOTECPLOT(1))THEN
+     34         OPEN(CON,FILE='w2_tecplotbr.csv',STATUS='OLD')
+     35         READ(CON,*)
+     36         READ(CON,*)IC    ! NUMBER OF BRANCHES TO PLOT, MUST BE LESS THAN NBR
+     37         READ(CON,*)
+     38         READ(CON,*)(IBR(J),J=1,IC)
+     39           DO J=1,IC
+     40             BR_NOTECPLOT(IBR(J))=.FALSE.
+     41           ENDDO
+     42         CLOSE(CON)
+     43     ELSE
+     44         BR_NOTECPLOT=.FALSE.
+     45     ENDIF
+     46     DEALLOCATE(IBR)
+     47   
+     48   
+     49 ! Open output files
+     50     
+     51   IF (RESTART_IN) THEN  
+     52 
+     53       DO JW=1,NWB  ! INITIALIZE OUTPUT FOR TECPLOT FOR RESTART  9/4/2019
+     54          IF(JW == 1)DIST=0.0  
+
+Page 2           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+     55       DO JB=BS(JW),BE(JW)  
+     56         X1(US(JB))=DIST+DLX(US(JB))/2.  
+     57         DO I=US(JB)+1,DS(JB)  
+     58           DIST=DIST+(DLX(I)+DLX(I-1))/2.0  
+     59           X1(I)=DIST  
+     60         END DO  
+     61         DIST=DIST+DLX(DS(JB))  
+     62         X1(DS(JB)+1)=DIST  
+     63       ENDDO  
+     64     END DO        
+     65       
+     66     DO JW=1,NWB  
+     67       IF (SNAPSHOT(JW))    OPEN (SNP(JW),FILE=SNPFN(JW),POSITION='APPEND')  
+     68 !IF (VECTOR(JW))      OPEN (VPL(JW),FILE=VPLFN(JW),POSITION='APPEND')   *** DSI
+     69       IF (SPREADSHEET(JW)) OPEN (SPR(JW),FILE=SPRFN(JW),POSITION='APPEND')  
+     70       IF(SPRC(JW) == '     ONV')OPEN (SPRV(JW),FILE=SPRVFN(JW),POSITION='APPEND')   ! SW 9/28/2018
+     71       IF (CONTOUR(JW))     OPEN (CPL(JW),FILE=CPLFN(JW),POSITION='APPEND')  
+     72       IF (PROFILE(JW).and. iprf(1,1) /= -1)     OPEN (PRF(JW),FILE=PRFFN(JW),POSITION='APPEND')  
+     73       IF (FLUX(JW))THEN  
+     74         OPEN (FLX(JW),FILE=FLXFN(JW),POSITION='APPEND')  
+     75         JDAY1=0.0  
+     76         REWIND (FLX(JW))  
+     77         DO WHILE (JDAY1<JDAY)  
+     78           READ (FLX(JW),'(A72)',END=12) LINE  
+     79                 IF (LINE(1:8) == 'New date') THEN
+     80             BACKSPACE(FLX(JW))  
+     81             READ (FLX(JW),'(8X,F10.0)',END=12) JDAY1  
+     82           ENDIF  
+     83         ENDDO  
+     84         DO J=1,14  
+     85           BACKSPACE (FLX(JW))  
+     86         END DO  
+     87           
+     88 12      CONTINUE  
+     89         WRITE (SEGNUM,'(I0)') JW  
+     90         SEGNUM = ADJUSTL(SEGNUM)  
+     91         L      = LEN_TRIM(SEGNUM)  
+     92               OPEN (FLX2(JW), FILE='kflux_wb'//SEGNUM(1:L)//'.csv',POSITION='APPEND')
+     93         JDAY1=0.0  
+     94         REWIND (FLX2(JW))  
+     95         READ   (FLX2(JW),'(/)',END=13)  
+     96         DO WHILE (JDAY1 < JDAY)  
+     97           READ (FLX2(JW),'(F10.0)',END=13) JDAY1  
+     98         END DO  
+     99         BACKSPACE (FLX2(JW))  
+    100 13      JDAY1=0.0  
+    101       ENDIF  
+    102       IF (SNAPSHOT(JW)) THEN  
+    103         REWIND (SNP(JW))  
+    104         DO WHILE (.TRUE.)  
+    105           READ (SNP(JW),'(A72)',END=100) LINE  
+    106           IF (LINE(26:28) == 'NIT') THEN  
+    107             BACKSPACE SNP(JW)  
+    108             READ (SNP(JW),'(31X,I10)',END=100) NIT1  
+    109             IF (NIT1 > NIT) THEN  
+    110               DO J=1,24  
+    111                 BACKSPACE (SNP(JW))  
+
+Page 3           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    112               END DO  
+    113               EXIT  
+    114             END IF  
+    115           END IF  
+    116         END DO  
+    117       END IF  
+    118 100   CONTINUE  
+    119       IF (SPREADSHEET(JW)) THEN  
+    120         REWIND (SPR(JW))  
+    121         READ (SPR(JW),*)  
+    122         DO WHILE (JDAY1 < JDAY)  
+    123           READ (SPR(JW),'(A45,f10.0)',END=101,ERR=1001) LINE,JDAY1        !'(A,F10.0)'    LINE(1:38)
+    124         END DO  
+    125         BACKSPACE (SPR(JW))  
+    126 101     CONTINUE  
+    127         JDAY1 = 0.0  
+    128         IF(SPRC(JW)=='     ONV')THEN
+    129         REWIND (SPRV(JW))  
+    130         READ (SPRV(JW),*)  
+    131         DO WHILE (JDAY1 < JDAY)  
+    132           READ (SPRV(JW),'(A45,f10.0)',END=104) LINE,JDAY1        !'(A,F10.0)'  LINE(1:38)
+    133         END DO  
+    134         BACKSPACE (SPRV(JW))  
+    135 104     CONTINUE  
+    136         JDAY1 = 0.0   
+    137         ENDIF
+    138       END IF
+    139       GO TO 1002
+    140 1001  CONTINUE
+    141       WRITE(W2ERR,'(A)')'Restart error reading SPR file. See Preprocessor warnings for names of variables. Did not process S
+    141 PR files for restart.'
+    142       ERROR_OPEN=.TRUE. 
+    143 1002  CONTINUE    
+    144       IF (PROFILE(JW).and. iprf(1,1) /= -1) THEN    ! SW 4/1/2016
+    145         REWIND (PRF(JW))  
+    146         READ   (PRF(JW),'(A)')        (LINE,J=1,11)  
+    147         READ   (PRF(JW),'(8I8)')       I  
+    148         READ   (PRF(JW),'(10I8)')     (I,J=1,NIPRF(JW))  
+    149         READ   (PRF(JW),'(20(1X,A))')  LINE (1:8), (LINE (1:3), JC=1,NCT),(LINE (1:3), JD=1,NDC)  
+    150         READ   (PRF(JW),'(2A)')        LINE (1:26),(LINE (1:26),JC=1,NCT),(LINE (1:43),JD=1,NDC)  
+    151         DO WHILE (JDAY1 < JDAY)  
+    152           READ (PRF(JW),'(A72)',END=102) LINE  
+    153           L1 = 0  
+    154           L1 = SCAN(LINE,',')  
+    155           IF (L1 /= 0) THEN  
+    156             BACKSPACE (PRF(JW))  
+    157             READ (PRF(JW),'(F8.0)',END=102) JDAY1  
+    158           END IF  
+    159         END DO  
+    160         BACKSPACE (PRF(JW))  
+    161         JDAY1 = 0.0  
+    162       END IF  
+    163 102   CONTINUE  
+    164       JDAY1 = 0.0  
+    165       IF (CONTOUR(JW)) THEN  
+    166         IF(TECPLOT(JW) /= '      ON')THEN 
+    167         REWIND (CPL(JW))  
+
+Page 4           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    168         DO WHILE (JDAY1 < JDAY)  
+    169           READ (CPL(JW),'(A72)',END=103) LINE  
+    170           IF (LINE(1:8) == 'New date') THEN
+    171             BACKSPACE (CPL(JW))  
+    172             READ (CPL(JW),'(A,F12.4)',END=103) LINE(1:9),JDAY1  
+    173           END IF  
+    174         END DO  
+    175         BACKSPACE (CPL(JW))  
+    176         JDAY1 = 0.0 
+    177         ELSE
+    178         REWIND (CPL(JW))  
+    179         DO WHILE (JDAY1 < JDAY)  
+    180           READ (CPL(JW),'(A72)',END=103) LINE  
+    181           IF (LINE(1:8) == 'ZONE T="') THEN
+    182             BACKSPACE (CPL(JW))  
+    183             READ (CPL(JW),'(A,F9.0)',END=103) LINE(1:8),JDAY1  
+    184           END IF  
+    185         END DO  
+    186         BACKSPACE (CPL(JW))  
+    187         JDAY1 = 0.0                        
+    188         ENDIF
+    189       END IF  
+    190 103   CONTINUE  
+    191     END DO  
+    192 
+    193     IF (VECTOR(1)) THEN  
+    194     OPEN (VPL(1),FILE=VPLFN(1),STATUS='UNKNOWN',ACCESS='SEQUENTIAL',FORM='BINARY',POSITION='APPEND')  
+    195     ENDIF
+    196     
+    197     IF (DOWNSTREAM_OUTFLOW) THEN  
+    198       JFILE=0  
+    199       L1 = SCAN(WDOFN,'.',BACK=.TRUE.)   ! SW 8/22/14 CHECKS FROM RIGHTHAND SIDE NOT LEFTHANDSIDE
+    200       L2 = SCAN(WDOFN,'\',BACK=.TRUE.)  !  SW 9/15/2023 FIND FILE PATH IF PRESENT
+    201       DO JWD=1,NIWDO  
+    202         WRITE (SEGNUM,'(I0)') IWDO(JWD)  
+    203         SEGNUM = ADJUSTL(SEGNUM)  
+    204         L      = LEN_TRIM(SEGNUM)  
+    205                 
+    206         IF(L2==0)THEN
+    207         OPEN   (WDO(JWD,1),FILE='q_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),POSITION='APPEND')  ! '.opt' SW 4/1
+    207 4/2017
+    208         ELSE
+    209         OPEN   (WDO(JWD,1),FILE=WDOFN(1:L2)//'q_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),POSITION='APPEND')  ! 
+    209 '.opt' SW 4/14/2017
+    210         ENDIF
+    211         
+    212         REWIND (WDO(JWD,1))  
+    213         READ   (WDO(JWD,1),'(//)',END=106)  
+    214         DO WHILE (JDAY1 < JDAY)  
+    215           READ (WDO(JWD,1),*,END=106) JDAY1                    !'(F8.0)'
+    216         END DO  
+    217         BACKSPACE (WDO(JWD,1))  
+    218 106     JDAY1 = 0.0  
+    219         IF(L2==0)THEN
+    220         OPEN   (WDO(JWD,2),FILE='t_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),POSITION='APPEND')    ! '.opt' SW 4
+    220 /14/2017 repeated for all .opt below for Downstream outflow
+    221         ELSE
+
+Page 5           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    222         OPEN   (WDO(JWD,2),FILE=WDOFN(1:L2)//'t_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),POSITION='APPEND')    
+    222 !
+    223         ENDIF
+    224         
+    225         REWIND (WDO(JWD,2))  
+    226         READ   (WDO(JWD,2),'(//)',END=107)  
+    227         DO WHILE (JDAY1 < JDAY)  
+    228           READ (WDO(JWD,2),*,END=107) JDAY1                    !'(F8.0)'
+    229         END DO  
+    230         BACKSPACE (WDO(JWD,2))  
+    231 107     JDAY1=0.0  
+    232         IF (CONSTITUENTS) THEN  
+    233           IF(L2==0)THEN
+    234           OPEN   (WDO(JWD,3),FILE='c_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),POSITION='APPEND')
+    235           ELSE
+    236           OPEN   (WDO(JWD,3),FILE=WDOFN(1:L2)//'c_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),POSITION='APPEND')  
+    236             
+    237           ENDIF
+    238           
+    239           REWIND (WDO(JWD,3))  
+    240           READ   (WDO(JWD,3),'(//)',END=108)  
+    241           DO WHILE (JDAY1 < JDAY)  
+    242             READ (WDO(JWD,3),*,END=108) JDAY1                   ! '(F8.0)'
+    243           END DO  
+    244           BACKSPACE (WDO(JWD,3))  
+    245 108       CONTINUE  
+    246           JDAY1=0.0  
+    247         END IF  
+    248         IF (DERIVED_CALC) THEN  
+    249           IF(L2==0)THEN
+    250           OPEN   (WDO(JWD,4),FILE='d_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),POSITION='APPEND')
+    251           ELSE
+    252           OPEN   (WDO(JWD,4),FILE=WDOFN(1:L2)//'d_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),POSITION='APPEND')  
+    252             
+    253           ENDIF
+    254           
+    255           REWIND (WDO(JWD,4))  
+    256           READ   (WDO(JWD,4),'(//)')  
+    257           DO WHILE (JDAY1 < JDAY)  
+    258             READ (WDO(JWD,4),*,END=109) JDAY1                    ! '(F8.0)'
+    259           END DO  
+    260           BACKSPACE (WDO(JWD,4))  
+    261 109       CONTINUE  
+    262           JDAY1 = 0.0  
+    263         END IF  
+    264 ! Output of withdrawal layers
+    265           OPEN   (WDO(JWD,5),FILE=WDOFN(1:L2)//'qwo_layers_'//SEGNUM(1:L)//'_'//WDOFN(L1:L1+4),POSITION='APPEND')           
+    265        !SR 12/19/2022
+    266 
+    267           REWIND (WDO(JWD,5))                                                                                         !SR 12
+    267 /19/2022
+    268           READ   (WDO(JWD,5),'(//)')                                                                                  !SR 12
+    268 /19/2022
+    269           DO WHILE (JDAY1 < JDAY .AND. .NOT. EOF(WDO(JWD,5)))                                                         !SR 12
+    269 /19/2022
+    270             READ (WDO(JWD,5),*) JDAY1                                                                                 !SR 12
+    270 /19/2022
+
+Page 6           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    271           END DO                                                                                                      !SR 12
+    271 /19/2022
+    272           IF (JDAY1 >= JDAY) BACKSPACE (WDO(JWD,5))                                                                   !SR 12
+    272 /19/2022
+    273           JDAY1 = 0.0                                                                                                 !SR 12
+    273 /19/2022
+    274           
+    275 ! Determine the # of withdrawals at the WITH SEG
+    276         DO JB=1,NBR  ! structures
+    277           IF(IWDO(JWD)==DS(JB) .AND. NSTR(JB) /= 0)THEN  
+    278             DO JS=1,NSTR(JB)  
+    279               JFILE=JFILE+1  
+    280               WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+    281               SEGNUM2 = ADJUSTL(SEGNUM2)  
+    282               L3      = LEN_TRIM(SEGNUM2)  
+    283               TITLEWITH2=' STR WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+    284               WRITE(SEGNUM,'(F10.0)')ESTR(JS,JB)  
+    285               SEGNUM = ADJUSTL(SEGNUM)  
+    286               L      = LEN_TRIM(SEGNUM)  
+    287               TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+    288               WRITE(SEGNUM,'(I0)')JS  
+    289               SEGNUM = ADJUSTL(SEGNUM)  
+    290               L      = LEN_TRIM(SEGNUM)  
+    291               WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1 
+    292             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_str'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='APP
+    292 END')                
+    293               REWIND(WDO2(JFILE,1))  
+    294               READ   (WDO2(JFILE,1),'(//)')  
+    295               DO WHILE (JDAY1 < JDAY)  
+    296                 READ (WDO2(JFILE,1),*,END=110) JDAY1           ! '(F8.0)'
+    297               END DO  
+    298               BACKSPACE (WDO2(JFILE,1))  
+    299 110           CONTINUE  
+    300               JDAY1 = 0.0  
+    301                 
+    302               WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+    303             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_str'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='APP
+    303 END')                  
+    304                REWIND(WDO2(JFILE,2))  
+    305               READ   (WDO2(JFILE,2),'(//)')  
+    306               DO WHILE (JDAY1 < JDAY)  
+    307                 READ (WDO2(JFILE,2),*,END=111) JDAY1          ! '(F8.0)'
+    308               END DO  
+    309               BACKSPACE (WDO2(JFILE,2))  
+    310 111           CONTINUE  
+    311               JDAY1 = 0.0  
+    312               IF (CONSTITUENTS) THEN  
+    313                 WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+    314                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_str'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION=
+    314 'APPEND')                    
+    315                 REWIND(WDO2(JFILE,3))  
+    316                 READ   (WDO2(JFILE,3),'(//)')  
+    317                 DO WHILE (JDAY1 < JDAY)  
+    318                   READ (WDO2(JFILE,3),*,END=112) JDAY1        ! '(F8.0)'
+    319                 END DO  
+    320                 BACKSPACE (WDO2(JFILE,3))  
+    321 112             CONTINUE  
+
+Page 7           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    322                 JDAY1 = 0.0  
+    323               ENDIF  
+    324                 
+    325               IF (DERIVED_CALC) THEN  
+    326                 WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+    327                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_str'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION=
+    327 'APPEND')                    
+    328                 REWIND(WDO2(JFILE,4))  
+    329                 READ   (WDO2(JFILE,4),'(//)')  
+    330                 DO WHILE (JDAY1 < JDAY)  
+    331                   READ (WDO2(JFILE,4),*,END=113) JDAY1          !'(F8.0)'
+    332                 END DO  
+    333                 BACKSPACE (WDO2(JFILE,4))  
+    334 113             CONTINUE  
+    335                 JDAY1 = 0.0  
+    336               ENDIF  
+    337             ENDDO  
+    338           ENDIF  
+    339         ENDDO  
+    340           
+    341         DO JS=1,NWD  ! withdrawals
+    342           IF(IWDO(JWD) == IWD(JS))THEN  
+    343             JFILE=JFILE+1  
+    344             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+    345             SEGNUM2 = ADJUSTL(SEGNUM2)  
+    346             L3      = LEN_TRIM(SEGNUM2)  
+    347             TITLEWITH2=' WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+    348             WRITE(SEGNUM,'(F10.0)')EWD(JS)  
+    349             SEGNUM = ADJUSTL(SEGNUM)  
+    350             L      = LEN_TRIM(SEGNUM)  
+    351             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+    352             WRITE(SEGNUM,'(I0)')JS  
+    353             SEGNUM = ADJUSTL(SEGNUM)  
+    354             L      = LEN_TRIM(SEGNUM)  
+    355             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+    356             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_wd'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='APPE
+    356 ND')                
+    357             REWIND(WDO2(JFILE,1))  
+    358             READ   (WDO2(JFILE,1),'(//)')  
+    359             DO WHILE (JDAY1 < JDAY)  
+    360               READ (WDO2(JFILE,1),*,END=114) JDAY1           !'(F8.0)'
+    361             END DO  
+    362             BACKSPACE (WDO2(JFILE,1))  
+    363 114         CONTINUE  
+    364             JDAY1 = 0.0  
+    365             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+    366             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_wd'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='APPE
+    366 ND')                
+    367              REWIND(WDO2(JFILE,2))  
+    368             READ   (WDO2(JFILE,2),'(//)')  
+    369             DO WHILE (JDAY1 < JDAY)  
+    370               READ (WDO2(JFILE,2),*,END=115) JDAY1       !'(F8.0)'
+    371             END DO  
+    372             BACKSPACE (WDO2(JFILE,2))  
+    373 115         CONTINUE  
+    374             JDAY1 = 0.0  
+    375             IF (CONSTITUENTS) THEN  
+
+Page 8           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    376               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+    377                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_wd'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='
+    377 APPEND') 
+    378               REWIND(WDO2(JFILE,3))  
+    379               READ   (WDO2(JFILE,3),'(//)')  
+    380               DO WHILE (JDAY1 < JDAY)  
+    381                 READ (WDO2(JFILE,3),*,END=116) JDAY1      !'(F8.0)'
+    382               END DO  
+    383               BACKSPACE (WDO2(JFILE,3))  
+    384 116           CONTINUE  
+    385               JDAY1 = 0.0  
+    386             ENDIF  
+    387             IF (DERIVED_CALC) THEN  
+    388               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+    389                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_wd'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='
+    389 APPEND') 
+    390               REWIND(WDO2(JFILE,4))  
+    391               READ   (WDO2(JFILE,4),'(//)')  
+    392               DO WHILE (JDAY1 < JDAY)  
+    393                 READ (WDO2(JFILE,4),*,END=117) JDAY1        !'(F8.0)'
+    394               END DO  
+    395               BACKSPACE (WDO2(JFILE,4))  
+    396 117           CONTINUE  
+    397               JDAY1 = 0.0  
+    398             ENDIF  
+    399           ENDIF  
+    400         ENDDO  
+    401           
+    402         DO JS=1,NSP  ! spillways
+    403           IF(IWDO(JWD) == IUSP(JS))THEN  
+    404             JFILE=JFILE+1  
+    405             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+    406             SEGNUM2 = ADJUSTL(SEGNUM2)  
+    407             L3      = LEN_TRIM(SEGNUM2)  
+    408             TITLEWITH2=' SPILLWAY WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+    409             WRITE(SEGNUM,'(F10.0)')ESP(JS)  
+    410             SEGNUM = ADJUSTL(SEGNUM)  
+    411             L      = LEN_TRIM(SEGNUM)  
+    412             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+    413             WRITE(SEGNUM,'(I0)')JS  
+    414             SEGNUM = ADJUSTL(SEGNUM)  
+    415             L      = LEN_TRIM(SEGNUM)  
+    416             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+    417             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_sp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='APPE
+    417 ND')                
+    418             REWIND(WDO2(JFILE,1))  
+    419             READ   (WDO2(JFILE,1),'(//)')  
+    420             DO WHILE (JDAY1 < JDAY)  
+    421               READ (WDO2(JFILE,1),*,END=118) JDAY1      !'(F8.0)'
+    422             END DO  
+    423             BACKSPACE (WDO2(JFILE,1))  
+    424 118         CONTINUE  
+    425             JDAY1 = 0.0  
+    426             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+    427             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_sp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='APPE
+    427 ND')                
+    428             REWIND(WDO2(JFILE,2))  
+
+Page 9           Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    429             READ   (WDO2(JFILE,2),'(//)')  
+    430             DO WHILE (JDAY1 < JDAY)  
+    431               READ (WDO2(JFILE,2),*,END=119) JDAY1      !'(F8.0)'
+    432             END DO  
+    433             BACKSPACE (WDO2(JFILE,2))  
+    434 119         CONTINUE  
+    435             JDAY1 = 0.0  
+    436             IF (CONSTITUENTS) THEN  
+    437               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+    438                  OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_sp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION=
+    438 'APPEND')                  
+    439               REWIND(WDO2(JFILE,3))  
+    440               READ   (WDO2(JFILE,3),'(//)')  
+    441               DO WHILE (JDAY1 < JDAY)  
+    442                 READ (WDO2(JFILE,3),*,END=120) JDAY1      !'(F8.0)'
+    443               END DO  
+    444               BACKSPACE (WDO2(JFILE,3))  
+    445 120           CONTINUE  
+    446               JDAY1 = 0.0  
+    447             ENDIF  
+    448             IF (DERIVED_CALC) THEN  
+    449               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+    450                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_sp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='
+    450 APPEND')                  
+    451               REWIND(WDO2(JFILE,4))  
+    452               READ   (WDO2(JFILE,4),'(//)')  
+    453               DO WHILE (JDAY1 < JDAY)  
+    454                 READ (WDO2(JFILE,4),*,END=121) JDAY1          !'(F8.0)'
+    455               END DO  
+    456               BACKSPACE (WDO2(JFILE,4))  
+    457 121           CONTINUE  
+    458               JDAY1 = 0.0  
+    459             ENDIF  
+    460           ENDIF  
+    461         ENDDO  
+    462           
+    463           
+    464         DO JS=1,NPU  ! pumps
+    465           IF(IWDO(JWD) == IUPU(JS))THEN  
+    466             JFILE=JFILE+1  
+    467             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+    468             SEGNUM2 = ADJUSTL(SEGNUM2)  
+    469             L3      = LEN_TRIM(SEGNUM2)  
+    470             TITLEWITH2='PUMP WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+    471             WRITE(SEGNUM,'(F10.0)')EPU(JS)  
+    472             SEGNUM = ADJUSTL(SEGNUM)  
+    473             L      = LEN_TRIM(SEGNUM)  
+    474             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+    475             WRITE(SEGNUM,'(I0)')JS  
+    476             SEGNUM = ADJUSTL(SEGNUM)  
+    477             L      = LEN_TRIM(SEGNUM)  
+    478             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1 
+    479             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_pmp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='APP
+    479 END')                
+    480             REWIND(WDO2(JFILE,1))  
+    481             READ   (WDO2(JFILE,1),'(//)')  
+    482             DO WHILE (JDAY1 < JDAY)  
+
+Page 10          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    483               READ (WDO2(JFILE,1),*,END=122) JDAY1        !'(F8.0)'
+    484             END DO  
+    485             BACKSPACE (WDO2(JFILE,1))  
+    486 122         CONTINUE  
+    487             JDAY1 = 0.0  
+    488             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+    489             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_pmp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='APP
+    489 END')                
+    490             REWIND(WDO2(JFILE,2))  
+    491             READ   (WDO2(JFILE,2),'(//)')  
+    492             DO WHILE (JDAY1 < JDAY)  
+    493               READ (WDO2(JFILE,2),*,END=123) JDAY1         !'(F8.0)'
+    494             END DO  
+    495             BACKSPACE (WDO2(JFILE,2))  
+    496 123         CONTINUE  
+    497             JDAY1 = 0.0  
+    498             IF (CONSTITUENTS) THEN  
+    499               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+    500                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_pmp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION=
+    500 'APPEND')                  
+    501               REWIND(WDO2(JFILE,3))  
+    502               READ   (WDO2(JFILE,3),'(//)')  
+    503               DO WHILE (JDAY1 < JDAY)  
+    504                 READ (WDO2(JFILE,3),*,END=124) JDAY1      !'(F8.0)'
+    505               END DO  
+    506               BACKSPACE (WDO2(JFILE,3))  
+    507 124           CONTINUE  
+    508               JDAY1 = 0.0  
+    509             ENDIF  
+    510             IF (DERIVED_CALC) THEN  
+    511               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+    512                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_pmp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION=
+    512 'APPEND')                  
+    513               REWIND(WDO2(JFILE,4))  
+    514               READ   (WDO2(JFILE,4),'(//)')  
+    515               DO WHILE (JDAY1 < JDAY)  
+    516                 READ (WDO2(JFILE,4),*,END=125) JDAY1     
+    517               END DO  
+    518               BACKSPACE (WDO2(JFILE,4))  
+    519 125           CONTINUE  
+    520               JDAY1 = 0.0  
+    521             ENDIF  
+    522           ENDIF  
+    523         ENDDO  
+    524           
+    525           
+    526         DO JS=1,NPI  ! pipes
+    527           IF(IWDO(JWD) == IUPI(JS))THEN  
+    528             JFILE=JFILE+1  
+    529             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+    530             SEGNUM2 = ADJUSTL(SEGNUM2)  
+    531             L3      = LEN_TRIM(SEGNUM2)  
+    532             TITLEWITH2='PIPE WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+    533             WRITE(SEGNUM,'(F10.0)')EUPI(JS)  
+    534             SEGNUM = ADJUSTL(SEGNUM)  
+    535             L      = LEN_TRIM(SEGNUM)  
+    536             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+
+Page 11          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    537             WRITE(SEGNUM,'(I0)')JS  
+    538             SEGNUM = ADJUSTL(SEGNUM)  
+    539             L      = LEN_TRIM(SEGNUM)  
+    540             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+    541             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_pipe'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='AP
+    541 PEND')
+    542             REWIND(WDO2(JFILE,1))  
+    543             READ   (WDO2(JFILE,1),'(//)')  
+    544             DO WHILE (JDAY1 < JDAY)  
+    545               READ (WDO2(JFILE,1),*,END=126) JDAY1  
+    546             END DO  
+    547             BACKSPACE (WDO2(JFILE,1))  
+    548 126         CONTINUE  
+    549             JDAY1 = 0.0  
+    550             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1 
+    551             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_pipe'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='AP
+    551 PEND')                
+    552             REWIND(WDO2(JFILE,2))  
+    553             READ   (WDO2(JFILE,2),'(//)')  
+    554             DO WHILE (JDAY1 < JDAY)  
+    555               READ (WDO2(JFILE,2),*,END=127) JDAY1  
+    556             END DO  
+    557             BACKSPACE (WDO2(JFILE,2))  
+    558 127         CONTINUE  
+    559             JDAY1 = 0.0  
+    560             IF (CONSTITUENTS) THEN  
+    561               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+    562                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_pipe'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION
+    562 ='APPEND')
+    563               REWIND(WDO2(JFILE,3))  
+    564               READ   (WDO2(JFILE,3),'(//)')  
+    565               DO WHILE (JDAY1 < JDAY)  
+    566                 READ (WDO2(JFILE,3),*,END=128) JDAY1  
+    567               END DO  
+    568               BACKSPACE (WDO2(JFILE,3))  
+    569 128           CONTINUE  
+    570               JDAY1 = 0.0  
+    571             ENDIF  
+    572             IF (DERIVED_CALC) THEN  
+    573               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+    574                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_pipe'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION
+    574 ='APPEND')                  
+    575               REWIND(WDO2(JFILE,4))  
+    576               READ   (WDO2(JFILE,4),'(//)')  
+    577               DO WHILE (JDAY1 < JDAY)  
+    578                 READ (WDO2(JFILE,4),*,END=129) JDAY1  
+    579               END DO  
+    580               BACKSPACE (WDO2(JFILE,4))  
+    581 129           CONTINUE  
+    582               JDAY1 = 0.0  
+    583             ENDIF  
+    584           ENDIF  
+    585         ENDDO  
+    586           
+    587         DO JS=1,NGT  ! gates
+    588           IF(IWDO(JWD) == IUGT(JS))THEN  
+    589             JFILE=JFILE+1  
+
+Page 12          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    590             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+    591             SEGNUM2 = ADJUSTL(SEGNUM2)  
+    592             L3      = LEN_TRIM(SEGNUM2)  
+    593             TITLEWITH2='GATE WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+    594             WRITE(SEGNUM,'(F10.0)')EGT(JS)  
+    595             SEGNUM = ADJUSTL(SEGNUM)  
+    596             L      = LEN_TRIM(SEGNUM)  
+    597             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+    598             WRITE(SEGNUM,'(I0)')JS  
+    599             SEGNUM = ADJUSTL(SEGNUM)  
+    600             L      = LEN_TRIM(SEGNUM)  
+    601             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+    602             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_gate'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='AP
+    602 PEND')                
+    603             REWIND(WDO2(JFILE,1))  
+    604             READ   (WDO2(JFILE,1),'(//)')  
+    605             DO WHILE (JDAY1 < JDAY)  
+    606               READ (WDO2(JFILE,1),*,END=130) JDAY1  
+    607             END DO  
+    608             BACKSPACE (WDO2(JFILE,1))  
+    609 130         CONTINUE  
+    610             JDAY1 = 0.0  
+    611             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+    612             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_gate'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION='AP
+    612 PEND')                
+    613              REWIND(WDO2(JFILE,2))  
+    614             READ   (WDO2(JFILE,2),'(//)')  
+    615             DO WHILE (JDAY1 < JDAY)  
+    616               READ (WDO2(JFILE,2),*,END=131) JDAY1  
+    617             END DO  
+    618             BACKSPACE (WDO2(JFILE,2))  
+    619 131         CONTINUE  
+    620             JDAY1 = 0.0  
+    621             IF (CONSTITUENTS) THEN  
+    622               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+    623                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_gate'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION
+    623 ='APPEND')                  
+    624               REWIND(WDO2(JFILE,3))  
+    625               READ   (WDO2(JFILE,3),'(//)')  
+    626               DO WHILE (JDAY1 < JDAY)  
+    627                 READ (WDO2(JFILE,3),*,END=132) JDAY1  
+    628               END DO  
+    629               BACKSPACE (WDO2(JFILE,3))  
+    630 132           CONTINUE  
+    631               JDAY1 = 0.0  
+    632             ENDIF  
+    633             IF (DERIVED_CALC) THEN  
+    634               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+    635                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_gate'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),POSITION
+    635 ='APPEND')                  
+    636               REWIND(WDO2(JFILE,4))  
+    637               READ   (WDO2(JFILE,4),'(//)')  
+    638               DO WHILE (JDAY1 < JDAY)  
+    639                 READ (WDO2(JFILE,4),*,END=133) JDAY1  
+    640               END DO  
+    641               BACKSPACE (WDO2(JFILE,4))  
+    642 133           CONTINUE  
+
+Page 13          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    643               JDAY1 = 0.0  
+    644             ENDIF  
+    645           ENDIF  
+    646         ENDDO  
+    647       END DO  
+    648     END IF  
+    649 ! BIOENERGETICS mlm
+    650     IF (BIOEXP) THEN  
+    651       JDAY1=0.0  
+    652       L1 = SCAN(BIOFN,'.')  
+    653       DO J=1,NIBIO  
+    654         WRITE (SEGNUM,'(I0)') J  
+    655         SEGNUM = ADJUSTL(SEGNUM)  
+    656         L      = LEN_TRIM(SEGNUM)  
+    657         BIOFN  = BIOFN(1:L1-1)//'_'//SEGNUM(1:L)//'.OPT'  
+    658         OPEN  (BIOEXPFN(J),FILE=BIOFN,POSITION='APPEND')  
+    659         REWIND (BIOEXPFN(J))  
+    660         READ(bioexpfn(j),'(/)',end=1111)  
+    661         DO WHILE (JDAY1<JDAY)  
+    662           read (bioexpfn(j),'(F8.0)',end = 1111)JDAY1  
+    663         END DO  
+    664         BACKSPACE(BIOEXPFN(J))  
+    665 1111    CONTINUE  
+    666         JDAY1=0.0  
+    667       END DO  
+    668         
+    669       L1 = SCAN(WEIGHTFN,'.')  
+    670       DO J=1,NIBIO  
+    671         WRITE (SEGNUM,'(I0)') J  
+    672         SEGNUM = ADJUSTL(SEGNUM)  
+    673         L      = LEN_TRIM(SEGNUM)  
+    674         WEIGHTFN  = WEIGHTFN(1:L1-1)//'_'//SEGNUM(1:L)//'.OPT'  
+    675         OPEN  (WEIGHTNUM(J),FILE=WEIGHTFN,POSITION='APPEND')  
+    676         REWIND (WEIGHTNUM(J))  
+    677         READ(weightnum(j),'(/)',end=1112)  
+    678         DO WHILE (JDAY1<JDAY)  
+    679           read (weightnum(j),'(F10.0)',end = 1112)JDAY1  
+    680         END DO  
+    681         BACKSPACE(WEIGHTNUM(J))  
+    682 1112    CONTINUE  
+    683         JDAY1=0.0  
+    684       END DO  
+    685     END IF  
+    686 
+    687     IF (TIME_SERIES) THEN  
+    688       L1 = SCAN(TSRFN1,'.',BACK=.TRUE.)   ! SW 8/22/14 CHECKS FROM RIGHTHAND SIDE NOT LEFTHANDSIDE
+    689       DO J=1,NIKTSR  
+    690         WRITE (SEGNUM,'(I0)') ITSR(J)  
+    691         SEGNUM = ADJUSTL(SEGNUM)  
+    692         L      = LEN_TRIM(SEGNUM)  
+    693         WRITE (SEGNUM2,'(I0)')J  
+    694         SEGNUM2 = ADJUSTL(SEGNUM2)  
+    695         L2      = LEN_TRIM(SEGNUM2)  
+    696         TSRFN  = TSRFN1(1:L1-1)//'_'//SEGNUM2(1:L2)//'_seg'//SEGNUM(1:L)//'.'//TSRFN1(L1+1:L1+4)                  !'.opt'
+    697         OPEN   (TSR(J),FILE=TSRFN,POSITION='APPEND')  
+    698         REWIND (TSR(J))  
+    699 ! READ   (TSR(J),'(A72)',END=140)   (LINE,I=1,11)
+
+Page 14          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    700         READ   (TSR(J),'(/F10.3)',END=140) JDAYTS  
+    701         DO WHILE (JDAYTS < JDAY)  
+    702           READ (TSR(J),'(F10.0)',END=140) JDAYTS  
+    703         END DO  
+    704         BACKSPACE (TSR(J))  
+    705 140     CONTINUE  
+    706       END DO  
+    707     END IF  
+    708     DO JW=1,NWB  
+    709       IF (FLOWBALC=='      ON') THEN  
+    710         OPEN(FLOWBFN,FILE='flowbal.csv',POSITION='APPEND')  
+    711         JDAY1=0.0  
+    712         REWIND (FLOWBFN)  
+    713         READ   (FLOWBFN,'(/)',END=141)  
+    714         DO WHILE (JDAY1 < JDAY)  
+    715           READ (FLOWBFN,*,END=141) JDAY1  
+    716         END DO  
+    717         BACKSPACE (FLOWBFN)  
+    718 141     JDAY1=0.0  
+    719         EXIT  
+    720       ENDIF  
+    721     ENDDO
+    722     DO JW=1,NWB  
+    723         IF (NPBALC=='      ON') THEN
+    724         OPEN(MASSBFN,FILE='massbal.csv',POSITION='APPEND')  
+    725         JDAY1=0.0  
+    726         REWIND (MASSBFN)  
+    727         READ   (MASSBFN,'(/)',END=143)  
+    728         DO WHILE (JDAY1 < JDAY)  
+    729           READ (MASSBFN,*,END=143) JDAY1  
+    730         END DO  
+    731         BACKSPACE (MASSBFN)  
+    732 143     JDAY1=0.0  
+    733         EXIT  
+    734       ENDIF  
+    735     ENDDO  
+    736     IF(WLC=='      ON')THEN  
+    737       OPEN(WLFN,FILE='wl.csv',POSITION='APPEND')  
+    738       JDAY1=0.0  
+    739       REWIND (WLFN)  
+    740       READ   (WLFN,'(//)',END=142)  
+    741       DO WHILE (JDAY1 < JDAY)  
+    742         READ (WLFN,'(F10.0)',END=142) JDAY1  
+    743       END DO  
+    744       BACKSPACE (WLFN)  
+    745 142   JDAY1=0.0  
+    746     ENDIF  
+    747   ELSE  
+    748 ! *** Cold Start Output File Initialization
+    749       
+    750     DO JW=1,NWB  ! moved so that x1 get initialized even if tecplot (and contour) OFF for first water body but ON for others
+    750    ! cb 10/10/10
+    751 !c calculating longitudinal distance of segments
+    752       IF(JW == 1)DIST=0.0  
+    753       DO JB=BS(JW),BE(JW)  
+    754         X1(US(JB))=DIST+DLX(US(JB))/2.  
+    755         DO I=US(JB)+1,DS(JB)  
+
+Page 15          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    756           DIST=DIST+(DLX(I)+DLX(I-1))/2.0  
+    757           X1(I)=DIST  
+    758         END DO  
+    759         DIST=DIST+DLX(DS(JB))  
+    760         X1(DS(JB)+1)=DIST  
+    761       ENDDO  
+    762     END DO  
+    763       
+    764   INQUIRE(FILE='w2_lake_river_contour.csv',EXIST=LAKE_RIVER_CONTOURC)    
+    765   
+    766 IF(LAKE_RIVER_CONTOURC)THEN
+    767   OPEN (LAKE_RIVER_CONTOUR,FILE='w2_lake_river_contour.csv',STATUS='OLD',IOSTAT=I)
+    768   READ(LAKE_RIVER_CONTOUR,*)
+    769   READ(LAKE_RIVER_CONTOUR,*)LAKE_RIVER_CONTOUR_ON
+    770   READ(LAKE_RIVER_CONTOUR,*)
+    771   READ(LAKE_RIVER_CONTOUR,*)NUM_LAKE_CONTOUR,LAKE_CONTOUR_FORMAT
+    772   READ(LAKE_RIVER_CONTOUR,*)
+    773   DO JJ=1,NUM_LAKE_CONTOUR
+    774   READ(LAKE_RIVER_CONTOUR,*)LAKE_CONTOUR_SEG(JJ),LAKE_CONTOUR_START(JJ),LAKE_CONTOUR_FREQ(JJ)
+    775   IF(JDAY >= LAKE_CONTOUR_START(JJ))THEN
+    776       NXT_LAKE_CONTOUR(JJ)=JDAY
+    777       ELSE
+    778       NXT_LAKE_CONTOUR(JJ)=LAKE_CONTOUR_START(JJ)
+    779   ENDIF
+    780   
+    781     DO JW=1,NWB
+    782       IF(US(BS(JW))<= LAKE_CONTOUR_SEG(JJ) .AND. DS(BE(JW)) >= LAKE_CONTOUR_SEG(JJ))THEN
+    783       JW_LAKE_CONTOUR(JJ)=JW
+    784       EXIT
+    785       ENDIF
+    786     ENDDO
+    787     ENDDO
+    788   READ(LAKE_RIVER_CONTOUR,*)
+    789   READ(LAKE_RIVER_CONTOUR,*)NUM_RIVER_CONTOUR,RIVER_CONTOUR_FORMAT
+    790   READ(LAKE_RIVER_CONTOUR,*)
+    791   DO JJ=1,NUM_RIVER_CONTOUR
+    792   READ(LAKE_RIVER_CONTOUR,*)RIVER_CONTOUR_BR1(JJ),RIVER_CONTOUR_BR2(JJ),RIVER_CONTOUR_START(JJ),RIVER_CONTOUR_FREQ(JJ)
+    793   IF(JDAY >= RIVER_CONTOUR_START(JJ))THEN
+    794       NXT_RIVER_CONTOUR(JJ)=JDAY
+    795       ELSE
+    796       NXT_RIVER_CONTOUR(JJ)=RIVER_CONTOUR_START(JJ)
+    797   ENDIF
+    798     DO JW=1,NWB
+    799       IF(BS(JW)<= RIVER_CONTOUR_BR1(JJ) .AND. BE(JW) >= RIVER_CONTOUR_BR1(JJ))THEN
+    800       JW_RIVER_CONTOUR(JJ)=JW
+    801       EXIT
+    802       ENDIF
+    803     ENDDO
+    804   ENDDO
+    805   CLOSE(LAKE_RIVER_CONTOUR)
+    806   IF(LAKE_RIVER_CONTOUR_ON=='ON')THEN
+    807           DO JJ=1,NUM_LAKE_CONTOUR
+    808           WRITE(ICHAR3,'(I3)')LAKE_CONTOUR_SEG(JJ)
+    809           FILE_LAKE_CONTOUR_T(JJ)='LakeContour_T_Seg'//ADJUSTL(trim(ICHAR3))//'.csv'
+    810           OPEN(LAKE_RIVER_CONTOUR+JJ-1,FILE=FILE_LAKE_CONTOUR_T(JJ),status='unknown')
+    811           IF(LAKE_CONTOUR_FORMAT == 1)THEN
+    812           WRITE(LAKE_RIVER_CONTOUR+JJ-1,*)'JDAY,ELEVATION(m),TEMPERATURE(C)'
+
+Page 16          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    813           ELSE
+    814           WRITE(LAKE_RIVER_CONTOUR+JJ-1,'("TIME,",*(F8.2,","))')((EL(K,LAKE_CONTOUR_SEG(JJ))+EL(K,LAKE_CONTOUR_SEG(JJ)))*0.5
+    814 ,K=2,KB(LAKE_CONTOUR_SEG(JJ)))
+    815           ENDIF
+    816               IF(OXYGEN_DEMAND)THEN
+    817               WRITE(ICHAR3,'(I3)')LAKE_CONTOUR_SEG(JJ)
+    818               FILE_LAKE_CONTOUR_DO(JJ)='LakeContour_DO_Seg'//ADJUSTL(trim(ICHAR3))//'.csv'
+    819               OPEN(LAKE_RIVER_CONTOUR+10+JJ-1,FILE=FILE_LAKE_CONTOUR_DO(JJ),status='unknown')
+    820               IF(LAKE_CONTOUR_FORMAT == 1)THEN
+    821               WRITE(LAKE_RIVER_CONTOUR+10+JJ-1,*)'JDAY,ELEVATION(m),DisslvedOxygen(mg/l)'
+    822               ELSE
+    823               WRITE(LAKE_RIVER_CONTOUR+10+JJ-1,'("TIME,",*(F8.2,","))')((EL(K,LAKE_CONTOUR_SEG(JJ))+EL(K,LAKE_CONTOUR_SEG(JJ
+    823 )))*0.5,K=2,KB(LAKE_CONTOUR_SEG(JJ)))
+    824               ENDIF
+    825               ENDIF
+    826           ENDDO
+    827           
+    828           DO JJ=1,NUM_RIVER_CONTOUR
+    829           WRITE(ICHAR3,'(I3)')RIVER_CONTOUR_BR1(JJ)
+    830           FILE_RIVER_CONTOUR_T(JJ)='RiverContour_T_Br'//ADJUSTL(trim(ICHAR3))//'.csv'
+    831           OPEN(LAKE_RIVER_CONTOUR+20+JJ-1,FILE=FILE_RIVER_CONTOUR_T(JJ),status='unknown')
+    832           IF(RIVER_CONTOUR_FORMAT==1)THEN
+    833           WRITE(LAKE_RIVER_CONTOUR+20+JJ-1,*)'JDAY,DISTANCE(M),TEMPERATURE(C)'
+    834           ELSE
+    835           WRITE(LAKE_RIVER_CONTOUR+20+JJ-1,'("TIME,",*(F8.2,","))')((X1(I),I=US(JB),DS(JB)),JB=RIVER_CONTOUR_BR1(JJ),RIVER_C
+    835 ONTOUR_BR2(JJ))
+    836           ENDIF
+    837               IF(OXYGEN_DEMAND)THEN
+    838               WRITE(ICHAR3,'(I3)')LAKE_CONTOUR_SEG(JJ)
+    839               FILE_RIVER_CONTOUR_DO(JJ)='RiverContour_DO_Br'//ADJUSTL(trim(ICHAR3))//'.csv'
+    840               OPEN(LAKE_RIVER_CONTOUR+30+JJ-1,FILE=FILE_RIVER_CONTOUR_DO(JJ),status='unknown')
+    841               IF(RIVER_CONTOUR_FORMAT == 1)THEN
+    842               WRITE(LAKE_RIVER_CONTOUR+30+JJ-1,*)'JDAY,ELEVATION(M),DisslvedOxygen(mg/l)'
+    843               ELSE
+    844               WRITE(LAKE_RIVER_CONTOUR+30+JJ-1,'("TIME,",*(F8.2,","))')((EL(K,LAKE_CONTOUR_SEG(JJ))+EL(K,LAKE_CONTOUR_SEG(JJ
+    844 )))*0.5,K=2,KB(LAKE_CONTOUR_SEG(JJ)))
+    845               ENDIF
+    846               ENDIF
+    847           ENDDO
+    848     ENDIF  
+    849 ENDIF
+    850 
+    851     DO JW=1,NWB  
+    852       IF (SNAPSHOT(JW))    OPEN (SNP(JW),FILE=SNPFN(JW),STATUS='UNKNOWN')  
+    853 !IF (VECTOR(JW))      OPEN (VPL(JW),FILE=VPLFN(JW),STATUS='UNKNOWN')
+    854       IF (PROFILE(JW).and. iprf(1,1) /= -1)     OPEN (PRF(JW),FILE=PRFFN(JW),STATUS='UNKNOWN')  
+    855       IF (SPREADSHEET(JW)) OPEN (SPR(JW),FILE=SPRFN(JW),STATUS='UNKNOWN')  
+    856       IF(SPRC(JW)=='     ONV') OPEN (SPRV(JW),FILE=SPRVFN(JW),STATUS='UNKNOWN')     ! SW 9/28/2018
+    857       IF (CONTOUR(JW))     OPEN (CPL(JW),FILE=CPLFN(JW),STATUS='UNKNOWN')  
+    858       IF (FLUX(JW))THEN  
+    859         OPEN (FLX(JW),FILE=FLXFN(JW),STATUS='UNKNOWN')  
+    860         WRITE (SEGNUM,'(I0)') JW  
+    861         SEGNUM = ADJUSTL(SEGNUM)  
+    862         L      = LEN_TRIM(SEGNUM)  
+    863               OPEN (FLX2(JW), FILE='kflux_wb'//SEGNUM(1:L)//'.csv',STATUS='UNKNOWN')    ! SW 7/1/2019
+    864         WRITE(FLX2(JW), '("JDAY,  ELTM,",*(A,","))')(KFNAME2(KFCN(JF,JW)),JF=1,NAF(JW))  
+    865       ENDIF  
+
+Page 17          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    866         
+    867 !**** Output files
+    868         
+    869       IF (PROFILE(JW).and. iprf(1,1) /= -1) THEN    ! SW 4/1/2016
+    870         TTIME = TMSTRT  
+    871         DO WHILE (TTIME <= TMEND)  
+    872           NDSP = NDSP+1  
+    873           TTIME = TTIME+PRFF(PRFDP(JW),JW)  
+    874           IF (TTIME >= PRFD(PRFDP(JW)+1,JW)) PRFDP(JW) = PRFDP(JW)+1  
+    875         END DO  
+    876         PRFDP(JW) = 1  
+    877         WRITE (PRF(JW),'(A)')         TITLE  
+    878         WRITE (PRF(JW),'(8I8,L2)')    KMX,NIPRF(JW),NDSP,NCT,NDC,NAC+NACD(JW)+1,PRFDP(JW),KTWB(JW),CONSTITUENTS  
+    879         WRITE (PRF(JW),'(10I8)')      IPRF(1:NIPRF(JW),JW)  
+    880         WRITE (PRF(JW),'(20(1X,A))') ' ON',CPRWBC(:,JW)(6:8),CDWBC(:,JW)(6:8)  
+    881         WRITE (PRF(JW),'(2A)')       'Temperature,oC                            ',ADJUSTL(CNAME),ADJUSTL(CDNAME)  
+    882         WRITE (PRF(JW),'(20I4)')      1,CN(1:NAC)+1,CDN(1:NACD(JW),JW)+NCT+1  
+    883         WRITE (PRF(JW),'(10F8.0)')    1.0,CMULT,CDMULT  
+    884         WRITE (PRF(JW),'(20I4)')      (KB(IPRF(I,JW)),I=1,NIPRF(JW))        ! KB(IPRF(1:NIPRF(JW),JW))
+    885         WRITE (PRF(JW),'(10F8.2)')    H  
+    886         DO JP=1,NIPRF(JW)  
+    887           NRS = KB(IPRF(JP,JW))-KTWB(JW)+1  
+    888           WRITE (PRF(JW),'(A8,I4/(8(F10.2)))') 'TEMP    ',NRS,(T2(K,IPRF(JP,JW)),K=KTWB(JW),KB(IPRF(JP,JW)))  
+    889         END DO  
+    890         DO JC=1,NAC  
+    891           IF (PRINT_CONST(CN(JC),JW)) THEN  
+    892             DO JP=1,NIPRF(JW)  
+    893               NRS = KB(IPRF(JP,JW))-KTWB(JW)+1  
+    894               WRITE (PRF(JW),'(A,I4/(8(E13.6,1x)))') ADJUSTL(CNAME2(CN(JC))),NRS,(C2(K,IPRF(JP,JW),CN(JC))*CMULT(CN(JC)),K=K
+    894 TWB(JW),  &                    ! CB 1/25/05
+    895               KB(IPRF(JP,JW)))  
+    896             END DO  
+    897           END IF  
+    898         END DO  
+    899         DO JD=1,NACD(JW)  
+    900           DO JP=1,NIPRF(JW)  
+    901             NRS = KB(IPRF(JP,JW))-KTWB(JW)+1  
+    902             WRITE (PRF(JW),'(A,I4/(8(E13.6,1x)))') ADJUSTL(CDNAME2(CDN(JD,JW))),NRS,(CD(K,IPRF(JP,JW),CDN(JD,JW))*CDMULT(CDN
+    902 (JD,JW)), &                     ! CB 1/25/05
+    903             K=KTWB(JW),KB(IPRF(JP,JW)))  
+    904           END DO  
+    905         END DO  
+    906       END IF  
+    907       IF (SPREADSHEET(JW)) THEN  
+    908         DO J=1,NISPR(JW)  
+    909           WRITE (SEGNUM,'(I0)') ISPR(J,JW)  
+    910           SEGNUM = ADJUSTL(SEGNUM)  
+    911           L      = LEN_TRIM(SEGNUM)  
+    912           SEG(J) = 'Seg_'//SEGNUM(1:L)
+    913         END DO  
+    914         IF(SPRC(JW)   == '     ONV')THEN
+    915             WRITE (SPRV(JW),'(A,A,*(A7,","))') 'Constituent,','Julian_day,',(SEG(J),J=1,NISPR(JW))     ! SW 9/28/2018
+    916         ENDIF
+    917             WRITE (SPR(JW),'(A,A,A,*("Elevation,",A7,","))') 'Constituent,','Julian_day,','Depth,',(SEG(J),J=1,NISPR(JW))  
+    918         
+    919       END IF  
+    920       IF (CONTOUR(JW)) THEN  
+
+Page 18          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    921         IF(TECPLOT(JW) /= '      ON')THEN  
+    922           WRITE (CPL(JW),'(A)')           TITLE  
+    923           WRITE (CPL(JW),'(8(I8,2X))')    NBR  
+    924           WRITE (CPL(JW),'(8(I8,2X))')    IMX,KMX  
+    925           DO JB=BS(JW),BE(JW)  
+    926             WRITE (CPL(JW),'(9(I8,2X))')  US(JB),DS(JB)  
+    927             WRITE (CPL(JW),'(9(I8,2X))')  KBI(US(JB):DS(JB))      ! SR 7/10/2024  KB
+    928           END DO  
+    929           WRITE (CPL(JW),'(8(E13.6,2X))') DLX  
+    930           WRITE (CPL(JW),'(8(E13.6,2X))') H  
+    931           WRITE (CPL(JW),'(8(I8,2X))')    NAC  
+    932           WRITE (CPL(JW),'(A)')           (CNAME1(CN(JN)),JN=1,NAC)       ! SW 3/1/2017
+    933         ELSE  
+    934 !c calculating longitudinal distance of segments
+    935 !           IF(JW == 1)DIST=0.0
+    936 !           do jb=BS(JW),BE(JW)
+    937 !               x1(us(jb))=dist+dlx(us(jb))/2.
+    938 !               DO I=US(JB)+1,DS(JB)
+    939 !                   DIST=DIST+(DLX(I)+dlx(i-1))/2.0
+    940 !                   X1(I)=DIST
+    941 !               END DO
+    942 !               DIST=DIST+DLX(DS(JB))
+    943 !               X1(DS(JB)+1)=DIST
+    944 !           ENDDO
+    945           WRITE (CPL(JW), *)'TITLE="CE-QUAL-W2"'  
+    946           IF(HABTATC  == '      ON')THEN
+    947               IF(NAC==0)THEN
+    948                   WRITE (CPL(JW),19231)
+    949                   ELSEIF(NACD(JW)==0)THEN
+    950 !WRITE (CPL(JW),19232)(CNAME2(CN(JN)),JN=1,NAC)       !WRITE (CPL(JW),19233)(CNAME2(CN(JN)),JN=1,NAC)    SW 1/17/17
+    951                   WRITE (CPL(JW),19232)(adjustl(CNAME2(CN(JN))),JN=1,NAC)   ! cb 10/18/23
+    952                   ELSEIF(NACD(JW)/=0)THEN
+    953 !WRITE (CPL(JW),19233)(CNAME2(CN(JN)),JN=1,NAC),(CDNAME2(CDN(JD,JW)),JD=1,NACD(JW))
+    954                   WRITE (CPL(JW),19233)(adjustl(CNAME2(CN(JN))),JN=1,NAC),(adjustl(CDNAME2(CDN(JD,JW))),JD=1,NACD(JW))  ! cb
+    954  10/18/23
+    955               ENDIF
+    956           ELSE
+    957                IF(NAC==0)THEN
+    958                   WRITE (CPL(JW),19230)
+    959                   ELSEIF(NACD(JW)==0)THEN
+    960 !WRITE (CPL(JW),19234)(CNAME2(CN(JN)),JN=1,NAC)    !    1/17/17          !WRITE (CPL(JW),19233)(CNAME2(CN(JN)),JN=1,NAC)    
+    960 SW 1/17/17
+    961                   WRITE (CPL(JW),19234)(adjustl(CNAME2(CN(JN))),JN=1,NAC)  ! cb 10/18/23
+    962                   ELSEIF(NACD(JW)/=0)THEN
+    963 !WRITE (CPL(JW),19235)(CNAME2(CN(JN)),JN=1,NAC),(CDNAME2(CDN(JD,JW)),JD=1,NACD(JW))    !    1/17/17      !WRITE (CPL(JW),192
+    963 34)(CNAME2(CN(JN)),JN=1,NAC)  SW 9/28/13
+    964                   WRITE (CPL(JW),19235)(adjustl(CNAME2(CN(JN))),JN=1,NAC),(adjustl(CDNAME2(CDN(JD,JW))),JD=1,NACD(JW))     !
+    964  cb 10/18/23
+    965               ENDIF                                                    
+    966           ENDIF
+    967         19230 FORMAT('VARIABLES="Distance, m","Elevation, m","U(m/s)","W(m/s)","T(C)","RHO" ')
+    968         19231 FORMAT('VARIABLES="Distance, m","Elevation, m","U(m/s)","W(m/s)","T(C)","RHO", "HABITAT" ')
+    969         19232 FORMAT('VARIABLES="Distance, m","Elevation, m","U(m/s)","W(m/s)","T(C)","RHO", "HABITAT" ',<NAC>(',"',A8,'"'))
+    970         19233 FORMAT('VARIABLES="Distance, m","Elevation, m","U(m/s)","W(m/s)","T(C)","RHO", "HABITAT" ',<NAC>(',"',A8,'"'),
+    970 <NACD(JW)>(',"',A8,'"'))
+    971         19234 FORMAT('VARIABLES="Distance, m","Elevation, m","U(m/s)","W(m/s)","T(C)","RHO" ',<NAC>(',"',A8,'"'))  ! SW 9/28
+    971 /13
+
+Page 19          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+    972         19235 FORMAT('VARIABLES="Distance, m","Elevation, m","U(m/s)","W(m/s)","T(C)","RHO" ',<NAC>(',"',A8,'"'),<NACD(JW)>(
+    972 ',"',A8,'"'))  ! SW 9/28/13
+    973         ENDIF  
+    974       END IF  
+    975         
+    976 !IF (VECTOR(JW)) THEN     *** DSI
+    977 !  WRITE (VPL(JW),*)  TITLE
+    978 !  WRITE (VPL(JW),*)  H,KB,US,DS,DLX
+    979 !END IF
+    980         
+    981     END DO  
+    982       
+    983 ! ***
+    984     IF (TIME_SERIES) THEN  
+    985       L1 = SCAN(TSRFN1,'.',BACK=.TRUE.)    ! SW 8/22/14
+    986       DO J=1,NIKTSR  
+    987         WRITE (SEGNUM,'(I0)') ITSR(J)  
+    988         SEGNUM = ADJUSTL(SEGNUM)  
+    989         L      = LEN_TRIM(SEGNUM)  
+    990         WRITE (SEGNUM2,'(I0)')J  
+    991         SEGNUM2 = ADJUSTL(SEGNUM2)  
+    992         L2      = LEN_TRIM(SEGNUM2)  
+    993         TSRFN  = TSRFN1(1:L1-1)//'_'//SEGNUM2(1:L2)//'_seg'//SEGNUM(1:L)//'.'//TSRFN1(L1+1:L1+4)                            
+    993       !'.opt'
+    994         OPEN  (TSR(J),FILE=TSRFN,STATUS='UNKNOWN')  
+    995 !WRITE (TSR(J),'(A)') (TITLE(I),I=1,11)
+    996         I = ITSR(J)  ! SR 5/10/05
+    997         DO JW=1,NWB  
+    998           IF (I >= US(BS(JW)) .AND. I <= DS(BE(JW))) EXIT  
+    999         END DO  
+   1000 
+   1001         IF (ICE_COMPUTATION) THEN  
+   1002           IF(SEDIMENT_CALC(JW))THEN  
+   1003               IF(NEP>0 .AND. EPIPHYTON_CALC(JW,1))THEN
+   1004             WRITE (TSR(J),'(*(A,","))') 'JDAY','DLT(s)','ELWS(m)','T2(C)','U(ms-1)','Q(m3s-1)','SRON(Wm-2)','EXT(m-1)',   & 
+   1004  
+   1005             'DEPTH(m)','WIDTH(m)','SHADE','ICETH(m)',                         &
+   1006             'Tvolavg(C)','NetRad(Wm-2)','SWSolar(Wm-2)','LWRad(Wm-2)','BackRad(Wm-2)','EvapF(Wm-2)','ConducF(Wm-2)','Reaerat
+   1006 ionCoeff(day-1)',   &
+   1007             (CNAME2(CN(JC)),JC=1,NAC),                                           &  
+   1008             ('     EPI(g/m2)',JE=1,NEP),('     MAC',JM=1,NMC),'     SED(Organic matter in sediments g/m3)','    SEDP(OrgP in
+   1008  sediments gP/m3)','    SEDN(OrgN in sediments gN/m3)','    SEDC(OrgCSediments gC/m3)',   &  
+   1009             (CDNAME2(CDN(JD,JW)),JD=1,NACD(JW)),(KFNAME2(KFCN(JF,JW)),JF=1,NAF(JW)),('PLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1
+   1009 ,NAL),('NLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('LLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),  &
+   1010             ('EPLIM_'//CNUM(JE),JE=1,NEP),('ENLIM_'//CNUM(JE),JE=1,NEP),('ELLIM_'//CNUM(JE),JE=1,NEP)
+   1011               ELSE
+   1012             WRITE (TSR(J),'(*(A,","))') 'JDAY','DLT(s)','ELWS(m)','T2(C)','U(ms-1)','Q(m3s-1)','SRON(Wm-2)','EXT(m-1)',   & 
+   1012  
+   1013             'DEPTH(m)','WIDTH(m)','SHADE','ICETH(m)',                         &
+   1014             'Tvolavg(C)','NetRad(Wm-2)','SWSolar(Wm-2)','LWRad(Wm-2)','BackRad(Wm-2)','EvapF(Wm-2)','ConducF(Wm-2)','Reaerat
+   1014 ionCoeff(day-1)',   &
+   1015             (CNAME2(CN(JC)),JC=1,NAC),                                           &  
+   1016             ('     MAC',JM=1,NMC),'     SED(Organic matter in sediments g/m3)','    SEDP(OrgP in sediments gP/m3)','    SEDN
+   1016 (OrgN in sediments gN/m3)','    SEDC(OrgCSediments gC/m3)',   &  
+   1017             (CDNAME2(CDN(JD,JW)),JD=1,NACD(JW)),(KFNAME2(KFCN(JF,JW)),JF=1,NAF(JW)),('PLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1
+   1017 ,NAL),('NLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('LLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL)  
+   1018               ENDIF
+
+Page 20          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1019               
+   1020           ELSE  
+   1021                             IF(NEP>0 .AND. EPIPHYTON_CALC(JW,1))THEN
+   1022             WRITE (TSR(J),'(*(A,","))') 'JDAY','DLT(s)','ELWS(m)','T2(C)','U(ms-1)','Q(m3s-1)','SRON(Wm-2)','EXT(m-1)',   & 
+   1022  
+   1023             'DEPTH(m)','WIDTH(m)','SHADE','ICETH(m)','Tvolavg(C)','NetRad(Wm-2)','SWSolar(Wm-2)','LWRad(Wm-2)','BackRad(Wm-2
+   1023 )','EvapF(Wm-2)','ConducF(Wm-2)','ReaerationCoeff(day-1)',  (CNAME2(CN(JC)),JC=1,NAC),                     &  
+   1024             ('     EPI(g/m2)',JE=1,NEP),('     MAC',JM=1,NMC),(CDNAME2(CDN(JD,JW)),JD=1,NACD(JW)),(KFNAME2(KFCN(JF,JW)),JF=1
+   1024 ,NAF(JW)),('PLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('NLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('LLIM_'//ADJUSTL(CNAM
+   1024 E2(NAS+JA-1)),JA=1,NAL),   &
+   1025               ('EPLIM_'//CNUM(JE),JE=1,NEP),('ENLIM_'//CNUM(JE),JE=1,NEP),('ELLIM_'//CNUM(JE),JE=1,NEP)    
+   1026                             ELSE
+   1027                         WRITE (TSR(J),'(*(A,","))') 'JDAY','DLT(s)','ELWS(m)','T2(C)','U(ms-1)','Q(m3s-1)','SRON(Wm-2)','EXT
+   1027 (m-1)',   &  
+   1028             'DEPTH(m)','WIDTH(m)','SHADE','ICETH(m)','Tvolavg(C)','NetRad(Wm-2)','SWSolar(Wm-2)','LWRad(Wm-2)','BackRad(Wm-2
+   1028 )','EvapF(Wm-2)','ConducF(Wm-2)','ReaerationCoeff(day-1)',  (CNAME2(CN(JC)),JC=1,NAC),                     &  
+   1029             ('     MAC',JM=1,NMC),(CDNAME2(CDN(JD,JW)),JD=1,NACD(JW)),(KFNAME2(KFCN(JF,JW)),JF=1,NAF(JW)),('PLIM_'//ADJUSTL(
+   1029 CNAME2(NAS+JA-1)),JA=1,NAL),('NLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('LLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL)     
+   1029 ! SW 10/20/15
+   1030                             ENDIF
+   1031                             
+   1032          END IF  
+   1033         ELSE  
+   1034           IF(SEDIMENT_CALC(JW))THEN  !mlm 7/25/06
+   1035                IF(NEP>0 .AND. EPIPHYTON_CALC(JW,1))THEN
+   1036             WRITE (TSR(J),'(*(A,","))')'JDAY','DLT(s)','ELWS(m)','T2(C)','U(ms-1)','Q(m3s-1)','SRON(Wm-2)','EXT(m-1)',   &  
+   1037             'DEPTH(m)','WIDTH(m)','SHADE','Tvolavg(C)','NetRad(Wm-2)','SWSolar(Wm-2)','LWRad(Wm-2)','BackRad(Wm-2)','EvapF(W
+   1037 m-2)','ConducF(Wm-2)','ReaerationCoeff(day-1)',   &
+   1038             (CNAME2(CN(JC)),JC=1,NAC),                     &  
+   1039             ('     EPI(g/m2)',JE=1,NEP),('     MAC',JM=1,NMC),'     SED(Organic matter in sediments g/m3)','    SEDP(OrgP in
+   1039  sediments gP/m3)','    SEDN(OrgN in sediments gN/m3)','    SEDC(OrgCSediments gC/m3)',   &  
+   1040             (CDNAME2(CDN(JD,JW)),JD=1,NACD(JW)),(KFNAME2(KFCN(JF,JW)),JF=1,NAF(JW)),('PLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1
+   1040 ,NAL),('NLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('LLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),   &
+   1041               ('EPLIM_'//CNUM(JE),JE=1,NEP),('ENLIM_'//CNUM(JE),JE=1,NEP),('ELLIM_'//CNUM(JE),JE=1,NEP)                   
+   1042                ELSE
+   1043              WRITE (TSR(J),'(*(A,","))')'JDAY','DLT(s)','ELWS(m)','T2(C)','U(ms-1)','Q(m3s-1)','SRON(Wm-2)','EXT(m-1)',   & 
+   1043  
+   1044             'DEPTH(m)','WIDTH(m)','SHADE','Tvolavg(C)','NetRad(Wm-2)','SWSolar(Wm-2)','LWRad(Wm-2)','BackRad(Wm-2)','EvapF(W
+   1044 m-2)','ConducF(Wm-2)','ReaerationCoeff(day-1)',   &
+   1045             (CNAME2(CN(JC)),JC=1,NAC),                     &  
+   1046             ('     MAC',JM=1,NMC),'     SED(Organic matter in sediments g/m3)','    SEDP(OrgP in sediments gP/m3)','    SEDN
+   1046 (OrgN in sediments gN/m3)','    SEDC(OrgCSediments gC/m3)',   &  
+   1047             (CDNAME2(CDN(JD,JW)),JD=1,NACD(JW)),(KFNAME2(KFCN(JF,JW)),JF=1,NAF(JW)),('PLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1
+   1047 ,NAL),('NLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('LLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL)   
+   1048                ENDIF
+   1049                
+   1050           ELSE  
+   1051             IF(NEP>0 .AND. EPIPHYTON_CALC(JW,1))THEN
+   1052             WRITE (TSR(J),'(*(A,","))') 'JDAY','DLT(s)','ELWS(m)','T2(C)','U(ms-1)','Q(m3s-1)','SRON(Wm-2)','EXT(m-1)',   & 
+   1052  
+   1053              'DEPTH(m)','WIDTH(m)','SHADE','Tvolavg(C)','NetRad(Wm-2)','SWSolar(Wm-2)','LWRad(Wm-2)','BackRad(Wm-2)','EvapF(
+   1053 Wm-2)','ConducF(Wm-2)','ReaerationCoeff(day-1)',   &
+   1054             (CNAME2(CN(JC)),JC=1,NAC),                     &  
+   1055             ('     EPI(g/m2)',JE=1,NEP),('     MAC',JM=1,NMC),(CDNAME2(CDN(JD,JW)),JD=1,NACD(JW)),(KFNAME2(KFCN(JF,JW)),JF=1
+   1055 ,NAF(JW)),('PLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('NLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('LLIM_'//ADJUSTL(CNAM
+   1055 E2(NAS+JA-1)),JA=1,NAL),   &
+   1056              ('EPLIM_'//CNUM(JE),JE=1,NEP),('ENLIM_'//CNUM(JE),JE=1,NEP),('ELLIM_'//CNUM(JE),JE=1,NEP)                   
+
+Page 21          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1057             ELSE
+   1058             WRITE (TSR(J),'(*(A,","))') 'JDAY','DLT(s)','ELWS(m)','T2(C)','U(ms-1)','Q(m3s-1)','SRON(Wm-2)','EXT(m-1)',   & 
+   1058  
+   1059              'DEPTH(m)','WIDTH(m)','SHADE','Tvolavg(C)','NetRad(Wm-2)','SWSolar(Wm-2)','LWRad(Wm-2)','BackRad(Wm-2)','EvapF(
+   1059 Wm-2)','ConducF(Wm-2)','ReaerationCoeff(day-1)',   &
+   1060             (CNAME2(CN(JC)),JC=1,NAC),                     &  
+   1061             ('     MAC',JM=1,NMC),(CDNAME2(CDN(JD,JW)),JD=1,NACD(JW)),(KFNAME2(KFCN(JF,JW)),JF=1,NAF(JW)),('PLIM_'//ADJUSTL(
+   1061 CNAME2(NAS+JA-1)),JA=1,NAL),('NLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL),('LLIM_'//ADJUSTL(CNAME2(NAS+JA-1)),JA=1,NAL)  
+   1062             ENDIF
+   1063             
+   1064           END IF  
+   1065         END IF  
+   1066           
+   1067       END DO  
+   1068     END IF  
+   1069     IF(ALGAE_TOXIN)THEN
+   1070       IF(ATOX_DEBUG=='ON')THEN
+   1071           OPEN(ATOXIN_DEBUG_FN,FILE='algae_toxin_debug.csv',STATUS='UNKNOWN')
+   1072           WRITE(ATOXIN_DEBUG_FN,'(A,<NUMATOXINS>("EX_TOXIN_",I1,","),<NUMATOXINS>("IN_TOXIN_",I1,","),<NUMATOXINS>("CTESS_TO
+   1072 XIN_",I1,","),<NAL>("ALG_",I1,","))')'JDAY,K,I,',(J,J=1,numatoxins),(J,J=1,numatoxins),(J,J=1,numatoxins),(J,J=1,NAL)
+   1073       ENDIF
+   1074     ENDIF
+   1075 ! BIOENERGETICS mlm
+   1076     IF (BIOEXP) THEN  
+   1077       L1 = SCAN(BIOFN,'.')  
+   1078       DO J=1,NIBIO  
+   1079         WRITE (SEGNUM,'(I0)') J  
+   1080         SEGNUM = ADJUSTL(SEGNUM)  
+   1081         L      = LEN_TRIM(SEGNUM)  
+   1082         BIOFN  = BIOFN(1:L1-1)//'_'//SEGNUM(1:L)//'.opt'  
+   1083         OPEN  (BIOEXPFN(J),FILE=BIOFN,STATUS='UNKNOWN')  
+   1084         WRITE (bioexpfn(J),'(12A8)') (adjustr(bhead(ii)),ii=1,11)  
+   1085       END DO  
+   1086       L1 = SCAN(WEIGHTFN,'.')  
+   1087       DO J=1,NIBIO  
+   1088         WRITE (SEGNUM,'(I0)') J  
+   1089         SEGNUM = ADJUSTL(SEGNUM)  
+   1090         L      = LEN_TRIM(SEGNUM)  
+   1091         WEIGHTFN  = WEIGHTFN(1:L1-1)//'_'//SEGNUM(1:L)//'.opt'  
+   1092         OPEN  (WEIGHTNUM(J),FILE=WEIGHTFN,STATUS='UNKNOWN')  
+   1093         WRITE (weightnum(J),'(50(A10,","))') adjustr('jday'),(adjustr(cname2(cn(jc))),jc=1,nac),adjustr('pH'),adjustr('TP') 
+   1093  
+   1094       END DO  
+   1095         
+   1096     END IF  
+   1097     IF (DOWNSTREAM_OUTFLOW) THEN  
+   1098       L1 = SCAN(WDOFN,'.',BACK=.TRUE.)   ! SW 8/22/14 CHECKS FROM RIGHTHAND SIDE NOT LEFTHANDSIDE  ! SW 8/3/2018
+   1099       L2 = SCAN(WDOFN,'\',BACK=.TRUE.)  !  SW 9/15/2023 FIND FILE PATH IF PRESENT
+   1100       DO JWD=1,NIWDO  
+   1101         WRITE (SEGNUM,'(I0)') IWDO(JWD)  
+   1102         SEGNUM = ADJUSTL(SEGNUM)  
+   1103         L      = LEN_TRIM(SEGNUM)  
+   1104 !OPEN  (WDO(JWD,1),FILE=WDOFN(1:L2)//'qwo_'//SEGNUM(1:L)//WDOFN(L1:L1+4),STATUS='UNKNOWN')                   !  SW 9/15/2023
+   1104      OPEN  (WDO(JWD,1),FILE='qwo_'//SEGNUM(1:L)//'.opt',STATUS='UNKNOWN')
+   1105 !OPEN  (WDO(JWD,2),FILE=WDOFN(1:L2)//'two_'//SEGNUM(1:L)//WDOFN(L1:L1+4),STATUS='UNKNOWN')                   !'.opt',STATUS=
+   1105 'UNKNOWN')
+   1106         OPEN  (WDO(JWD,1),FILE=WDOFN(1:L2)//'q_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),STATUS='UNKNOWN')      
+
+Page 22          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1106              !  SW 9/15/2023     OPEN  (WDO(JWD,1),FILE='qwo_'//SEGNUM(1:L)//'.opt',STATUS='UNKNOWN')
+   1107         OPEN  (WDO(JWD,2),FILE=WDOFN(1:L2)//'t_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),STATUS='UNKNOWN')      
+   1107              !'.opt',STATUS='UNKNOWN')
+   1108         
+   1109         WRITE (WDO(JWD,1),'(A,I0/A/A)') '$Flow file for segment ',       IWDO(JWD),'To the right of the sum of flows are ind
+   1109 ividual flows starting with downstream then lateral withdrawals','JDAY,QWD(m3s-1),'  
+   1110         WRITE (WDO(JWD,2),'(A,I0/A/A)') '$Temperature file for segment ',IWDO(JWD),'To the right of the sum of temperatures 
+   1110 are individual temperatures starting with downstream then lateral withdrawals','JDAY,T(C),'  
+   1111         DO JW=1,NWB  
+   1112           IF (IWDO(JWD) >= US(BS(JW)) .AND. IWDO(JWD) <= DS(BE(JW))) EXIT  
+   1113         END DO  
+   1114         IF (CONSTITUENTS) THEN  
+   1115 !OPEN  (WDO(JWD,3),FILE=WDOFN(1:L2)//'cwo_'//SEGNUM(1:L)//WDOFN(L1:L1+4),STATUS='UNKNOWN')                 !'.opt',STATUS='U
+   1115 NKNOWN')
+   1116           OPEN  (WDO(JWD,3),FILE=WDOFN(1:L2)//'c_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),STATUS='UNKNOWN')    
+   1116              !'.opt',STATUS='UNKNOWN')
+   1117 
+   1118           WRITE (WDO(JWD,3),'(A,I0//(*(A,",")))') '$Concentration file for segment ',IWDO(JWD),'JDAY', (CNAME2(CN(J)),J=1,NA
+   1118 C)                !CNAME2(CN(1:NAC))
+   1119         END IF  
+   1120         IF (DERIVED_CALC) THEN  
+   1121 !          OPEN  (WDO(JWD,4),FILE=WDOFN(1:L2)//'dwo_'//SEGNUM(1:L)//WDOFN(L1:L1+4),STATUS='UNKNOWN')                 !'.opt'
+   1121 ,STATUS='UNKNOWN')
+   1122           OPEN  (WDO(JWD,4),FILE=WDOFN(1:L2)//'d_'//WDOFN(L2+1:L1-1)//'_'//SEGNUM(1:L)//WDOFN(L1:L1+4),STATUS='UNKNOWN')    
+   1122              !'.opt',STATUS='UNKNOWN')
+   1123 
+   1124           WRITE (WDO(JWD,4),'(A,I0//(*(A,",")))') 'Derived constituent file for segment ',IWDO(JWD),'JDAY', (CDNAME2(CDN(J,J
+   1124 W)),J=1,NACD(JW))                 !CDNAME2(CDN(1:NACD(JW),JW))
+   1125         END IF
+   1126 ! Add a new qwo_layers_xxx file to output flow from each layer for any structure or withdrawal                   !SR 12/19/2
+   1126 022
+   1127           OPEN  (WDO(JWD,5),FILE=WDOFN(1:L2)//'qwo_layers_'//SEGNUM(1:L)//'_'//WDOFN(L1:L1+4),STATUS='UNKNOWN')             
+   1127           !SR 12/19/2022
+   1128           WRITE (WDO(JWD,5),'(A,I0/A/A)') 'Flow layers file for segment ', IWDO(JWD),                                       
+   1128        &
+   1129                                           'Output is JDAY, total outflow, WS elev, and layer outflows starting w/ layer 2', 
+   1129        &
+   1130                                           'JDAY,Q(m3/s),ELWS(m),LayerFlows(m3/s)'                                     !SR 04
+   1130 /07/2023
+   1131       END DO  
+   1132     END IF  
+   1133       
+   1134     IF (DOWNSTREAM_OUTFLOW) THEN  
+   1135       JFILE=0  
+   1136       DO JWD=1,NIWDO  
+   1137           
+   1138 ! Determine the # of withdrawals at the WITH SEG
+   1139         DO JB=1,NBR  ! structures
+   1140           IF(IWDO(JWD)==DS(JB) .AND. NSTR(JB) /= 0)THEN  
+   1141             DO JS=1,NSTR(JB)  
+   1142               JFILE=JFILE+1  
+   1143               WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+   1144               SEGNUM2 = ADJUSTL(SEGNUM2)  
+   1145               L3      = LEN_TRIM(SEGNUM2)  
+   1146               TITLEWITH2='$STR WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+   1147               WRITE(SEGNUM,'(F10.0)')ESTR(JS,JB)  
+   1148               SEGNUM = ADJUSTL(SEGNUM)  
+
+Page 23          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1149               L      = LEN_TRIM(SEGNUM)  
+   1150               TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+   1151               WRITE(SEGNUM,'(I0)')JS  
+   1152               SEGNUM = ADJUSTL(SEGNUM)  
+   1153               L      = LEN_TRIM(SEGNUM)  
+   1154               WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+   1155             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_str'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKNO
+   1155 WN')      !'.opt',STATUS='UNKNOWN')
+   1156               WRITE (WDO2(JFILE,1),'(A//A)') TITLEWITH,'JDAY,QWD(m3s-1)'  
+   1157               WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+   1158             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_str'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKNO
+   1158 WN')      !'.opt',STATUS='UNKNOWN')
+   1159               WRITE (WDO2(JFILE,2),'(A//A)') TITLEWITH,'JDAY,T(C)'  
+   1160               IF (CONSTITUENTS) THEN  
+   1161                 WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+   1162                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_str'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='U
+   1162 NKNOWN')   !'.opt',STATUS='UNKNOWN')
+   1163                 WRITE (WDO2(JFILE,3),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CNAME2(CN(J)),J=1,NAC)     !CNAME2(CN(1:NAC))
+   1164               ENDIF  
+   1165               IF (DERIVED_CALC) THEN  
+   1166                 WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+   1167                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_str'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='U
+   1167 NKNOWN')     !'.opt',STATUS='UNKNOWN')
+   1168                 DO JW=1,NWB  
+   1169                   IF (IWDO(JWD) >= US(BS(JW)) .AND. IWDO(JWD) <= DS(BE(JW))) EXIT  
+   1170                 END DO  
+   1171                 WRITE (WDO2(JFILE,4),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CDNAME2(CDN(J,JW)),J=1,NACD(JW))  !CDNAME2(CDN(1:N
+   1171 ACD(JW),JW))
+   1172               ENDIF  
+   1173             ENDDO  
+   1174           ENDIF  
+   1175         ENDDO  
+   1176           
+   1177         DO JS=1,NWD  ! withdrawals
+   1178           IF(IWDO(JWD) == IWD(JS))THEN  
+   1179             JFILE=JFILE+1  
+   1180             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+   1181             SEGNUM2 = ADJUSTL(SEGNUM2)  
+   1182             L3      = LEN_TRIM(SEGNUM2)  
+   1183             TITLEWITH2='$WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+   1184             WRITE(SEGNUM,'(F10.0)')EWD(JS)  
+   1185             SEGNUM = ADJUSTL(SEGNUM)  
+   1186             L      = LEN_TRIM(SEGNUM)  
+   1187             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+   1188             WRITE(SEGNUM,'(I0)')JS  
+   1189             SEGNUM = ADJUSTL(SEGNUM)  
+   1190             L      = LEN_TRIM(SEGNUM)  
+   1191             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+   1192             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_wd'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKNOW
+   1192 N')        !'.opt',STATUS='UNKNOWN')
+   1193             WRITE (WDO2(JFILE,1),'(A//A)') TITLEWITH,'JDAY,QWD(m3s-1)'  
+   1194             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+   1195             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_wd'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKNOW
+   1195 N')         !'.opt',STATUS='UNKNOWN')
+   1196             WRITE (WDO2(JFILE,2),'(A//A)') TITLEWITH,'JDAY,T(C)'  
+   1197             IF (CONSTITUENTS) THEN  
+   1198               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+
+Page 24          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1199                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_wd'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UN
+   1199 KNOWN')     !'.opt',STATUS='UNKNOWN')
+   1200               WRITE (WDO2(JFILE,3),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CNAME2(CN(J)),J=1,NAC)     !CNAME2(CN(1:NAC))
+   1201             ENDIF  
+   1202             IF (DERIVED_CALC) THEN  
+   1203               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+   1204                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_wd'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UN
+   1204 KNOWN')     !'.opt',STATUS='UNKNOWN')
+   1205               DO JW=1,NWB  
+   1206                 IF (IWDO(JWD) >= US(BS(JW)) .AND. IWDO(JWD) <= DS(BE(JW))) EXIT  
+   1207               END DO  
+   1208               WRITE (WDO2(JFILE,4),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CDNAME2(CDN(J,JW)),J=1,NACD(JW))   !CDNAME2(CDN(1:NA
+   1208 CD(JW),JW))
+   1209             ENDIF  
+   1210           ENDIF  
+   1211         ENDDO  
+   1212           
+   1213         DO JS=1,NSP  ! spillways
+   1214           IF(IWDO(JWD) == IUSP(JS))THEN  
+   1215             JFILE=JFILE+1  
+   1216             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+   1217             SEGNUM2 = ADJUSTL(SEGNUM2)  
+   1218             L3      = LEN_TRIM(SEGNUM2)  
+   1219             TITLEWITH2='$SPILLWAY WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+   1220             WRITE(SEGNUM,'(F10.0)')ESP(JS)  
+   1221             SEGNUM = ADJUSTL(SEGNUM)  
+   1222             L      = LEN_TRIM(SEGNUM)  
+   1223             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+   1224             WRITE(SEGNUM,'(I0)')JS  
+   1225             SEGNUM = ADJUSTL(SEGNUM)  
+   1226             L      = LEN_TRIM(SEGNUM)  
+   1227             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+   1228             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_sp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKNOW
+   1228 N')      !'.opt',STATUS='UNKNOWN')
+   1229             WRITE (WDO2(JFILE,1),'(A//A)') TITLEWITH,'JDAY,QWD(m3s-1)'  
+   1230             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+   1231             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_sp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKNOW
+   1231 N')      !'.opt',STATUS='UNKNOWN')
+   1232             WRITE (WDO2(JFILE,2),'(A//A)') TITLEWITH,'JDAY,T(C)'  
+   1233             IF (CONSTITUENTS) THEN  
+   1234               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+   1235                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_sp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UN
+   1235 KNOWN')     !'.opt',STATUS='UNKNOWN')
+   1236               WRITE (WDO2(JFILE,3),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CNAME2(CN(J)),J=1,NAC)     !CNAME2(CN(1:NAC))
+   1237             ENDIF  
+   1238             IF (DERIVED_CALC) THEN  
+   1239               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+   1240                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_sp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UN
+   1240 KNOWN')     !'.opt',STATUS='UNKNOWN')
+   1241               DO JW=1,NWB  
+   1242                 IF (IWDO(JWD) >= US(BS(JW)) .AND. IWDO(JWD) <= DS(BE(JW))) EXIT  
+   1243               END DO  
+   1244               WRITE (WDO2(JFILE,4),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CDNAME2(CDN(J,JW)),J=1,NACD(JW))    !CDNAME2(CDN(1:N
+   1244 ACD(JW),JW))
+   1245             ENDIF  
+   1246           ENDIF  
+   1247         ENDDO  
+
+Page 25          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1248           
+   1249           
+   1250         DO JS=1,NPU  ! pumps
+   1251           IF(IWDO(JWD) == IUPU(JS))THEN  
+   1252             JFILE=JFILE+1  
+   1253             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+   1254             SEGNUM2 = ADJUSTL(SEGNUM2)  
+   1255             L3      = LEN_TRIM(SEGNUM2)  
+   1256             TITLEWITH2='$PUMP WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+   1257             WRITE(SEGNUM,'(F10.0)')EPU(JS)  
+   1258             SEGNUM = ADJUSTL(SEGNUM)  
+   1259             L      = LEN_TRIM(SEGNUM)  
+   1260             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+   1261             WRITE(SEGNUM,'(I0)')JS  
+   1262             SEGNUM = ADJUSTL(SEGNUM)  
+   1263             L      = LEN_TRIM(SEGNUM)  
+   1264             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+   1265             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_pmp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKNO
+   1265 WN')     !'.opt',STATUS='UNKNOWN')
+   1266             WRITE (WDO2(JFILE,1),'(A//A)') TITLEWITH,'JDAY,QWD(m3s-1)'  
+   1267             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+   1268             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_pmp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKNO
+   1268 WN')     !'.opt',STATUS='UNKNOWN')
+   1269             WRITE (WDO2(JFILE,2),'(A//A)') TITLEWITH,'JDAY,T(C)'  
+   1270             IF (CONSTITUENTS) THEN  
+   1271               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+   1272                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_pmp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='U
+   1272 NKNOWN')   !'.opt',STATUS='UNKNOWN')
+   1273               WRITE (WDO2(JFILE,3),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CNAME2(CN(J)),J=1,NAC)      !CNAME2(CN(1:NAC))
+   1274             ENDIF  
+   1275             IF (DERIVED_CALC) THEN  
+   1276               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+   1277                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_pmp'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='U
+   1277 NKNOWN')    !'.opt',STATUS='UNKNOWN')
+   1278               DO JW=1,NWB  
+   1279                 IF (IWDO(JWD) >= US(BS(JW)) .AND. IWDO(JWD) <= DS(BE(JW))) EXIT  
+   1280               END DO  
+   1281               WRITE (WDO2(JFILE,4),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CDNAME2(CDN(J,JW)),J=1,NACD(JW))     !CDNAME2(CDN(1:
+   1281 NACD(JW),JW))
+   1282             ENDIF  
+   1283           ENDIF  
+   1284         ENDDO  
+   1285           
+   1286           
+   1287         DO JS=1,NPI  ! pipes
+   1288           IF(IWDO(JWD) == IUPI(JS))THEN  
+   1289             JFILE=JFILE+1  
+   1290             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+   1291             SEGNUM2 = ADJUSTL(SEGNUM2)  
+   1292             L3      = LEN_TRIM(SEGNUM2)  
+   1293             TITLEWITH2='$PIPE WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+   1294             WRITE(SEGNUM,'(F10.0)')EUPI(JS)  
+   1295             SEGNUM = ADJUSTL(SEGNUM)  
+   1296             L      = LEN_TRIM(SEGNUM)  
+   1297             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+   1298             WRITE(SEGNUM,'(I0)')JS  
+   1299             SEGNUM = ADJUSTL(SEGNUM)  
+
+Page 26          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1300             L      = LEN_TRIM(SEGNUM)  
+   1301             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+   1302             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_pipe'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKN
+   1302 OWN')     !'.opt',STATUS='UNKNOWN')
+   1303             WRITE (WDO2(JFILE,1),'(A//A)') TITLEWITH,'JDAY,QWD(m3s-1)'  
+   1304             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+   1305             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_pipe'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKN
+   1305 OWN')     !'.opt',STATUS='UNKNOWN')
+   1306             WRITE (WDO2(JFILE,2),'(A//A)') TITLEWITH,'JDAY,T(C)'  
+   1307             IF (CONSTITUENTS) THEN  
+   1308               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+   1309                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_pipe'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='
+   1309 UNKNOWN')    !'.opt',STATUS='UNKNOWN')
+   1310               WRITE (WDO2(JFILE,3),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CNAME2(CN(J)),J=1,NAC)      !CNAME2(CN(1:NAC))
+   1311             ENDIF  
+   1312             IF (DERIVED_CALC) THEN  
+   1313               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+   1314                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_pipe'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='
+   1314 UNKNOWN')    !'.opt',STATUS='UNKNOWN')
+   1315               DO JW=1,NWB  
+   1316                 IF (IWDO(JWD) >= US(BS(JW)) .AND. IWDO(JWD) <= DS(BE(JW))) EXIT  
+   1317               END DO  
+   1318               WRITE (WDO2(JFILE,4),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CDNAME2(CDN(J,JW)),J=1,NACD(JW))      !CDNAME2(CDN(1
+   1318 :NACD(JW),JW))
+   1319             ENDIF  
+   1320           ENDIF  
+   1321         ENDDO  
+   1322           
+   1323         DO JS=1,NGT  ! gates
+   1324           IF(IWDO(JWD) == IUGT(JS))THEN  
+   1325             JFILE=JFILE+1  
+   1326             WRITE(SEGNUM2,'(I0)')IWDO(JWD)  
+   1327             SEGNUM2 = ADJUSTL(SEGNUM2)  
+   1328             L3      = LEN_TRIM(SEGNUM2)  
+   1329             TITLEWITH2='$GATE WITHDRAWAL AT SEG'//SEGNUM2(1:L3)  
+   1330             WRITE(SEGNUM,'(F10.0)')EGT(JS)  
+   1331             SEGNUM = ADJUSTL(SEGNUM)  
+   1332             L      = LEN_TRIM(SEGNUM)  
+   1333             TITLEWITH=ADJUSTL(TITLEWITH2)//' ELEV OF WITHDRAWAL CENTERLINE:'//SEGNUM(1:L)  
+   1334             WRITE(SEGNUM,'(I0)')JS  
+   1335             SEGNUM = ADJUSTL(SEGNUM)  
+   1336             L      = LEN_TRIM(SEGNUM)  
+   1337             WDO2(JFILE,1) = NUNIT; NUNIT = NUNIT+1  
+   1338             OPEN(WDO2(JFILE,1),FILE=WDOFN(1:L2)//'qwo_gate'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKN
+   1338 OWN')     !'.opt',STATUS='UNKNOWN')
+   1339             WRITE (WDO2(JFILE,1),'(A//A)') TITLEWITH,'JDAY,QWD(m3s-1)'  
+   1340             WDO2(JFILE,2) = NUNIT; NUNIT = NUNIT+1  
+   1341             OPEN(WDO2(JFILE,2),FILE=WDOFN(1:L2)//'two_gate'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='UNKN
+   1341 OWN')     !'.opt',STATUS='UNKNOWN')
+   1342             WRITE (WDO2(JFILE,2),'(A//A)') TITLEWITH,'JDAY,T(C)'  
+   1343             IF (CONSTITUENTS) THEN  
+   1344               WDO2(JFILE,3) = NUNIT; NUNIT = NUNIT+1  
+   1345                 OPEN(WDO2(JFILE,3),FILE=WDOFN(1:L2)//'cwo_gate'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='
+   1345 UNKNOWN')    !'.opt',STATUS='UNKNOWN')
+   1346               WRITE (WDO2(JFILE,3),'(A//(*(A,",")))') TITLEWITH,'JDAY',  (CNAME2(CN(J)),J=1,NAC)      !CNAME2(CN(1:NAC))
+   1347             ENDIF  
+   1348             IF (DERIVED_CALC) THEN  
+
+Page 27          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1349               WDO2(JFILE,4) = NUNIT; NUNIT = NUNIT+1  
+   1350                 OPEN(WDO2(JFILE,4),FILE=WDOFN(1:L2)//'dwo_gate'//SEGNUM(1:L)//'_seg'//SEGNUM2(1:L3)//WDOFN(L1:L1+4),STATUS='
+   1350 UNKNOWN')     !'.opt',STATUS='UNKNOWN')
+   1351               DO JW=1,NWB  
+   1352                 IF (IWDO(JWD) >= US(BS(JW)) .AND. IWDO(JWD) <= DS(BE(JW))) EXIT  
+   1353               END DO  
+   1354               WRITE (WDO2(JFILE,4),'(A//(*(A,",")))') TITLEWITH,'JDAY',(CDNAME2(CDN(J,JW)),J=1,NACD(JW))       !CDNAME2(CDN(
+   1354 1:NACD(JW),JW))
+   1355             ENDIF  
+   1356           ENDIF  
+   1357         ENDDO  
+   1358           
+   1359       END DO  
+   1360     END IF  
+   1361       
+   1362 ! OUTPUT FLOW LOADING AND POLLUTANT LOADING DEBUGGING INFORMATION OUTPUT FREQUENCY AT OUTPUT OF CPL
+   1363     DO JW=1,NWB  
+   1364       IF (FLOWBALC=='      ON') THEN  
+   1365         OPEN(FLOWBFN,FILE='flowbal.csv',STATUS='UNKNOWN')  
+   1366         IF(VOLUME_BALANCE(JW))THEN
+   1367             WRITE(FLOWBFN,'(a129)')'JDAY,WB,VOLIN(m3),VOLPR(m3),VOLOUT(m3),VOLWD(m3),VOLEV(m3),VOLDT(m3),VOLTRB(m3),VOLICE(m
+   1367 3),SurfaceArea(m2),Volume(m3),%VOLerror,'
+   1368         ELSE
+   1369             WRITE(FLOWBFN,'(a119)')'JDAY,WB,VOLIN(m3),VOLPR(m3),VOLOUT(m3),VOLWD(m3),VOLEV(m3),VOLDT(m3),VOLTRB(m3),VOLICE(m
+   1369 3),SurfaceArea(m2),Volume(m3),'
+   1370         ENDIF
+   1371         EXIT  
+   1372       ENDIF  
+   1373     ENDDO  
+   1374         DO JW=1,NWB  
+   1375         IF (NPBALC=='      ON') THEN
+   1376         OPEN(MASSBFN,FILE='massbal.csv',STATUS='UNKNOWN')
+   1377             WRITE(MASSBFN,'(A467)')'JDAY,WB,TP-Waterbody(kg),TP-Sediment(kg),TP-Plants(kg),OutflowTP(kg),TributaryTP(kg),Dis
+   1377 tributedTributaryTP(kg),WithdrawalTP(kg),PrecipitationTP(kg),InflowTP(kg),AtmosphericDepositionP(kg),SED+SOD_PRelease(kg),PF
+   1377 luxtoSediments(kg),TN-Waterbody(kg),TN-Sediment(kg),TN-Plants(kg),OutflowTN(kg),TributaryTN(kg),DistributedTributaryTN(kg),W
+   1377 ithdrawalTN(kg),PrecipitationTN(kg),InflowTN(kg),AtmosphericDepositionN(kg),NH3GasLoss(kg),SED+SOD_NRelease(kg),NFluxtoSedim
+   1377 ents(kg)'   ! 'JDAY,WB,TP-Waterbody(kg),TP-Sediment(kg),TP-Plants(kg),OutflowTP(kg),TributaryTP(kg),DistributedTributaryTP(k
+   1377 g),WithdrawalTP(kg),PrecipitationTP(kg),InflowTP(kg),BurialP_SED(kg),SED+SOD_PRelease(kg),TN-Waterbody(kg),TN-Sediment(kg),T
+   1377 N-Plants(kg),OutflowTN(kg),TributaryTN(kg),DistributedTributaryTN(kg),WithdrawalTN(kg),PrecipitationTN(kg),InflowTN(kg),Buri
+   1377 alN_SED(kg),SED+SOD_NRelease(kg)'
+   1378 
+   1379         EXIT  
+   1380       ENDIF  
+   1381     ENDDO  
+   1382       
+   1383     IF(WLC=='      ON')THEN  
+   1384       OPEN(WLFN,FILE='wl.csv',STATUS='UNKNOWN')  
+   1385       write(WLFN,'("JDAY,",*("SEG",i4,","))')((i,i=us(jb),ds(jb)),jb=1,nbr)         
+   1386     ENDIF  
+   1387       
+   1388 !**** DSI W2 Linkage File (W2L) (Supercedes Old Velocity vectors)
+   1389     IF (VECTOR(1)) THEN  
+   1390 ! *** Apply the same linkage settings for all waterbodies
+   1391       OPEN (VPL(1),FILE=VPLFN(1),STATUS='UNKNOWN',ACCESS='SEQUENTIAL',FORM='BINARY')  
+   1392         
+   1393 ! *** W2 Version
+   1394       WRITE(VPL(1)) W2VER  
+
+Page 28          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1395         
+   1396       WRITE(VPL(1)) TITLE  
+   1397         
+   1398 !WRITE(VPL(1)) INT4(NWB), INT4(NBR), INT4(IMX), INT4(KMX), INT4(NCT), INT4(NAC)
+   1399       
+   1400       WRITE(VPL(1)) INT4(NWB), INT4(NBR), INT4(IMX), INT4(KMX), INT4(NCT+NDC), INT4(NAC+NACD(1))    ! ASSUMES ALL DERIVED CO
+   1400 NSTITUENTS ARE ON FOR ALL BRANCHE AND WATERBODIES
+   1401 
+   1402         
+   1403 ! *** Flag the output file if using Outlet time series
+   1404       IF (TIME_SERIES) THEN  
+   1405         IFLAG =  -1  
+   1406       ELSE  
+   1407         IFLAG =  0  
+   1408       END IF  
+   1409       WRITE(VPL(1)) IFLAG  
+   1410         
+   1411 ! *** MODEL CONFIGURATION
+   1412       DO JW=1,NWB  
+   1413         WRITE(VPL(1)) INT4(BS(JW)),INT4(BE(JW))  
+   1414       END DO  
+   1415         
+   1416       WRITE(VPL(1)) (REAL(DLX(I),4) ,I=1,IMX)  
+   1417       WRITE(VPL(1)) (REAL(PHI0(I),4),I=1,IMX)  
+   1418       WRITE(VPL(1)) (INT4(US(K)) ,K=1,NBR)  
+   1419       WRITE(VPL(1)) (INT4(DS(K)) ,K=1,NBR)  
+   1420       WRITE(VPL(1)) (INT4(UHS(K)),K=1,NBR)  
+   1421       WRITE(VPL(1)) (INT4(DHS(K)),K=1,NBR)  
+   1422       WRITE(VPL(1)) ((REAL(H(K,JW),4) ,K=1,KMX),JW=1,NWB)  
+   1423         
+   1424 ! *** INITIALIZE ALL CELLS AS INACTIVE (SET FLAG = 0)
+   1425       ICOMP = 0  
+   1426         
+   1427 ! *** Set up the array to handle cell types : Outflows
+   1428       DO JB = 1, NBR  
+   1429         IF (NSTR(JB) > 0 ) THEN  
+   1430           DO JS=1,NSTR(JB)  
+   1431             DO K=KMX-1,2,-1  
+   1432               IF (ESTR(JS,JB).LE.EL(K,DS(JB))) THEN  
+   1433                 ICOMP(K,DS(JB)) = 4  
+   1434               END IF  
+   1435             END DO  
+   1436           END DO  
+   1437 !    ELSE      ! SW NEEDS FIXED SINCE WE DO NOT HAVE NOUT AND KOUT DEFINED 9/28/13
+   1438 !     DO JO = 1, NOUT(JB)
+   1439 !        ICOMP(KOUT(JO,JB),DS(JB)) = 3
+   1440 !      END DO
+   1441         END IF  
+   1442       END DO  
+   1443         
+   1444 ! *** Set up the array to handle cell types : Withdrawals
+   1445       DO IW=1,NWD
+   1446 !DO K=KTW(IW),KBW(IW),-1
+   1447         DO K=KMX,2,-1  
+   1448           IF (EWD(IW) <= EL(K,IWD(IW))) THEN  
+   1449             ICOMP(K-1,IWD(IW)) = 2
+   1450             EXIT
+
+Page 29          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1451           END IF  
+   1452         END DO  
+   1453       END DO  
+   1454         
+   1455 ! *** Set up the array to handle cell types : Tributaries
+   1456       IF (NTR.GT.0) THEN  
+   1457         DO JT=1,NTR  
+   1458           DO K=2,KB(ITR(JT))  
+   1459             IF (ICOMP(K,ITR(JT)) == 0) THEN  
+   1460               ICOMP(K,ITR(JT)) = 5  
+   1461             ENDIF  
+   1462           END DO
+   1463         END DO  
+   1464       ENDIF  
+   1465         
+   1466 ! *** FLAG ACTIVE CELLS
+   1467 ! *** (IF BATHYMETRY(B)>0, FLAG CELL WITH VALUE OF 1, IF IT HAS
+   1468 ! *** NOT BEEN SET ABOVE TO A VALUE OF 2,3, OR 4 )
+   1469       DO JB=1,NBR  
+   1470         IU = US(JB)  
+   1471         ID = DS(JB)  
+   1472         DO I=IU,ID  
+   1473           DO K=2,KB(I)  
+   1474             IF((B(K,I) > 0.).AND.(ICOMP(K,I) == 0)) ICOMP(K,I) = 1  
+   1475           END DO  
+   1476         END DO  
+   1477       END DO  
+   1478         
+   1479 ! *** NOW WRITE SEGMENT WIDTHS (B)
+   1480       DO I = 1, IMX  
+   1481         DO K = 1,KMX  
+   1482           IF(ICOMP(K,I) > 0)THEN  
+   1483             WRITE(VPL(1)) REAL(B(K,I),4)  
+   1484           ELSE  
+   1485             WRITE(VPL(1)) 0.0_4  
+   1486           ENDIF  
+   1487         ENDDO  
+   1488       ENDDO  
+   1489         
+   1490 ! *** Output X -
+   1491 ! *** THIS SEQUENCE SWEEPS ACROSS COLUMNS WITH BLOCK CENTERED
+   1492 ! *** X COORDS WORKING UPSTREAM FOR EACH BRANCH
+   1493       DO K = 1,KMX  
+   1494         DO JB = 1, NBR  
+   1495           IU = US(JB)-1  
+   1496           ID = DS(JB)+1  
+   1497           DO I = ID,IU,-1  
+   1498             IF (I.EQ.ID) THEN  
+   1499               DLX_OLD = 0.5*DLX(I)  
+   1500             ELSE  
+   1501               DLX_OLD = DLX_OLD + 0.5*DLX(I) + 0.5*DLX(I+1)  
+   1502             END IF  
+   1503             WRITE(VPL(1)) REAL(DLX_OLD,4)  
+   1504           END DO  
+   1505         END DO  
+   1506       END DO  
+   1507         
+
+Page 30          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1508 ! *** Output Y
+   1509 ! *** THIS SEQUENCE SWEEPS ACROSS COLUMNS WITH BLOCK CENTERED
+   1510 ! *** ELEVATIONS WORKING FROM THE BOTTOM LAYER TO THE TOP
+   1511       DO K = 1,KMX  
+   1512         DO JB = 1, NBR  
+   1513 ! *** BOTTOM INACTIVE CELL
+   1514 !ELC = ELBOT(JW)-0.5*H(KMX,JW)
+   1515 !WRITE(VPL(1)) ELC
+   1516             
+   1517           IU = US(JB)-1  
+   1518           ID = DS(JB)+1  
+   1519           DO I = ID,IU,-1  
+   1520             WRITE(VPL(1)) REAL(EL(K,I),4)  
+   1521           END DO  
+   1522         END DO  
+   1523       END DO  
+   1524         
+   1525       WRITE(VPL(1)) ((ICOMP(K,I),K=1,KMX),I=1,IMX)  
+   1526         
+   1527 ! *** CONSTITUENT NUMBER LIST
+   1528       DO JAD=1,NACD(1)
+   1529           CDNN(JAD)=CDN(JAD,1)+NCT
+   1530       ENDDO
+   1531 !CUNIT3='mg/l  '
+   1532 !open(3333,file='w2_tools_debug.npt',status='unknown')
+   1533       
+   1534       WRITE (VPL(1)) (INT4(CN(JC)),JC=1,NAC),(INT4(CDNN(JC)),JC=1,NACD(1))  
+   1535 !write(3333,*) (INT4(CN(JC)),JC=1,NAC),(INT4(CDNN(JC)),JC=1,NACD(1))
+   1536         
+   1537 ! *** CONSTITUENT NAME
+   1538       WRITE (VPL(1)) (CNAME1(CN(JC))(1:19),JC=1,NAC),(CDNAME1(CDN(JC,1))(1:19),JC=1,NACD(1))  
+   1539 !WRITE (3333,*) (CNAME1(CN(JC)),JC=1,NAC),(CDNAME1(CDN(JC,1)),JC=1,NACD(1))
+   1540         
+   1541 ! *** CONSTITUENT UNITS
+   1542       WRITE (VPL(1)) (CUNIT2(CN(JC))(1:6),JC=1,NAC),(CUNIT3(CDN(JC,1))(1:6),JC=1,NACD(1))  
+   1543 ! WRITE (3333,*) (CUNIT2(CN(JC)),JC=1,NAC),(CUNIT3(CDN(JC,1)),JC=1,NACD(1))
+   1544 !close(3333)
+   1545         
+   1546       IF (TIME_SERIES) THEN  
+   1547 !OPEN(ITSRNAG,FILE='ITSRNAG.TMP',STATUS='SCRATCH', ACCESS='SEQUENTIAL',FORM='BINARY')    PMC - FIX LATER
+   1548       END IF  
+   1549         
+   1550     ENDIF  
+   1551       
+   1552   END IF  
+   1553     
+   1554   RETURN  
+   1555 END SUBROUTINE OUTPUTINIT  
+
+Page 31          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Entry Points                    ..\..\..\outputinitw2tools.F90
+
+
+
+ENTRY POINTS
+
+ Address      Type  Name       
+                               
+       OUTPUTINIT              
+
+
+SYMBOL CROSS REFERENCE
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 100                        Label  118                                                            105,108                           
+ 1001                       Label  140                                                            123                               
+ 1002                       Label  143                                                            139                               
+ 101                        Label  126                                                            123                               
+ 102                        Label  163                                                            152,157                           
+ 103                        Label  190                                                            169,172,180,183                   
+ 104                        Label  135                                                            132                               
+ 106                        Label  218                                                            213,215                           
+ 107                        Label  231                                                            226,228                           
+ 108                        Label  245                                                            240,242                           
+ 109                        Label  261                                                            258                               
+ 110                        Label  299                                                            296                               
+ 111                        Label  310                                                            307                               
+ 1111                       Label  665                                                            660,662                           
+ 1112                       Label  682                                                            677,679                           
+ 112                        Label  321                                                            318                               
+ 113                        Label  334                                                            331                               
+ 114                        Label  363                                                            360                               
+ 115                        Label  373                                                            370                               
+ 116                        Label  384                                                            381                               
+ 117                        Label  396                                                            393                               
+ 118                        Label  424                                                            421                               
+ 119                        Label  434                                                            431                               
+ 12                         Label  88                                                             78,81                             
+ 120                        Label  445                                                            442                               
+ 121                        Label  457                                                            454                               
+ 122                        Label  486                                                            483                               
+ 123                        Label  496                                                            493                               
+ 124                        Label  507                                                            504                               
+ 125                        Label  519                                                            516                               
+ 126                        Label  548                                                            545                               
+ 127                        Label  558                                                            555                               
+ 128                        Label  569                                                            566                               
+ 129                        Label  581                                                            578                               
+ 13                         Label  100                                                            95,97                             
+ 130                        Label  609                                                            606                               
+ 131                        Label  619                                                            616                               
+ 132                        Label  630                                                            627                               
+ 133                        Label  642                                                            639                               
+ 140                        Label  705                                                            700,702                           
+ 141                        Label  718                                                            713,715                           
+ 142                        Label  745                                                            740,742                           
+ 143                        Label  732                                                            727,729                           
+ 19230                      Label  967                                                            958                               
+
+Page 32          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ 19231                      Label  968                                                            948                               
+ 19232                      Label  969                                                            951                               
+ 19233                      Label  970                                                            954                               
+ 19234                      Label  971                                                            961                               
+ 19235                      Label  972                                                            964                               
+ ADJUSTL                    Func   90                                   scalar                    90,203,281,285,287,289,345,349,351
+                                                                                                  ,353,406,410,412,414,468,472,474,4
+                                                                                                  76,530,534,536,538,591,595,597,599
+                                                                                                  ,655,672,691,694,809,818,830,839,8
+                                                                                                  61,881,894,902,910,951,954,961,964
+                                                                                                  ,988,991,1009,1017,1024,1029,1040,
+                                                                                                  1047,1055,1061,1080,1089,1102,1144
+                                                                                                  ,1148,1150,1152,1181,1185,1187,118
+                                                                                                  9,1217,1221,1223,1225,1254,1258,12
+                                                                                                  60,1262,1291,1295,1297,1299,1327,1
+                                                                                                  331,1333,1335                     
+ ADJUSTR                    Func   1084                                 scalar                    1084,1093                         
+ ALGAE_TOXIN                Local  1069     L(4)            4           scalar                    1069                              
+ ALGAE_TOXINS               Module 8                                                              8                                 
+ ATOXIN_DEBUG_FN            Local  1071     I(4)            4           scalar                    1071,1072                         
+ ATOX_DEBUG                 Local  1070     CHAR            2           scalar                    1070                              
+ B                          Local  1474     R(8)            8     2     1        ALC              1474,1483                         
+ BE                         Local  55       I(4)            4     1     1        ALC              55,753,782,799,925,998,1112,1169,1
+                                                                                                  206,1242,1279,1316,1352,1413      
+ BHEAD                      Local  1084     CHAR            8     1     20                        1084                              
+ BIOENERGETICS              Module 7                                                              7                                 
+ BIOEXP                     Local  650      L(4)            4           scalar                    650,1076                          
+ BIOEXPFN                   Local  658      I(4)            4     1     1        ALC              658,659,660,662,664,1083,1084     
+ BIOFN                      Local  652      CHAR            72          scalar                    652,657,658,1077,1082,1083        
+ BR_NOTECPLOT               Local  32       L(4)            4     1     1        ALC              32,33,40,44                       
+ BS                         Local  55       I(4)            4     1     1        ALC              55,753,782,799,925,998,1112,1169,1
+                                                                                                  206,1242,1279,1316,1352,1413      
+ C2                         Local  894      R(8)            8     3     1        ALC,TGT          894                               
+ CD                         Local  902      R(8)            8     3     1        ALC,TGT          902                               
+ CDMULT                     Local  883      R(8)            8     1     1        ALC              883,902                           
+ CDN                        Local  882      I(4)            4     2     1        ALC              882,902,954,964,1009,1017,1024,102
+                                                                                                  9,1040,1047,1055,1061,1124,1171,12
+                                                                                                  08,1244,1281,1318,1354,1529,1538,1
+                                                                                                  542                               
+ CDNAME                     Local  881      CHAR            43    1     1        ALC              881                               
+ CDNAME1                    Local  1538     CHAR            43    1     1        ALC              1538                              
+ CDNAME2                    Local  902      CHAR            15    1     1        ALC              902,954,964,1009,1017,1024,1029,10
+                                                                                                  40,1047,1055,1061,1124,1171,1208,1
+                                                                                                  244,1281,1318,1354                
+ CDNN                       Local  1529     I(4)            4     1     1        ALC              1529,1534                         
+ CDWBC                      Local  880      CHAR            8     2     1        ALC              880                               
+ CMULT                      Local  883      R(8)            8     1     1        ALC              883,894                           
+ CN                         Local  882      I(4)            4     1     1        ALC              882,891,894,932,951,954,961,964,10
+                                                                                                  07,1015,1023,1028,1038,1045,1054,1
+                                                                                                  060,1093,1118,1163,1200,1236,1273,
+                                                                                                  1310,1346,1534,1538,1542          
+ CNAME                      Local  881      CHAR            43    1     1        ALC              881                               
+ CNAME1                     Local  932      CHAR            43    1     1        ALC              932,1538                          
+ CNAME2                     Local  894      CHAR            15    1     1        ALC              894,951,954,961,964,1007,1009,1015
+                                                                                                  ,1017,1023,1024,1028,1029,1038,104
+
+Page 33          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  0,1045,1047,1054,1055,1060,1061,10
+                                                                                                  93,1118,1163,1200,1236,1273,1310,1
+                                                                                                  346                               
+ CNUM                       Local  21       CHAR            1     1     9                         25,1010,1025,1041,1056            
+ CON                        Local  34       I(4)            4           scalar                    34,35,36,37,38,42                 
+ CONSTITUENTS               Local  232      L(4)            4           scalar                    232,312,375,436,498,560,621,878,11
+                                                                                                  14,1160,1197,1233,1270,1307,1343  
+ CONTOUR                    Local  71       L(4)            4     1     1        ALC              71,165,857,920                    
+ CPL                        Local  71       I(4)            4     1     1        PTR              71,167,169,171,172,175,178,180,182
+                                                                                                  ,183,186,857,922,923,924,926,927,9
+                                                                                                  29,930,931,932,945,948,951,954,958
+                                                                                                  ,961,964                          
+ CPLFN                      Local  71       CHAR            72    1     1        ALC              71,857                            
+ CPRWBC                     Local  880      CHAR            8     2     1        ALC              880                               
+ CUNIT2                     Local  1542     CHAR            9     1     1        ALC              1542                              
+ CUNIT3                     Local  1542     CHAR            9     1     1        ALC              1542                              
+ DERIVED_CALC               Local  248      L(4)            4           scalar                    248,325,387,448,510,572,633,1120,1
+                                                                                                  165,1202,1238,1275,1312,1348      
+ DHS                        Local  1421     I(4)            4     1     1        ALC              1421                              
+ DIST                       Local  12       R(4)            4           scalar                    54,56,58,59,61,62,752,754,756,757,
+                                                                                                  759,760                           
+ DLX                        Local  56       R(8)            8     1     1        ALC              56,58,61,754,756,759,929,1416,1499
+                                                                                                  ,1501                             
+ DLX_OLD                    Local  13       R(4)            4           scalar                    1499,1501,1503                    
+ DOWNSTREAM_OUTFLOW         Local  197      L(4)            4           scalar                    197,1097,1134                     
+ DS                         Local  57       I(4)            4     1     1        ALC              57,61,62,277,755,759,760,782,835,9
+                                                                                                  26,927,998,1112,1140,1169,1206,124
+                                                                                                  2,1279,1316,1352,1385,1419,1432,14
+                                                                                                  33,1471,1496,1518                 
+ EDDY                       Module 5                                                              5                                 
+ EGT                        Local  594      R(8)            8     1     1        ALC              594,1330                          
+ EL                         Local  814      R(8)            8     2     1        ALC              814,823,844,1432,1448,1520        
+ EOF                        Func   269                                  scalar                    269                               
+ EPIPHYTON_CALC             Local  1003     L(4)            4     2     1        ALC              1003,1021,1035,1051               
+ EPU                        Local  471      R(8)            8     1     1        ALC              471,1257                          
+ ERROR_OPEN                 Local  142      L(4)            4           scalar                    142                               
+ ESP                        Local  409      R(8)            8     1     1        ALC              409,1220                          
+ ESTR                       Local  284      R(4)            4     2     1        ALC              284,1147,1432                     
+ EUPI                       Local  533      R(8)            8     1     1        ALC              533,1294                          
+ EWD                        Local  348      R(4)            4     1     1        ALC              348,1184,1448                     
+ FILE_LAKE_CONTOUR_DO       Local  818      CHAR            80    1     20                        818,819                           
+ FILE_LAKE_CONTOUR_T        Local  809      CHAR            80    1     20                        809,810                           
+ FILE_RIVER_CONTOUR_DO      Local  839      CHAR            80    1     20                        839,840                           
+ FILE_RIVER_CONTOUR_T       Local  830      CHAR            80    1     20                        830,831                           
+ FLOWBALC                   Local  709      CHAR            8           scalar                    709,1364                          
+ FLOWBFN                    Local  710      I(4)            4           scalar                    710,712,713,715,717,1365,1367,1369
+ FLUX                       Local  73       L(4)            4     1     1        ALC              73,858                            
+ FLX                        Local  74       I(4)            4     1     1        PTR              74,76,78,80,81,85,859             
+ FLX2                       Local  92       I(4)            4     1     1        PTR              92,94,95,97,99,863,864            
+ FLXFN                      Local  74       CHAR            72    1     1        ALC              74,859                            
+ GDAYC                      Module 6                                                              6                                 
+ GEOMC                      Module 5                                                              5                                 
+ GLOBAL                     Module 5                                                              5                                 
+ H                          Local  885      R(8)            8     2     1        ALC              885,930,1422                      
+ HABTATC                    Local  946      CHAR            8           scalar                    946                               
+
+Page 34          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ I                          Local  57       I(4)            4           scalar                    57,58,59,147,148,755,756,757,767,8
+                                                                                                  35,884,996,998,1385,1416,1417,1472
+                                                                                                  ,1473,1474,1480,1482,1483,1497,149
+                                                                                                  8,1499,1501,1519,1520,1525        
+ IBR                        Local  22       I(4)            4     1     1        ALC              31,38,40,46                       
+ IC                         Local  16       I(4)            4           scalar                    36,38,39                          
+ ICE_COMPUTATION            Local  1001     L(4)            4           scalar                    1001                              
+ ICHAR3                     Local  20       CHAR            3           scalar                    808,809,817,818,829,830,838,839   
+ ICOMP                      Local  14       I(4)            4     2     1        ALC              24,1425,1433,1449,1459,1460,1474,1
+                                                                                                  482,1525                          
+ ID                         Local  1471     I(4)            4           scalar                    1471,1472,1496,1497,1498,1518,1519
+ IFLAG                      Local  17       I(4)            4           scalar                    1405,1407,1409                    
+ II                         Local  1084     I(4)            4           scalar                    1084                              
+ IMX                        Local  24       I(4)            4           scalar                    24,924,1400,1416,1417,1480,1525   
+ INT4                       Func   1400                                 scalar                    1400,1413,1418,1419,1420,1421,1534
+ IPRF                       Local  72       I(4)            4     2     1        ALC              72,144,854,869,879,884,887,888,893
+                                                                                                  ,894,895,901,902,903              
+ ISPR                       Local  909      I(4)            4     2     1        ALC              909                               
+ ITR                        Local  1458     I(4)            4     1     1        ALC              1458,1459,1460                    
+ ITSR                       Local  690      I(4)            4     1     1        ALC              690,987,996                       
+ IU                         Local  1470     I(4)            4           scalar                    1470,1472,1495,1497,1517,1519     
+ IUGT                       Local  588      I(4)            4     1     1        ALC              588,1324                          
+ IUPI                       Local  527      I(4)            4     1     1        ALC              527,1288                          
+ IUPU                       Local  465      I(4)            4     1     1        ALC              465,1251                          
+ IUSP                       Local  403      I(4)            4     1     1        ALC              403,1214                          
+ IW                         Local  16       I(4)            4           scalar                    1445,1448,1449                    
+ IWD                        Local  342      I(4)            4     1     1        ALC              342,1178,1448,1449                
+ IWDO                       Local  202      I(4)            4     1     1        ALC              202,277,280,342,344,403,405,465,46
+                                                                                                  7,527,529,588,590,1101,1109,1110,1
+                                                                                                  112,1118,1124,1128,1140,1143,1169,
+                                                                                                  1178,1180,1206,1214,1216,1242,1251
+                                                                                                  ,1253,1279,1288,1290,1316,1324,132
+                                                                                                  6,1352                            
+ J                          Local  38       I(4)            4           scalar                    38,39,40,84,110,146,148,653,654,65
+                                                                                                  8,659,660,662,664,670,671,675,676,
+                                                                                                  677,679,681,689,690,693,697,698,70
+                                                                                                  0,702,704,908,909,912,915,917,986,
+                                                                                                  987,990,994,996,1004,1012,1022,102
+                                                                                                  7,1036,1043,1052,1058,1072,1078,10
+                                                                                                  79,1083,1084,1087,1088,1092,1093,1
+                                                                                                  118,1124,1163,1171,1200,1208,1236,
+                                                                                                  1244,1273,1281,1310,1318,1346,1354
+ JA                         Local  1009     I(4)            4           scalar                    1009,1017,1024,1029,1040,1047,1055
+                                                                                                  ,1061                             
+ JAD                        Local  16       I(4)            4           scalar                    1528,1529                         
+ JB                         Local  55       I(4)            4           scalar                    55,56,57,61,62,276,277,278,284,753
+                                                                                                  ,754,755,759,760,835,925,926,927,1
+                                                                                                  139,1140,1141,1147,1385,1428,1429,
+                                                                                                  1430,1432,1433,1469,1470,1471,1494
+                                                                                                  ,1495,1496,1512,1517,1518         
+ JC                         Local  149      I(4)            4           scalar                    149,150,890,891,894,1007,1015,1023
+                                                                                                  ,1028,1038,1045,1054,1060,1093,153
+                                                                                                  4,1538,1542                       
+ JD                         Local  149      I(4)            4           scalar                    149,150,899,902,954,964,1009,1017,
+                                                                                                  1024,1029,1040,1047,1055,1061     
+
+Page 35          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ JDAY                       Local  77       R(8)            8           scalar                    77,96,122,131,151,168,179,214,227,
+                                                                                                  241,257,269,272,295,306,317,330,35
+                                                                                                  9,369,380,392,420,430,441,453,482,
+                                                                                                  492,503,515,544,554,565,577,605,61
+                                                                                                  5,626,638,661,678,701,714,728,741,
+                                                                                                  775,776,793,794                   
+ JDAY1                      Local  75       R(4)            4           scalar                    75,77,81,93,96,97,100,122,123,127,
+                                                                                                  131,132,136,151,157,161,164,168,17
+                                                                                                  2,176,179,183,187,214,215,218,227,
+                                                                                                  228,231,241,242,246,257,258,262,26
+                                                                                                  9,270,272,273,295,296,300,306,307,
+                                                                                                  311,317,318,322,330,331,335,359,36
+                                                                                                  0,364,369,370,374,380,381,385,392,
+                                                                                                  393,397,420,421,425,430,431,435,44
+                                                                                                  1,442,446,453,454,458,482,483,487,
+                                                                                                  492,493,497,503,504,508,515,516,52
+                                                                                                  0,544,545,549,554,555,559,565,566,
+                                                                                                  570,577,578,582,605,606,610,615,61
+                                                                                                  6,620,626,627,631,638,639,643,651,
+                                                                                                  661,662,666,678,679,683,711,714,71
+                                                                                                  5,718,725,728,729,732,738,741,742,
+                                                                                                  745                               
+ JDAYTS                     Local  700      R(4)            4           scalar                    700,701,702                       
+ JE                         Local  1008     I(4)            4           scalar                    1008,1010,1024,1025,1039,1041,1055
+                                                                                                  ,1056                             
+ JF                         Local  864      I(4)            4           scalar                    864,1009,1017,1024,1029,1040,1047,
+                                                                                                  1055,1061                         
+ JFILE                      Local  198      I(4)            4           scalar                    198,279,291,292,293,294,296,298,30
+                                                                                                  2,303,304,305,307,309,313,314,315,
+                                                                                                  316,318,320,326,327,328,329,331,33
+                                                                                                  3,343,355,356,357,358,360,362,365,
+                                                                                                  366,367,368,370,372,376,377,378,37
+                                                                                                  9,381,383,388,389,390,391,393,395,
+                                                                                                  404,416,417,418,419,421,423,426,42
+                                                                                                  7,428,429,431,433,437,438,439,440,
+                                                                                                  442,444,449,450,451,452,454,456,46
+                                                                                                  6,478,479,480,481,483,485,488,489,
+                                                                                                  490,491,493,495,499,500,501,502,50
+                                                                                                  4,506,511,512,513,514,516,518,528,
+                                                                                                  540,541,542,543,545,547,550,551,55
+                                                                                                  2,553,555,557,561,562,563,564,566,
+                                                                                                  568,573,574,575,576,578,580,589,60
+                                                                                                  1,602,603,604,606,608,611,612,613,
+                                                                                                  614,616,618,622,623,624,625,627,62
+                                                                                                  9,634,635,636,637,639,641,1135,114
+                                                                                                  2,1154,1155,1156,1157,1158,1159,11
+                                                                                                  61,1162,1163,1166,1167,1171,1179,1
+                                                                                                  191,1192,1193,1194,1195,1196,1198,
+                                                                                                  1199,1200,1203,1204,1208,1215,1227
+                                                                                                  ,1228,1229,1230,1231,1232,1234,123
+                                                                                                  5,1236,1239,1240,1244,1252,1264,12
+                                                                                                  65,1266,1267,1268,1269,1271,1272,1
+                                                                                                  273,1276,1277,1281,1289,1301,1302,
+                                                                                                  1303,1304,1305,1306,1308,1309,1310
+                                                                                                  ,1313,1314,1318,1325,1337,1338,133
+
+Page 36          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  9,1340,1341,1342,1344,1345,1346,13
+                                                                                                  49,1350,1354                      
+ JJ                         Local  16       I(4)            4           scalar                    773,774,775,776,778,782,783,791,79
+                                                                                                  2,793,794,796,799,800,807,808,809,
+                                                                                                  810,812,814,817,818,819,821,823,82
+                                                                                                  8,829,830,831,833,835,838,839,840,
+                                                                                                  842,844                           
+ JM                         Local  1008     I(4)            4           scalar                    1008,1016,1024,1029,1039,1046,1055
+                                                                                                  ,1061                             
+ JN                         Local  16       I(4)            4           scalar                    932,951,954,961,964               
+ JP                         Local  886      I(4)            4           scalar                    886,887,888,892,893,894,895,900,90
+                                                                                                  1,902,903                         
+ JS                         Local  278      I(4)            4           scalar                    278,284,288,341,342,348,352,402,40
+                                                                                                  3,409,413,464,465,471,475,526,527,
+                                                                                                  533,537,587,588,594,598,1141,1147,
+                                                                                                  1151,1177,1178,1184,1188,1213,1214
+                                                                                                  ,1220,1224,1250,1251,1257,1261,128
+                                                                                                  7,1288,1294,1298,1323,1324,1330,13
+                                                                                                  34,1430,1432                      
+ JT                         Local  1457     I(4)            4           scalar                    1457,1458,1459,1460               
+ JW                         Local  53       I(4)            4           scalar                    53,54,55,66,67,69,70,71,72,73,74,7
+                                                                                                  6,78,80,81,85,89,92,94,95,97,99,10
+                                                                                                  2,103,105,107,108,111,119,120,121,
+                                                                                                  123,125,128,129,130,132,134,144,14
+                                                                                                  5,146,147,148,149,150,152,156,157,
+                                                                                                  160,165,166,167,169,171,172,175,17
+                                                                                                  8,180,182,183,186,708,722,750,752,
+                                                                                                  753,781,782,783,798,799,800,851,85
+                                                                                                  2,854,855,856,857,858,859,860,863,
+                                                                                                  864,869,873,874,876,877,878,879,88
+                                                                                                  0,881,882,883,884,885,886,887,888,
+                                                                                                  891,892,893,894,895,899,900,901,90
+                                                                                                  2,903,907,908,909,914,915,917,920,
+                                                                                                  921,922,923,924,925,926,927,929,93
+                                                                                                  0,931,932,945,948,949,951,952,954,
+                                                                                                  958,959,961,962,964,970,972,997,99
+                                                                                                  8,1002,1003,1009,1017,1021,1024,10
+                                                                                                  29,1034,1035,1040,1047,1051,1055,1
+                                                                                                  061,1111,1112,1124,1168,1169,1171,
+                                                                                                  1205,1206,1208,1241,1242,1244,1278
+                                                                                                  ,1279,1281,1315,1316,1318,1351,135
+                                                                                                  2,1354,1363,1366,1374,1412,1413,14
+                                                                                                  22                                
+ JWD                        Local  201      I(4)            4           scalar                    201,202,207,209,212,213,215,217,22
+                                                                                                  0,222,225,226,228,230,234,236,239,
+                                                                                                  240,242,244,250,252,255,256,258,26
+                                                                                                  0,265,267,268,269,270,272,277,280,
+                                                                                                  342,344,403,405,465,467,527,529,58
+                                                                                                  8,590,1100,1101,1106,1107,1109,111
+                                                                                                  0,1112,1116,1118,1122,1124,1127,11
+                                                                                                  28,1136,1140,1143,1169,1178,1180,1
+                                                                                                  206,1214,1216,1242,1251,1253,1279,
+                                                                                                  1288,1290,1316,1324,1326,1352     
+ JW_LAKE_CONTOUR            Local  783      I(4)            4     1     20                        783                               
+ JW_RIVER_CONTOUR           Local  800      I(4)            4     1     20                        800                               
+
+Page 37          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ K                          Local  814      I(4)            4           scalar                    814,823,844,888,894,902,903,1418,1
+                                                                                                  419,1420,1421,1422,1431,1432,1433,
+                                                                                                  1447,1448,1449,1458,1459,1460,1473
+                                                                                                  ,1474,1481,1482,1483,1493,1511,152
+                                                                                                  0,1525                            
+ KB                         Local  814      I(4)            4     1     1        ALC              814,823,844,884,887,888,893,895,90
+                                                                                                  1,903,1458,1473                   
+ KBI                        Local  927      I(4)            4     1     1        ALC              927                               
+ KFCN                       Local  864      I(4)            4     2     1        ALC              864,1009,1017,1024,1029,1040,1047,
+                                                                                                  1055,1061                         
+ KFNAME2                    Local  864      CHAR            14    1     1        ALC              864,1009,1017,1024,1029,1040,1047,
+                                                                                                  1055,1061                         
+ KINETIC                    Module 5                                                              5                                 
+ KMX                        Local  24       I(4)            4           scalar                    24,878,924,1400,1422,1431,1447,148
+                                                                                                  1,1493,1511,1525                  
+ KTWB                       Local  878      I(4)            4     1     1        ALC              878,887,888,893,894,901,903       
+ L                          Local  91       I(4)            4           scalar                    91,92,204,207,209,220,222,234,236,
+                                                                                                  250,252,265,286,287,290,292,303,31
+                                                                                                  4,327,350,351,354,356,366,377,389,
+                                                                                                  411,412,415,417,427,438,450,473,47
+                                                                                                  4,477,479,489,500,512,535,536,539,
+                                                                                                  541,551,562,574,596,597,600,602,61
+                                                                                                  2,623,635,656,657,673,674,692,696,
+                                                                                                  862,863,911,912,989,993,1081,1082,
+                                                                                                  1090,1091,1103,1106,1107,1116,1122
+                                                                                                  ,1127,1149,1150,1153,1155,1158,116
+                                                                                                  2,1167,1186,1187,1190,1192,1195,11
+                                                                                                  99,1204,1222,1223,1226,1228,1231,1
+                                                                                                  235,1240,1259,1260,1263,1265,1268,
+                                                                                                  1272,1277,1296,1297,1300,1302,1305
+                                                                                                  ,1309,1314,1332,1333,1336,1338,134
+                                                                                                  1,1345,1350                       
+ L1                         Local  153      I(4)            4           scalar                    153,154,155,199,207,209,220,222,23
+                                                                                                  4,236,250,252,265,292,303,314,327,
+                                                                                                  356,366,377,389,417,427,438,450,47
+                                                                                                  9,489,500,512,541,551,562,574,602,
+                                                                                                  612,623,635,652,657,669,674,688,69
+                                                                                                  6,985,993,1077,1082,1086,1091,1098
+                                                                                                  ,1106,1107,1116,1122,1127,1155,115
+                                                                                                  8,1162,1167,1192,1195,1199,1204,12
+                                                                                                  28,1231,1235,1240,1265,1268,1272,1
+                                                                                                  277,1302,1305,1309,1314,1338,1341,
+                                                                                                  1345,1350                         
+ L2                         Local  200      I(4)            4           scalar                    200,206,207,209,219,220,222,233,23
+                                                                                                  4,236,249,250,252,265,292,303,314,
+                                                                                                  327,356,366,377,389,417,427,438,45
+                                                                                                  0,479,489,500,512,541,551,562,574,
+                                                                                                  602,612,623,635,695,696,992,993,10
+                                                                                                  99,1106,1107,1116,1122,1127,1155,1
+                                                                                                  158,1162,1167,1192,1195,1199,1204,
+                                                                                                  1228,1231,1235,1240,1265,1268,1272
+                                                                                                  ,1277,1302,1305,1309,1314,1338,134
+                                                                                                  1,1345,1350                       
+ L3                         Local  282      I(4)            4           scalar                    282,283,292,303,314,327,346,347,35
+                                                                                                  6,366,377,389,407,408,417,427,438,
+
+Page 38          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  450,469,470,479,489,500,512,531,53
+                                                                                                  2,541,551,562,574,592,593,602,612,
+                                                                                                  623,635,1145,1146,1155,1158,1162,1
+                                                                                                  167,1182,1183,1192,1195,1199,1204,
+                                                                                                  1218,1219,1228,1231,1235,1240,1255
+                                                                                                  ,1256,1265,1268,1272,1277,1292,129
+                                                                                                  3,1302,1305,1309,1314,1328,1329,13
+                                                                                                  38,1341,1345,1350                 
+ LA                         Label  1072                                                                                             
+ LAKE_CONTOUR_FORMAT        Local  771      I(4)            4           scalar                    771,811,820                       
+ LAKE_CONTOUR_FREQ          Local  774      R(4)            4     1     20                        774                               
+ LAKE_CONTOUR_SEG           Local  774      I(4)            4     1     20                        774,782,808,814,817,823,838,844   
+ LAKE_CONTOUR_START         Local  774      R(4)            4     1     20                        774,775,778                       
+ LAKE_RIVER_CONTOUR         Local  767      I(4)            4           scalar                    767,768,769,770,771,772,774,788,78
+                                                                                                  9,790,792,805,810,812,814,819,821,
+                                                                                                  823,831,833,835,840,842,844       
+ LAKE_RIVER_CONTOURC        Local  764      L(4)            4           scalar                    764,766                           
+ LAKE_RIVER_CONTOUR_ON      Local  769      CHAR            2           scalar                    769,806                           
+ LB                         Label  1072                                                                                             
+ LEN_TRIM                   Func   91                                   scalar                    91,204,282,286,290,346,350,354,407
+                                                                                                  ,411,415,469,473,477,531,535,539,5
+                                                                                                  92,596,600,656,673,692,695,862,911
+                                                                                                  ,989,992,1081,1090,1103,1145,1149,
+                                                                                                  1153,1182,1186,1190,1218,1222,1226
+                                                                                                  ,1255,1259,1263,1292,1296,1300,132
+                                                                                                  8,1332,1336                       
+ LINE                       Local  78       CHAR            72          scalar                    78,79,105,106,123,132,146,149,150,
+                                                                                                  152,154,169,170,172,180,181,183   
+ LOGICC                     Module 5                                                              5                                 
+ MACROPHYTEC                Module 7                                                              7                                 
+ MAIN                       Module 4                                                              4                                 
+ MASSBFN                    Local  724      I(4)            4           scalar                    724,726,727,729,731,1376,1377     
+ NAC                        Local  878      I(4)            4           scalar                    878,882,890,931,932,947,951,954,95
+                                                                                                  7,961,964,969,970,971,972,1007,101
+                                                                                                  5,1023,1028,1038,1045,1054,1060,10
+                                                                                                  93,1118,1163,1200,1236,1273,1310,1
+                                                                                                  346,1400,1534,1538,1542           
+ NACD                       Local  878      I(4)            4     1     1        ALC              878,882,899,949,952,954,959,962,96
+                                                                                                  4,970,972,1009,1017,1024,1029,1040
+                                                                                                  ,1047,1055,1061,1124,1171,1208,124
+                                                                                                  4,1281,1318,1354,1400,1528,1534,15
+                                                                                                  38,1542                           
+ NAF                        Local  864      I(4)            4     1     1        ALC              864,1009,1017,1024,1029,1040,1047,
+                                                                                                  1055,1061                         
+ NAL                        Local  1009     I(4)            4           scalar                    1009,1017,1024,1029,1040,1047,1055
+                                                                                                  ,1061,1072                        
+ NAMESC                     Module 5                                                              5                                 
+ NAS                        Local  1009     I(4)            4           scalar                    1009,1017,1024,1029,1040,1047,1055
+                                                                                                  ,1061                             
+ NBR                        Local  31       I(4)            4           scalar                    31,276,923,1139,1385,1400,1418,141
+                                                                                                  9,1420,1421,1428,1469,1494,1512   
+ NCT                        Local  149      I(4)            4           scalar                    149,150,878,882,1400,1529         
+ NDC                        Local  149      I(4)            4           scalar                    149,150,878,1400                  
+ NDSP                       Local  872      I(4)            4           scalar                    872,878                           
+ NEP                        Local  1003     I(4)            4           scalar                    1003,1008,1010,1021,1024,1025,1035
+
+Page 39          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  ,1039,1041,1051,1055,1056         
+ NGT                        Local  587      I(4)            4           scalar                    587,1323                          
+ NIBIO                      Local  653      I(4)            4           scalar                    653,670,1078,1087                 
+ NIKTSR                     Local  689      I(4)            4           scalar                    689,986                           
+ NIPRF                      Local  148      I(4)            4     1     1        ALC              148,878,879,884,886,892,900       
+ NISPR                      Local  908      I(4)            4     1     1        ALC              908,915,917                       
+ NIT                        Local  109      I(4)            4           scalar                    109                               
+ NIT1                       Local  108      I(4)            4           scalar                    108,109                           
+ NIWDO                      Local  201      I(4)            4           scalar                    201,1100,1136                     
+ NMC                        Local  1008     I(4)            4           scalar                    1008,1016,1024,1029,1039,1046,1055
+                                                                                                  ,1061                             
+ NPBALC                     Local  723      CHAR            8           scalar                    723,1375                          
+ NPI                        Local  526      I(4)            4           scalar                    526,1287                          
+ NPU                        Local  464      I(4)            4           scalar                    464,1250                          
+ NRS                        Local  887      I(4)            4           scalar                    887,888,893,894,901,902           
+ NSP                        Local  402      I(4)            4           scalar                    402,1213                          
+ NSTR                       Local  277      I(4)            4     1     1        ALC              277,278,1140,1141,1429,1430       
+ NTR                        Local  1456     I(4)            4           scalar                    1456,1457                         
+ NUMATOXINS                 Param  1072     I(4)            4           scalar                    1072                              
+ NUM_LAKE_CONTOUR           Local  771      I(4)            4           scalar                    771,773,807                       
+ NUM_RIVER_CONTOUR          Local  789      I(4)            4           scalar                    789,791,828                       
+ NUNIT                      Local  291      I(4)            4           scalar                    291,302,313,326,355,365,376,388,41
+                                                                                                  6,426,437,449,478,488,499,511,540,
+                                                                                                  550,561,573,601,611,622,634,1154,1
+                                                                                                  157,1161,1166,1191,1194,1198,1203,
+                                                                                                  1227,1230,1234,1239,1264,1267,1271
+                                                                                                  ,1276,1301,1304,1308,1313,1337,134
+                                                                                                  0,1344,1349                       
+ NWB                        Local  53       I(4)            4           scalar                    53,66,708,722,750,781,798,851,997,
+                                                                                                  1111,1168,1205,1241,1278,1315,1351
+                                                                                                  ,1363,1374,1400,1412,1422         
+ NWD                        Local  341      I(4)            4           scalar                    341,1177,1445                     
+ NXT_LAKE_CONTOUR           Local  776      R(4)            4     1     20                        776,778                           
+ NXT_RIVER_CONTOUR          Local  794      R(4)            4     1     20                        794,796                           
+ OUTPUTINIT                 Subr   2                                                                                                
+ OXYGEN_DEMAND              Local  816      L(4)            4           scalar                    816,837                           
+ PHI0                       Local  1417     R(8)            8     1     1        ALC              1417                              
+ POROSITYC                  Module 7                                                              7                                 
+ PREC                       Module 5                                                              5                                 
+ PRF                        Local  72       I(4)            4     1     1        PTR              72,145,146,147,148,149,150,152,156
+                                                                                                  ,157,160,854,877,878,879,880,881,8
+                                                                                                  82,883,884,885,888,894,902        
+ PRFD                       Local  874      R(4)            4     2     1        ALC              874                               
+ PRFDP                      Local  873      I(4)            4     1     1        ALC              873,874,876,878                   
+ PRFF                       Local  873      R(4)            4     2     1        ALC              873                               
+ PRFFN                      Local  72       CHAR            72    1     1        ALC              72,854                            
+ PRINT_CONST                Local  891      L(4)            4     2     1        ALC              891                               
+ PROFILE                    Local  72       L(4)            4     1     1        ALC              72,144,854,869                    
+ REAL                       Func   1416                                 scalar                    1416,1417,1422,1483,1503,1520     
+ RESTART_IN                 Local  51       L(4)            4           scalar                    51                                
+ RESTART_OUTPUT             Subr   10                                   scalar                                                      
+ RIVER_CONTOUR_BR1          Local  792      I(4)            4     1     20                        792,799,829,835                   
+ RIVER_CONTOUR_BR2          Local  792      I(4)            4     1     20                        792,835                           
+ RIVER_CONTOUR_FORMAT       Local  789      I(4)            4           scalar                    789,832,841                       
+ RIVER_CONTOUR_FREQ         Local  792      R(4)            4     1     20                        792                               
+
+Page 40          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ RIVER_CONTOUR_START        Local  792      R(4)            4     1     20                        792,793,796                       
+ RSTART                     Module 6                                                              6                                 
+ SCAN                       Func   154                                  scalar                    154,199,200,652,669,688,985,1077,1
+                                                                                                  086,1098,1099                     
+ SCREENC                    Module 6                                                              6                                 
+ SEDIMENT_CALC              Local  1002     L(4)            4     1     1        ALC              1002,1034                         
+ SEG                        Local  912      CHAR            8     1     1        ALC              912,915,917                       
+ SEGNUM                     Local  89       CHAR            72          scalar                    89,90,91,92,202,203,204,207,209,22
+                                                                                                  0,222,234,236,250,252,265,284,285,
+                                                                                                  286,287,288,289,290,292,303,314,32
+                                                                                                  7,348,349,350,351,352,353,354,356,
+                                                                                                  366,377,389,409,410,411,412,413,41
+                                                                                                  4,415,417,427,438,450,471,472,473,
+                                                                                                  474,475,476,477,479,489,500,512,53
+                                                                                                  3,534,535,536,537,538,539,541,551,
+                                                                                                  562,574,594,595,596,597,598,599,60
+                                                                                                  0,602,612,623,635,654,655,656,657,
+                                                                                                  671,672,673,674,690,691,692,696,86
+                                                                                                  0,861,862,863,909,910,911,912,987,
+                                                                                                  988,989,993,1079,1080,1081,1082,10
+                                                                                                  88,1089,1090,1091,1101,1102,1103,1
+                                                                                                  106,1107,1116,1122,1127,1147,1148,
+                                                                                                  1149,1150,1151,1152,1153,1155,1158
+                                                                                                  ,1162,1167,1184,1185,1186,1187,118
+                                                                                                  8,1189,1190,1192,1195,1199,1204,12
+                                                                                                  20,1221,1222,1223,1224,1225,1226,1
+                                                                                                  228,1231,1235,1240,1257,1258,1259,
+                                                                                                  1260,1261,1262,1263,1265,1268,1272
+                                                                                                  ,1277,1294,1295,1296,1297,1298,129
+                                                                                                  9,1300,1302,1305,1309,1314,1330,13
+                                                                                                  31,1332,1333,1334,1335,1336,1338,1
+                                                                                                  341,1345,1350                     
+ SEGNUM2                    Local  280      CHAR            72          scalar                    280,281,282,283,292,303,314,327,34
+                                                                                                  4,345,346,347,356,366,377,389,405,
+                                                                                                  406,407,408,417,427,438,450,467,46
+                                                                                                  8,469,470,479,489,500,512,529,530,
+                                                                                                  531,532,541,551,562,574,590,591,59
+                                                                                                  2,593,602,612,623,635,693,694,695,
+                                                                                                  696,990,991,992,993,1143,1144,1145
+                                                                                                  ,1146,1155,1158,1162,1167,1180,118
+                                                                                                  1,1182,1183,1192,1195,1199,1204,12
+                                                                                                  16,1217,1218,1219,1228,1231,1235,1
+                                                                                                  240,1253,1254,1255,1256,1265,1268,
+                                                                                                  1272,1277,1290,1291,1292,1293,1302
+                                                                                                  ,1305,1309,1314,1326,1327,1328,132
+                                                                                                  9,1338,1341,1345,1350             
+ SELWC                      Module 6                                                              6                                 
+ SHADEC                     Module 5                                                              5                                 
+ SNAPSHOT                   Local  67       L(4)            4     1     1        ALC              67,102,852                        
+ SNP                        Local  67       I(4)            4     1     1        PTR              67,103,105,107,108,111,852        
+ SNPFN                      Local  67       CHAR            72    1     1        ALC              67,852                            
+ SPR                        Local  69       I(4)            4     1     1        PTR              69,120,121,123,125,855,917        
+ SPRC                       Local  70       CHAR            8     1     1        ALC              70,128,856,914                    
+ SPREADSHEET                Local  69       L(4)            4     1     1        ALC              69,119,855,907                    
+ SPRFN                      Local  69       CHAR            72    1     1        ALC              69,855                            
+
+Page 41          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ SPRV                       Local  70       I(4)            4     1     1        PTR              70,129,130,132,134,856,915        
+ SPRVFN                     Local  70       CHAR            72    1     1        ALC              70,856                            
+ STRUCTURES                 Module 6                                                              6                                 
+ SURFHE                     Module 5                                                              5                                 
+ T2                         Local  888      R(8)            8     2     1        PTR              888                               
+ TDGAS                      Module 6                                                              6                                 
+ TECPLOT                    Local  166      CHAR            8     1     1        ALC              166,921                           
+ TIME_SERIES                Local  687      L(4)            4           scalar                    687,984,1404,1546                 
+ TITLE                      Local  877      CHAR            72    1     1        ALC              877,922,1396                      
+ TITLEWITH                  Local  19       CHAR            100         scalar                    287,351,412,474,536,597,1150,1156,
+                                                                                                  1159,1163,1171,1187,1193,1196,1200
+                                                                                                  ,1208,1223,1229,1232,1236,1244,126
+                                                                                                  0,1266,1269,1273,1281,1297,1303,13
+                                                                                                  06,1310,1318,1333,1339,1342,1346,1
+                                                                                                  354                               
+ TITLEWITH2                 Local  18       CHAR            60          scalar                    283,287,347,351,408,412,470,474,53
+                                                                                                  2,536,593,597,1146,1150,1183,1187,
+                                                                                                  1219,1223,1256,1260,1293,1297,1329
+                                                                                                  ,1333                             
+ TMEND                      Local  871      R(4)            4           scalar                    871                               
+ TMSTRT                     Local  870      R(4)            4           scalar                    870                               
+ TRANS                      Module 6                                                              6                                 
+ TRIM                       Func   809                                  scalar                    809,818,830,839                   
+ TSR                        Local  697      I(4)            4     1     1        ALC              697,698,700,702,704,994,1004,1012,
+                                                                                                  1022,1027,1036,1043,1052,1058     
+ TSRFN                      Local  696      CHAR            72          scalar                    696,697,993,994                   
+ TSRFN1                     Local  688      CHAR            72          scalar                    688,696,985,993                   
+ TTIME                      Local  870      R(4)            4           scalar                    870,871,873,874                   
+ TVDC                       Module 6                                                              6                                 
+ UHS                        Local  1420     I(4)            4     1     1        ALC              1420                              
+ US                         Local  56       I(4)            4     1     1        ALC              56,57,754,755,782,835,926,927,998,
+                                                                                                  1112,1169,1206,1242,1279,1316,1352
+                                                                                                  ,1385,1418,1470,1495,1517         
+ VECTOR                     Local  193      L(4)            4     1     1        ALC              193,1389                          
+ VOLUME_BALANCE             Local  1366     L(4)            4     1     1        ALC              1366                              
+ VPL                        Local  194      I(4)            4     1     1        PTR              194,1391,1394,1396,1400,1409,1413,
+                                                                                                  1416,1417,1418,1419,1420,1421,1422
+                                                                                                  ,1483,1485,1503,1520,1525,1534,153
+                                                                                                  8,1542                            
+ VPLFN                      Local  194      CHAR            72    1     1        ALC              194,1391                          
+ W2ERR                      Local  141      I(4)            4           scalar                    141                               
+ W2VER                      Local  1394     R(4)            4           scalar                    1394                              
+ WDO                        Local  207      I(4)            4     2     1        ALC              207,209,212,213,215,217,220,222,22
+                                                                                                  5,226,228,230,234,236,239,240,242,
+                                                                                                  244,250,252,255,256,258,260,265,26
+                                                                                                  7,268,269,270,272,1106,1107,1109,1
+                                                                                                  110,1116,1118,1122,1124,1127,1128 
+ WDO2                       Local  291      I(4)            4     2     1        ALC              291,292,293,294,296,298,302,303,30
+                                                                                                  4,305,307,309,313,314,315,316,318,
+                                                                                                  320,326,327,328,329,331,333,355,35
+                                                                                                  6,357,358,360,362,365,366,367,368,
+                                                                                                  370,372,376,377,378,379,381,383,38
+                                                                                                  8,389,390,391,393,395,416,417,418,
+                                                                                                  419,421,423,426,427,428,429,431,43
+                                                                                                  3,437,438,439,440,442,444,449,450,
+
+Page 42          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Symbol Table                    ..\..\..\outputinitw2tools.F90
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+                                                                                                  451,452,454,456,478,479,480,481,48
+                                                                                                  3,485,488,489,490,491,493,495,499,
+                                                                                                  500,501,502,504,506,511,512,513,51
+                                                                                                  4,516,518,540,541,542,543,545,547,
+                                                                                                  550,551,552,553,555,557,561,562,56
+                                                                                                  3,564,566,568,573,574,575,576,578,
+                                                                                                  580,601,602,603,604,606,608,611,61
+                                                                                                  2,613,614,616,618,622,623,624,625,
+                                                                                                  627,629,634,635,636,637,639,641,11
+                                                                                                  54,1155,1156,1157,1158,1159,1161,1
+                                                                                                  162,1163,1166,1167,1171,1191,1192,
+                                                                                                  1193,1194,1195,1196,1198,1199,1200
+                                                                                                  ,1203,1204,1208,1227,1228,1229,123
+                                                                                                  0,1231,1232,1234,1235,1236,1239,12
+                                                                                                  40,1244,1264,1265,1266,1267,1268,1
+                                                                                                  269,1271,1272,1273,1276,1277,1281,
+                                                                                                  1301,1302,1303,1304,1305,1306,1308
+                                                                                                  ,1309,1310,1313,1314,1318,1337,133
+                                                                                                  8,1339,1340,1341,1342,1344,1345,13
+                                                                                                  46,1349,1350,1354                 
+ WDOFN                      Local  199      CHAR            72          scalar                    199,200,207,209,220,222,234,236,25
+                                                                                                  0,252,265,292,303,314,327,356,366,
+                                                                                                  377,389,417,427,438,450,479,489,50
+                                                                                                  0,512,541,551,562,574,602,612,623,
+                                                                                                  635,1098,1099,1106,1107,1116,1122,
+                                                                                                  1127,1155,1158,1162,1167,1192,1195
+                                                                                                  ,1199,1204,1228,1231,1235,1240,126
+                                                                                                  5,1268,1272,1277,1302,1305,1309,13
+                                                                                                  14,1338,1341,1345,1350            
+ WEIGHTFN                   Local  669      CHAR            72          scalar                    669,674,675,1086,1091,1092        
+ WEIGHTNUM                  Local  675      I(4)            4     1     1        ALC              675,676,677,679,681,1092,1093     
+ WLC                        Local  736      CHAR            8           scalar                    736,1383                          
+ WLFN                       Local  737      I(4)            4           scalar                    737,739,740,742,744,1384,1385     
+ X1                         Local  56       R(4)            4     1     1        ALC              56,59,62,754,757,760,835          
+ ZOOPLANKTONC               Module 7                                                              7                                 
+
+Page 43          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+   1556 
+
+Page 44          Source Listing                  OUTPUTINIT
+2026-03-30 08:48 Subprograms/Common Blocks       ..\..\..\outputinitw2tools.F90
+
+
+
+SUBPROGRAMS/COMMON BLOCKS
+
+ Name                       Object Declared Type            Bytes Dimen Elements Attributes       References                        
+                                                                                                                                    
+ OUTPUTINIT                 Subr   2                                                                                                
+
+COMPILER OPTIONS BEING USED
+
+  /noOa                                 /Qansi-alias
+  /align:noall                          /align:nonone
+  /align:nocommons                      /align:nodcommons
+  /align:noqcommons                     /align:nozcommons
+  /align:records                        /align:nosequence
+  /align:norec1byte                     /align:norec2byte
+  /align:norec4byte                     /align:norec8byte
+  /align:norec16byte                    /align:norec32byte
+  /align:norec64byte                    /align:noarray8byte
+  /align:noarray16byte                  /align:noarray32byte
+  /align:noarray64byte                  /align:noarray128byte
+  /align:noarray256byte                 /altparam
+  /assume:accuracy_sensitive            /assume:noaligned_dummy_args
+  /assume:nobscc                        /assume:nobuffered_io
+  /assume:nobuffered_stdout             /assume:nobyterecl
+  /assume:nocontiguous_assumed_shape    /assume:nocontiguous_pointer
+  /assume:nocc_omp                      /assume:nocstring
+  /assume:nodummy_aliases               /assume:nofailed_images
+  /assume:nofpe_summary                 /assume:noieee_compares
+  /assume:noieee_fpe_flags              /assume:noieee_mode_restore
+  /assume:nominus0                      /assume:noold_boz
+  /assume:old_complex_align             /assume:old_e0g0_format
+  /assume:old_unit_star                 /assume:old_inquire_recl
+  /assume:old_ldout_format              /assume:old_ldout_zero
+  /assume:noold_logical_assign          /assume:noold_logical_ldio
+  /assume:old_maxminloc                 /assume:old_xor
+  /assume:noprotect_allocates           /assume:protect_constants
+  /assume:noprotect_parens              /assume:realloc_lhs
+  /assume:norecursion                   /assume:source_include
+  /assume:nostd_expon_output            /assume:nostd_intent_in
+  /assume:std_minus0_rounding           /assume:nostd_mod_proc_name
+  /assume:std_value                     /assume:nounderscore
+  /assume:no2underscores                /noauto
+  /auto_scalar                          /nobintext
+  /ccdefault:default                    /check:noall
+  /check:nonone                         /check:noarg_temp_created
+  /check:noassume                       /check:nobounds
+  /check:nocontiguous                   /check:noformat
+  /check:nooutput_conversion            /check:nooverflow
+  /check:nopointers                     /check:noshape
+  /check:nostack                        /check:noteams
+  /check:nouninitialized                /check:noudio_iostat
+  /Qcoarray-num-procs:0                 /noQcoarray-config-file
+  /convert:native                       /cross_reference
+  /D:__INTEL_LLVM_COMPILER=20250000     /D:__INTEL_LLVM_COMPILER_UPDATE=0
+  /D:_WIN32                             /D:_M_AMD64=100
+  /D:_M_X64=100                         /D:_WIN64=1
+
+Page 45          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+  /D:_MSC_VER=1500                      /D:_MSC_FULL_VER=150011209
+  /D:_MSC_EXTENSIONS                    /D:_MT
+  /D:__INTEL_COMPILER_BUILD_DATE=20241008  /D:__MMX__
+  /D:__SSE__                            /D:__SSE_MATH__
+  /D:__SSE2__                           /D:__SSE2_MATH__
+  /D:__pentium4                         /D:__pentium4__
+  /D:__tune_pentium4__                  /D:__INTEL_COMPILER=20250000
+  /D:__INTEL_COMPILER_UPDATE=0          /double_size:64
+  /nod_lines                            /noQdyncom
+  /emit-obj                             /error_limit:30
+  /nof66                                /nof77rtl
+  /faltmathlib=:SVML                    /nofast
+  /nofwrapv                             /fpscomp:nofilesfromcmd
+  /fpscomp:nogeneral                    /fpscomp:noioformat
+  /fpscomp:noldio_spacing               /fpscomp:nolibs
+  /fpscomp:nologicals                   /fveclib=:SVML
+  /floopopt-pipeline=:light             /nofpconstant
+  /fpe3                                 /ftz
+  /fp_model:noprecise                   /fp_model:fast
+  /fp_model:nostrict                    /fp_model:nosource
+  /fp_model:nodouble                    /fp_model:noextended
+  /fp_model:novery_fast                 /fp_model:noexcept
+  /fp_model:nono_except                 /heap_arrays:0
+  /nothreadprivate_compat               /free
+  /fintel-libirc-allowed                /mframe-pointer:noall
+  /mframe-pointer:nonon-leaf            /mframe-pointer:none
+  /debug0                               /nogcodeview
+  /iface:noc                            /iface:nocref
+  /iface:nocvf                          /iface:default
+  /iface:nostdcall                      /iface:nostdref
+  /iface:nomixed_str_len_arg            /iface:nono_mixed_str_len_arg
+  /Qinit:noarrays                       /Qinit:nohuge
+  /Qinit:noinfinity                     /Qinit:nominus_huge
+  /Qinit:nominus_infinity               /Qinit:nominus_tiny
+  /Qinit:nonan                          /Qinit:nosnan
+  /Qinit:notiny                         /Qinit:nozero
+  /nointconstant                        /integer_size:32
+  /libdir:automatic                     /libdir:user
+  /nomodule                             /names:
+  /nonoinclude                          /object:outputinitw2tools.obj
+  /-dependent-lib:libcmt                /-dependent-lib:ifconsol.lib
+  /-dependent-lib:libifcoremt.lib       /-dependent-lib:libifport.lib
+  /-dependent-lib:libircmt              /-dependent-lib:libmmt
+  /-dependent-lib:oldnames              /-dependent-lib:svml_dispmt
+  /Qoffload-build:host                  /Qopenmp-do-concurrent-maptype-modifier:noalways
+  /Qopenmp-do-concurrent-maptype-modifier:nopresent  /Qopenmp-do-concurrent-maptype-modifier:none
+  /Qopenmp-simd                         /O2
+  /nopad_source                         /pic-level:2
+  /real_size:32                         /norecursive
+  /reentrancy:threaded                  /Qvec:simd
+  /show:fullpath                        /show:noinclude
+  /show:map                             /show:options
+  /nosyntax_only                        /target-cpu:x86-64
+  /nothreadcom                          /triple:x86_64-pc-windows-msvc
+  /noU                                  /novms
+  /warn:noall                           /warn:nonone
+  /warn:alignments                      /warn:nodeclarations
+
+Page 46          Source Listing                  OUTPUTINIT
+2026-03-30 08:48                                 ..\..\..\outputinitw2tools.F90
+
+  /warn:noexternals                     /warn:general
+  /warn:noignore_bounds                 /warn:noignore_loc
+  /warn:nointerfaces                    /warn:noshape
+  /warn:notruncated_source              /warn:uncalled
+  /warn:uninitialized                   /warn:nounused
+  /warn:usage                           /nowrap-margins
+
+  /include   path : C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\,.FOR,..\..\..\.FOR,.\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\intel64\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\include\.FOR,C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\opt\compiler\include\.FOR,
+           C:\PROGRA~2\Intel\oneAPI\compiler\2025.0\lib\clang\19\include\.FOR
+  /list      filename : outputinitw2tools.lst
+  /object:outputinitw2tools.obj
+  /Fd        filename : none
+
+COMPILER: Intel(R) Fortran 25.0-1205
