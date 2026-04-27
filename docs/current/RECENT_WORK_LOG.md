@@ -1,10 +1,59 @@
 # Recent Work Log
 
-Updated: 2026-04-12
+Updated: 2026-04-14
 
 ## Summary
 
 This log records the recent reduction, packaging, case-validation, workspace-cleanup, and final Stage 4 boundary work for the CE-QUAL-W2 v4.5.5 workspace.
+
+## 2026-04-14 Actual Case Migration Note
+
+- Reviewed the current reduction documents before touching the user-provided `实际案例` directory.
+- Confirmed the active reduced boundary remains:
+  - hydrodynamics
+  - temperature
+  - gate / spill / pipe structure-flow behavior
+  - structural withdrawal and selective withdrawal
+  - no runtime water quality
+  - no TDG support
+- Inspected `C:\Users\NING\Desktop\v455\实际案例\w2_con.csv` and confirmed it was still a v4.5-era full-shape control file carrying the legacy water-quality block and TDG-related output requests.
+- Verified that the reduced executable initially failed during `INPUT` on that legacy control file shape.
+- Preserved the original control file as:
+  - `C:\Users\NING\Desktop\v455\实际案例\w2_con_v45_original.csv`
+- Converted the working control file in:
+  - `C:\Users\NING\Desktop\v455\实际案例\w2_con.csv`
+- The conversion strategy was:
+  - keep the existing hydrodynamic / geometry / structure configuration already present in the case
+  - remove the legacy water-quality / TDG section from the active working copy
+  - rewrite the trailing `FILE NAMES` section to the reduced CSV contract currently accepted by `input.F90`
+- Added explicit placeholder files required by the reduced CSV file-name contract for unused inputs:
+  - `ext_unused.npt`
+  - `qot_unused.npt`
+  - `pre_unused.npt`
+  - `tpr_unused.npt`
+  - `euh_unused.npt`
+  - `tuh_unused.npt`
+  - `edh_unused.npt`
+  - `tdh_unused.npt`
+- Rebuilt the console executable from the canonical reduced source tree:
+  - `C:\Users\NING\Desktop\v455\w2source_v455_2_11_2026\build_console\w2_v455_console.exe`
+- Verified that the rebuilt reduced executable now accepts the migrated `实际案例` inputs and enters runtime instead of failing in `INPUT`.
+- Representative outputs observed in `C:\Users\NING\Desktop\v455\实际案例` after the migrated run started:
+  - `XLD.w2l`
+  - `XLD_snp.opt`
+  - `XLD_spr.csv`
+  - `XLD_cpl.opt`
+  - `flowbal.csv`
+  - `wl.csv`
+  - `XLD_tsr_*.csv`
+- Runtime side observations:
+  - `w2.err` remained empty during the checked run window
+  - `w2.wrn` contained layer add/subtract runtime messages rather than an input-contract failure
+  - `reduced_run.log` advanced through repeated screen checkpoints up to approximately `JDAY=44442.49` before the desktop session timeout interrupted the unattended verification run
+- Engineering interpretation:
+  - the user-provided `实际案例` has now been adapted into a reduced-build runnable form for in-workspace use
+  - this work demonstrates practical compatibility of that case with the current reduced parser/runtime path
+  - this case has not yet been promoted into the formal supported baseline or packaged acceptance set, because a full uninterrupted end-to-end completion was not captured in this session
 
 ## Completed Engineering Work
 

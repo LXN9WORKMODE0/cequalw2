@@ -11,7 +11,7 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
   ! POROSITYC, MACROPHYTEC removed - water quality related
   IMPLICIT NONE
 
-  INTEGER :: NNBP,NCBP,NINTERNAL,NUP,KTMAX,JJW,IEXIT,KUP,KDN,K1,ICON,ISEG
+  INTEGER :: NNBP,NCBP,NINTERNAL,NUP,KTMAX,JJW,IEXIT,KUP,KDN,K1,ICON,ISEG,IUCAND,OLDCUS
   REAL    :: ELL1,ELL2,EL1,EL2,B11,ERR1,ERR2,ELR,ELL,ELR2
   CHARACTER(2) :: ICHAR2
 
@@ -461,6 +461,8 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
       IU    = US(JB)
       ID    = DS(JB)
       IEXIT = 0
+      IUPHYS(JB) = US(JB)
+      UPSTREAM_DOMAIN_LOCK(JB) = (UP_FLOW(JB) .OR. DAM_INFLOW(JB)) .AND. (JB == 1 .OR. JB == JBDN(JW))
       IF (SLOPE(JB) /= 0.0) THEN
         DO I=US(JB)-1,DS(JB)+1
           IF (KBi(I) < KT ) THEN     ! SW 1/23/06
@@ -481,7 +483,96 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
       END DO
       KBMIN(ID+1) = KBMIN(ID)
 
+      IUCAND = IUT
+      CUSMIN(JB) = IUT
+      IF (UPSTREAM_DOMAIN_LOCK(JB) .AND. CUSMIN(JB) > IUPHYS(JB)) THEN
+        FRONT_SEG(JB) = CUSMIN(JB)-1
+      ELSE
+        FRONT_SEG(JB) = 0
+      END IF
+      TAIL_DOMAIN_US(JB) = 0
+      TAIL_DOMAIN_DS(JB) = 0
+      TAIL_DOMAIN_NSEG(JB) = 0
+      TAIL_COUPLE_SEG(JB) = 0
+      TAIL_MULTI_SEGMENT(JB) = .FALSE.
+      TAIL_DOMAIN_DEFINED(JB) = .FALSE.
+      IF (UPSTREAM_DOMAIN_LOCK(JB) .AND. FRONT_SEG(JB) > 0) THEN
+        TAIL_DOMAIN_US(JB) = IUPHYS(JB)
+        TAIL_DOMAIN_DS(JB) = MAX(FRONT_SEG(JB), IUPHYS(JB) + TAIL_FIXED_MIN_NSEG - 1)
+        TAIL_DOMAIN_DS(JB) = MIN(TAIL_DOMAIN_DS(JB), DS(JB))
+        TAIL_DOMAIN_NSEG(JB) = TAIL_DOMAIN_DS(JB)-TAIL_DOMAIN_US(JB)+1
+        TAIL_MULTI_SEGMENT(JB) = TAIL_DOMAIN_NSEG(JB) >= TAIL_FIXED_MIN_NSEG
+        TAIL_DOMAIN_DEFINED(JB) = TAIL_MULTI_SEGMENT(JB)
+      END IF
+      IF (TAIL_DOMAIN_DEFINED(JB)) THEN
+        TAIL_COUPLED(JB) = .TRUE.
+        TAIL_UPSEG(JB) = FRONT_SEG(JB)
+        TAIL_DNSEG(JB) = CUSMIN(JB)
+        ! Use the downstream boundary interface segment, not an in-domain segment.
+        TAIL_COUPLE_SEG(JB) = TAIL_DOMAIN_DS(JB) + 1
+      ELSE
+        TAIL_COUPLED(JB) = .FALSE.
+        TAIL_UPSEG(JB) = 0
+        TAIL_DNSEG(JB) = 0
+        TAIL_COUPLE_SEG(JB) = 0
+      END IF
+      FRONT_WSE(JB) = 0.0D0
+      FRONT_DEPTH(JB) = 0.0D0
+      FRONT_AREA(JB) = 0.0D0
+      FRONT_VOLUME(JB) = 0.0D0
+      FRONT_HRAD(JB) = 0.0D0
+      TAIL_WSE_UP(JB) = 0.0D0
+      TAIL_WSE_DN(JB) = 0.0D0
+      TAIL_Q_LINK(JB) = 0.0D0
+      TAIL_DEPTH_UP(JB) = 0.0D0
+      TAIL_STORAGE_VOL(JB) = 0.0D0
+      TAIL_Q_INFLOW(JB) = 0.0D0
+      TAIL_Q_OUTFLOW(JB) = 0.0D0
+      TAIL_Q_STATE(JB) = 0.0D0
+      TAIL_Q_TARGET(JB) = 0.0D0
+      TAIL_TRAVEL_TIME(JB) = 0.0D0
+      TAIL_WAVE_CELERITY(JB) = 0.0D0
+      TAIL_REACH_LENGTH(JB) = 0.0D0
+      TAIL_TRANSITION_STATE(JB) = 0.0D0
+      TAIL_SUBMERGENCE(JB) = 0.0D0
+      TAIL_LOCAL_SLOPE(JB) = 0.0D0
+      TAIL_FROUDE(JB) = 0.0D0
+      TAIL_CONTROL_MODE(JB) = 0
+      TAIL_STAGE_VALID(JB) = .FALSE.
+      TAIL_REACH_INITIALIZED(JB) = .FALSE.
+      TAIL_Q_STATE_INITIALIZED(JB) = .FALSE.
+      TAIL_STAGE_MODE(JB) = 0
+      OLDCUS = CUSLAST(JB)
       CUS(JB) = IUT
+      IF (.NOT. BOUNDARY_INIT_LOGGED(JB)) THEN
+        WARNING_OPEN = .TRUE.
+        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V0_BOUNDARY_INIT]', 'JB=',JB, &
+                                                                                          'IUPHYS=',IUPHYS(JB), 'CUS=',CUS(JB), &
+                                                                                          'CUSMIN=',CUSMIN(JB), 'US=',US(JB), &
+                                                                                          'LOCK=',UPSTREAM_DOMAIN_LOCK(JB)
+        BOUNDARY_INIT_LOGGED(JB) = .TRUE.
+      END IF
+      IF (OLDCUS /= CUS(JB) .OR. IUCAND /= CUS(JB)) THEN
+        WARNING_OPEN = .TRUE.
+        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V0_BOUNDARY_SHIFT]', 'JB=',JB, &
+                                                                                   'OLD=',OLDCUS, 'CAND=',IUCAND, &
+                                                                                   'NEW=',CUS(JB), 'LOCK=',UPSTREAM_DOMAIN_LOCK(JB)
+      END IF
+      IF (.NOT. FRONT_SETUP_LOGGED(JB) .AND. FRONT_SEG(JB) > 0) THEN
+        WARNING_OPEN = .TRUE.
+        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0)') '[V2_FRONT_SETUP]', 'JB=',JB, &
+                                                           'FRONT_SEG=',FRONT_SEG(JB), &
+                                                           'IUPHYS=',IUPHYS(JB), 'CUSMIN=',CUSMIN(JB)
+        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V11_TAIL_DOMAIN]', 'JB=',JB, &
+                                                                           'US=',TAIL_DOMAIN_US(JB), 'DS=',TAIL_DOMAIN_DS(JB), &
+                                                                           'NSEG=',TAIL_DOMAIN_NSEG(JB), 'LINK_US=',TAIL_UPSEG(JB), &
+                                                                           'LINK_DN=',TAIL_DNSEG(JB), 'DEFINED=',TAIL_DOMAIN_DEFINED(JB)
+        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0)') '[V15_TAIL_DOMAIN_MULTI]', 'JB=',JB, &
+                                                                     'US=',TAIL_DOMAIN_US(JB), 'DS=',TAIL_DOMAIN_DS(JB), &
+                                                                     'NSEG=',TAIL_DOMAIN_NSEG(JB), 'COUPLE=',TAIL_COUPLE_SEG(JB)
+        FRONT_SETUP_LOGGED(JB) = .TRUE.
+      END IF
+      CUSLAST(JB) = CUS(JB)
       IF(IUT>=DS(JB))BR_INACTIVE(JB)= .TRUE.    ! SW 6/12/2017
           
 

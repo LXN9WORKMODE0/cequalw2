@@ -23,6 +23,16 @@ USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE 
         IF(BR_INACTIVE(JB))CYCLE
         IU   = CUS(JB)
         ID   = DS(JB)
+        IF (.NOT. SOURCE_DIAG_LOGGED(JB)) THEN
+          WARNING_OPEN = .TRUE.
+          WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1,1X,A,L1,1X,A,L1)') '[V0_SOURCE_PLACE]', 'JB=',JB, &
+                                                                                       'IUPHYS=',IUPHYS(JB), 'CUS=',IU, &
+                                                                                       'CUSMIN=',CUSMIN(JB), &
+                                                                                       'LOCK=',UPSTREAM_DOMAIN_LOCK(JB), &
+                                                                                       'UP_FLOW=',UP_FLOW(JB), &
+                                                                                       'DAM_INFLOW=',DAM_INFLOW(JB)
+          SOURCE_DIAG_LOGGED(JB) = .TRUE.
+        END IF
         TSUM = 0.0; CSUM = 0.0; QSUM(JB) = 0.0; QOUT(:,JB) = 0.0; TOUT(JB)=0.0; COUT(:,JB)=0.0    
 
 !****** Densities

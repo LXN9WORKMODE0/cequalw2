@@ -3,10 +3,10 @@ USE MAIN
 USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINETIC; USE SHADEC; USE EDDY
   USE STRUCTURES; USE TRANS;  USE TVDC;   USE SELWC;  USE GDAYC; USE SCREENC; USE TDGAS;   USE RSTART
   ! MACROPHYTEC removed; USE POROSITYC; USE ZOOPLANKTONC
- IMPLICIT NONE
-
-INTEGER :: KTMAX,JBIZ,KKB,I_BR_NUM
-REAL(R8):: W1,W2,W3, DUMMY
+IMPLICIT NONE
+INTEGER :: KTMAX,JBIZ,KKB,I_BR_NUM,IUCAND,OLDCUS,IFRONT,PREV_FRONT_STATE,FRONT_KBOT,TAIL_SEG_IDX
+LOGICAL :: FRONT_WET_SIGNAL, FRONT_DRY_SIGNAL
+REAL(R8):: W1,W2,W3, DUMMY, FRONT_WIDTH
 
 !***********************************************************************************************************************************
 !**                                       Task 2.5: Layer - Segment Additions and Subtractions                                    **
@@ -19,6 +19,8 @@ REAL(R8):: W1,W2,W3, DUMMY
       ZMIN(JW) = -1000.0
       KTMAX    =  2                                                                                                 ! SR 10/17/05
       DO JB=BS(JW),BE(JW)
+        IUPHYS(JB) = US(JB)
+        UPSTREAM_DOMAIN_LOCK(JB) = (UP_FLOW(JB) .OR. DAM_INFLOW(JB)) .AND. (JB == 1 .OR. JB == JBDN(JW))
          IF(BR_INACTIVE(JB))THEN 
           IF(DS(JB)-US(JB)+1>=3)THEN
               I_BR_NUM=DS(JB)-2
@@ -44,6 +46,23 @@ REAL(R8):: W1,W2,W3, DUMMY
           DO I=US(JB),DS(JB)                                                                                          !SR 11/30/2021
             IF (KB(I)-KT < NL(JB)-1) IUT = I+1                                                                        !SR 11/30/2021
           END DO                                                                                                      !SR 11/30/2021
+          IUCAND = IUT
+          IF (UPSTREAM_DOMAIN_LOCK(JB)) IUT = MAX(CUSMIN(JB),IUT)
+          OLDCUS = CUS(JB)
+          IF (.NOT. BOUNDARY_INIT_LOGGED(JB)) THEN
+            WARNING_OPEN = .TRUE.
+            WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V0_BOUNDARY_INIT]', 'JB=',JB, &
+                                                                                              'IUPHYS=',IUPHYS(JB), 'CUS=',CUS(JB), &
+                                                                                              'CUSMIN=',CUSMIN(JB), 'US=',US(JB), &
+                                                                                              'LOCK=',UPSTREAM_DOMAIN_LOCK(JB)
+            BOUNDARY_INIT_LOGGED(JB) = .TRUE.
+          END IF
+          IF (OLDCUS /= IUT) THEN
+            WARNING_OPEN = .TRUE.
+            WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V0_BOUNDARY_SHIFT]', 'JB=',JB, &
+                                                                                       'OLD=',OLDCUS, 'CAND=',IUCAND, &
+                                                                                       'NEW=',IUT, 'LOCK=',UPSTREAM_DOMAIN_LOCK(JB)
+          END IF
           IF (DHS(JB) > 0 .AND. .NOT. BR_INACTIVE(JBDH(JB)) .AND. CUS(JBDH(JB))<=DHS(JB) .AND. IUT<=DS(JB)-1) THEN    !SR 11/30/2021
 
               BR_INACTIVE(JB)=.FALSE.
@@ -58,6 +77,7 @@ REAL(R8):: W1,W2,W3, DUMMY
           ! Code updated to reflect the what was deemed necessary for adding layers and segments                      !SR 11/30/2021
           ! CUS(JB)=DS(JB)-1                                                                                          !SR 11/30/2021
             CUS(JB) = IUT                                                                                             !SR 11/30/2021
+            CUSLAST(JB) = CUS(JB)
 
           ! DO I=DS(JB)-1,DS(JB)                                                                                      !SR 11/30/2021
             DO I=CUS(JB)-1,DS(JB)+1                                                                                   !SR 11/30/2021
@@ -526,6 +546,15 @@ REAL(R8):: W1,W2,W3, DUMMY
               END IF
 
             ENDDO
+            IUCAND = IUT
+            IF (UPSTREAM_DOMAIN_LOCK(JB)) IUT = MAX(CUSMIN(JB),IUT)
+            OLDCUS = CUS(JB)
+            IF (OLDCUS /= IUT) THEN
+              WARNING_OPEN = .TRUE.
+              WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V0_BOUNDARY_SHIFT]', 'JB=',JB, &
+                                                                                         'OLD=',OLDCUS, 'CAND=',IUCAND, &
+                                                                                         'NEW=',IUT, 'LOCK=',UPSTREAM_DOMAIN_LOCK(JB)
+            END IF
         DO I=US(JB)-1,DS(JB)+1   ! SW 1/23/06
          DO K=KBMIN(I)+1,KB(I)
          U(K,I)=0.0
@@ -572,6 +601,95 @@ REAL(R8):: W1,W2,W3, DUMMY
 
 !******** Segment addition
 
+          IUCAND = IUT
+          IF (UPSTREAM_DOMAIN_LOCK(JB)) IUT = MAX(CUSMIN(JB),IUT)
+          IF (UPSTREAM_DOMAIN_LOCK(JB) .AND. FRONT_SEG(JB) > 0) THEN
+            IFRONT = FRONT_SEG(JB)
+            PREV_FRONT_STATE = FRONT_STATE(JB)
+            FRONT_KBOT = MIN(KBI(IFRONT)+1, KMX)
+            IF (TAIL_STAGE_VALID(JB) .AND. TAIL_UPSEG(JB) == IFRONT) THEN
+              FRONT_WSE(JB) = TAIL_WSE_UP(JB)
+              FRONT_DEPTH(JB) = MAX(TAIL_DEPTH_UP(JB), 0.0D0)
+            ELSE
+              FRONT_WSE(JB) = ELWS(IU)
+              IF (ABS(COSA(JB)) > 1.0D-12) THEN
+                FRONT_DEPTH(JB) = MAX(0.0D0,(FRONT_WSE(JB)-EL(FRONT_KBOT,IFRONT))/COSA(JB))
+              ELSE
+                FRONT_DEPTH(JB) = 0.0D0
+              END IF
+            END IF
+            FRONT_WET_SIGNAL = (IUCAND < IU) .OR. (FRONT_DEPTH(JB) >= FRONT_H_ON)
+            FRONT_DRY_SIGNAL = (IUCAND >= IU) .AND. (FRONT_DEPTH(JB) <= FRONT_H_OFF)
+
+            IF (FRONT_WET_SIGNAL) THEN
+              FRONT_WET_COUNT(JB) = FRONT_WET_COUNT(JB)+1
+              FRONT_DRY_COUNT(JB) = 0
+            ELSE IF (FRONT_DRY_SIGNAL) THEN
+              FRONT_DRY_COUNT(JB) = FRONT_DRY_COUNT(JB)+1
+              FRONT_WET_COUNT(JB) = 0
+            END IF
+
+            IF ((FRONT_WET_SIGNAL .OR. FRONT_STATE(JB) /= FRONT_STATE_DRY) .AND. FRONT_DEPTH(JB) > 0.0D0) THEN
+              FRONT_DEPTH(JB) = MAX(FRONT_DEPTH(JB), FRONT_H_MIN)
+            END IF
+
+            IF (FRONT_WET_SIGNAL) THEN
+              IF (FRONT_STATE(JB) == FRONT_STATE_DRY) FRONT_STATE(JB) = FRONT_STATE_WETTING
+              IF (FRONT_WET_COUNT(JB) >= FRONT_WET_STEPS) FRONT_STATE(JB) = FRONT_STATE_BUFFER_WET
+            ELSE IF (FRONT_DRY_SIGNAL) THEN
+              IF (FRONT_STATE(JB) == FRONT_STATE_WETTING) FRONT_STATE(JB) = FRONT_STATE_DRY
+              IF (FRONT_DRY_COUNT(JB) >= FRONT_DRY_STEPS) FRONT_STATE(JB) = FRONT_STATE_DRY
+            END IF
+
+            FRONT_WIDTH = MAX(BI(KTWB(JW),IFRONT), 1.0D-6)
+            FRONT_AREA(JB) = MAX(0.0D0, FRONT_WIDTH*FRONT_DEPTH(JB))
+            FRONT_VOLUME(JB) = MAX(0.0D0, FRONT_AREA(JB)*DLX(IFRONT))
+            FRONT_HRAD(JB) = 0.0D0
+            IF (FRONT_AREA(JB) > 0.0D0) THEN
+              FRONT_HRAD(JB) = FRONT_AREA(JB)/MAX(FRONT_WIDTH+2.0D0*FRONT_DEPTH(JB),1.0D-6)
+            END IF
+            IF (TAIL_STAGE_VALID(JB) .AND. TAIL_DOMAIN_NSEG(JB) > 0) THEN
+              TAIL_SEG_IDX = MIN(TAIL_DOMAIN_NSEG(JB), MAX_TAIL_SEG)
+              FRONT_TRANSITION(JB) = TAIL_TRANSITION_SEG(TAIL_SEG_IDX,JB)
+              TAIL_CONTROL_MODE(JB) = TAIL_MODE_SEG(TAIL_SEG_IDX,JB)
+            ELSE
+              SELECT CASE (FRONT_STATE(JB))
+                CASE (FRONT_STATE_DRY)
+                  FRONT_TRANSITION(JB) = 0.0D0
+                CASE (FRONT_STATE_WETTING)
+                  FRONT_TRANSITION(JB) = 0.5D0
+                CASE (FRONT_STATE_BUFFER_WET)
+                  FRONT_TRANSITION(JB) = 1.0D0
+              END SELECT
+            END IF
+            FRONT_DRAG_FACTOR(JB) = 1.0D0 + 0.20D0*FRONT_TRANSITION(JB)
+            FRONT_GRAV_FACTOR(JB) = 1.0D0 - 0.40D0*FRONT_TRANSITION(JB)
+            FRONT_DRAG_FACTOR(JB) = MIN(MAX(FRONT_DRAG_FACTOR(JB),1.0D0),1.20D0)
+            FRONT_GRAV_FACTOR(JB) = MIN(MAX(FRONT_GRAV_FACTOR(JB),0.60D0),1.00D0)
+          END IF
+          IF (UPSTREAM_DOMAIN_LOCK(JB) .AND. FRONT_SEG(JB) > 0 .AND. IUCAND < IU) THEN
+            WARNING_OPEN = .TRUE.
+            WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,F0.3,1X,A,I0,1X,A,I0,1X,A,I0)') '[V2_FRONT_STATE]', &
+              'JB=',JB, 'SEG=',FRONT_SEG(JB), 'STATE=',FRONT_STATE(JB), 'DEPTH=',FRONT_DEPTH(JB), &
+              'WET_COUNT=',FRONT_WET_COUNT(JB), 'DRY_COUNT=',FRONT_DRY_COUNT(JB), 'IUCAND=',IUCAND
+            WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,F0.3,1X,A,F0.3,1X,A,F0.3)') '[V4_FRONT_GEOM]', 'JB=',JB, &
+              'SEG=',FRONT_SEG(JB), 'AREA=',FRONT_AREA(JB), 'VOLUME=',FRONT_VOLUME(JB), 'HRAD=',FRONT_HRAD(JB)
+            WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,F0.3,1X,A,F0.3,1X,A,F0.3)') '[V5_TRANSITION]', 'JB=',JB, &
+              'SEG=',FRONT_SEG(JB), 'TRANS=',FRONT_TRANSITION(JB), 'DRAG=',FRONT_DRAG_FACTOR(JB), 'GRAV=',FRONT_GRAV_FACTOR(JB)
+            IF (TAIL_STAGE_VALID(JB) .AND. TAIL_UPSEG(JB) == FRONT_SEG(JB)) THEN
+              WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,F0.3,1X,A,F0.3,1X,A,I0)') '[V8_FRONT_SYNC]', 'JB=',JB, &
+                'SEG=',FRONT_SEG(JB), 'TAIL_WSE=',TAIL_WSE_UP(JB), 'TAIL_DEPTH=',TAIL_DEPTH_UP(JB), 'MODE=',TAIL_STAGE_MODE(JB)
+              WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,F0.3,1X,A,I0)') '[V13_FRONT_SYNC]', 'JB=',JB, &
+                'SEG=',FRONT_SEG(JB), 'TRANS=',FRONT_TRANSITION(JB), 'MODE=',TAIL_CONTROL_MODE(JB)
+            END IF
+          END IF
+          IF (UPSTREAM_DOMAIN_LOCK(JB) .AND. (IUCAND /= IU .OR. IUT /= IU)) THEN
+            WARNING_OPEN = .TRUE.
+            WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V0_SEGMENT_ADD_CHECK]', 'JB=',JB, &
+                                                                                               'IU=',IU, 'IUCAND=',IUCAND, &
+                                                                                               'IUT=',IUT, 'CUSMIN=',CUSMIN(JB), &
+                                                                                               'LOCK=',UPSTREAM_DOMAIN_LOCK(JB)
+          END IF
           IF (IUT /= IU) THEN
             IF (SNAPSHOT(JW)) WRITE (SNP(JW),'(/17X,2(A,I0))') ' Add segments ',IUT,' through ',IU-1
             WARNING_OPEN = .TRUE.
@@ -674,6 +792,7 @@ REAL(R8):: W1,W2,W3, DUMMY
             ADX(KB(IUT):KB(IU),IU)  = 0.0
             IU                      = IUT
             CUS(JB)                 = IU
+            CUSLAST(JB)             = CUS(JB)
             IF (UH_EXTERNAL(JB)) KB(IU-1) = KB(IU)
             IF (UH_INTERNAL(JB)) THEN
               IF (JBUH(JB) >= BS(JW) .AND. JBUH(JB) <= BE(JW)) THEN
@@ -979,6 +1098,15 @@ REAL(R8):: W1,W2,W3, DUMMY
             IF (KB(I)-KT < NL(JB)-1) IUT = I+1
             ONE_LAYER(I) = KTWB(JW) == KB(I)
           END DO
+          IUCAND = IUT
+          IF (UPSTREAM_DOMAIN_LOCK(JB)) IUT = MAX(CUSMIN(JB),IUT)
+          OLDCUS = CUS(JB)
+          IF (OLDCUS /= IUT) THEN
+            WARNING_OPEN = .TRUE.
+            WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V0_BOUNDARY_SHIFT]', 'JB=',JB, &
+                                                                                       'OLD=',OLDCUS, 'CAND=',IUCAND, &
+                                                                                       'NEW=',IUT, 'LOCK=',UPSTREAM_DOMAIN_LOCK(JB)
+          END IF
 
 !******** Fail if a main branch (JB=1 or JB=JBDN(JW)) has no active segments.  SR added the JBDN criterion.           !SR 11/30/2021
           IF (IUT > DS(JB) .AND. (JB == 1 .OR. JB == JBDN(JW))) THEN          !SR-- combined two lines and modified   !SR 11/30/2021
@@ -1078,6 +1206,7 @@ REAL(R8):: W1,W2,W3, DUMMY
 
             IU           =  IUT
             CUS(JB)      =  IU
+            CUSLAST(JB)  =  CUS(JB)
             Z(IU-1)      = (EL(KT,IU-1)-(EL(KT,IU)-Z(IU)*COSA(JB)))/COSA(JB)
             SZ(IU-1)     =  Z(IU)
             KTI(IU-1)    =  KTI(IU)

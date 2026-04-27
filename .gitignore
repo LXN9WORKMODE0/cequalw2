@@ -19,3 +19,47 @@ Desktop.ini
 ~$*
 *.swp
 *.swo
+
+# Generated build artifacts
+**/build_console/moddir/
+**/build_console/objdir/
+**/build_console/*.exe
+**/build_gui/moddir/
+**/build_gui/objdir/
+**/build_gui/*.exe
+**/W2 model/x64/
+**/W2_model/x64/Debug/
+
+# Generated runtime outputs
+**/waterbalance/
+**/w2.err
+**/w2.wrn
+**/flowbal.csv
+**/wl.csv
+**/q_*_wdo_*.csv
+**/t_*_wdo_*.csv
+**/qwo_layers_*.csv
+**/init_wl_u_check.dat
+**/preW2-v45_64.exe
+**/w2_v45_64.exe
+**/w2_v455_console.exe
+**/waterbal4.5.exe
+**/*.w2l
+**/*_cpl.opt
+**/*_snp.opt
+**/*_spr.csv
+**/*_tsr_*.csv
+**/W2CodeCompilerVersion.opt
+
+# Batch test work directories
+analysis/__pycache__/
+analysis/structural_minimal/cases/
+analysis/structural_minimal/results/
+analysis/xld_multifactor/cases/
+analysis/xld_multifactor/results/
+analysis/xld_multifactor/dual_station_review/
+analysis/verification/w2_v0_v1_smoke/case/
+analysis/verification/w2_v0_v1_smoke/results/
+
+# Local working model directories
+实际案例/

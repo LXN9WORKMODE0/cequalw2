@@ -9,7 +9,7 @@ SUBROUTINE OUTPUTA
   
   EXTERNAL RESTART_OUTPUT  
     
-  INTEGER :: JAD,JAF,NLINES,ITOT,JJ, NUMOUTLETS,JSSS(100),JJC, IC, KK
+  INTEGER :: JAD,JAF,NLINES,ITOT,JJ, NUMOUTLETS,JSSS(100),JJC, IC, KK, ISEG
   REAL    :: TVOLAVG,XDUM,QOUTLET(100),TOUTLET(100),VOLTOT, TBLANK,SRON1,RANLW1  ! SW 2/28/2020  
   REAL(R8):: DLVBR,DLE  
   CHARACTER(4)  :: FMT                                                                                                !SR 11/30/2022
@@ -133,8 +133,16 @@ IF(LAKE_RIVER_CONTOUR_ON=='ON')THEN    ! SW 2/28/2020
         ! write out water level File  
       DO JB=1,NBR            ! SR 12/2024
         DO I=US(JB),DS(JB)
-          IF (I.LT.CUS(JB) .OR. BR_INACTIVE(JB)) THEN
+          IF (BR_INACTIVE(JB)) THEN
             WSEL(I) = -999
+          ELSEIF (I.LT.CUS(JB)) THEN
+            IF (TAIL_COUPLED(JB) .AND. TAIL_STAGE_VALID(JB) .AND. TAIL_DOMAIN_DEFINED(JB) .AND. &
+                I >= TAIL_DOMAIN_US(JB) .AND. I <= TAIL_DOMAIN_DS(JB)) THEN
+              ISEG = I - TAIL_DOMAIN_US(JB) + 1
+              WSEL(I) = TAIL_STAGE_SEG(ISEG,JB)
+            ELSE
+              WSEL(I) = -999
+            END IF
           ELSE
             WSEL(I) = ELWS(I)
           END IF

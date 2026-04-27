@@ -17,11 +17,12 @@ Updated: 2026-04-11
 2. `current/REDUCED_MODEL_BASELINE.md`
 3. `current/RECENT_WORK_LOG.md`
 4. `reference/CEQUALW2_Architecture_Brief.md`
-5. `reference/CEQUALW2_Architecture_Full.md`
-6. `history/BUILD_INSTRUCTIONS.md`
-7. `history/w2_v455_compile_progress.md`
-8. `../_workspace_archive/historical_debug/temp_compile/STATUS_2026-03-31.md`
-9. `../_workspace_archive/historical_debug/temp_compile/debug_status.md`
+5. `reference/hydrodynamics_limitations/README.md`
+6. `reference/CEQUALW2_Architecture_Full.md`
+7. `history/BUILD_INSTRUCTIONS.md`
+8. `history/w2_v455_compile_progress.md`
+9. `../_workspace_archive/historical_debug/temp_compile/STATUS_2026-03-31.md`
+10. `../_workspace_archive/historical_debug/temp_compile/debug_status.md`
 
 ## Structure
 
@@ -30,6 +31,7 @@ Updated: 2026-04-11
 
 - `reference/`
   - architecture and review documents for understanding the original codebase
+  - topic archives such as `reference/hydrodynamics_limitations/`
 
 - `history/`
   - older build/debug writeups that still have reference value
