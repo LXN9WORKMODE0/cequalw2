@@ -64,6 +64,8 @@ REQUIRED_MARKERS = [
     "[V19_INTERFACE_RESIDUAL]",
     "[V20_INTERFACE_ITER]",
     "[V21_INTERFACE_SOLVE]",
+    "[V24_INTERFACE_MASS]",
+    "[V24_INTERFACE_COMMIT]",
 ]
 LATE_SEG2_PATTERN = "Add segments 2 through 2"
 V15_TAIL_DOMAIN_PATTERN = re.compile(
@@ -96,6 +98,21 @@ V20_INTERFACE_ITER_PATTERN = re.compile(
 )
 V21_INTERFACE_SOLVE_PATTERN = re.compile(
     r"\[V21_INTERFACE_SOLVE\].*?JB=\s*(?P<jb>\d+).*?ITER=\s*(?P<iter>\d+).*?DETA_STEP=\s*(?P<deta_step>[-+0-9.eE]+).*?DQ_STEP=\s*(?P<dq_step>[-+0-9.eE]+).*?ETA=\s*(?P<eta>[-+0-9.eE]+).*?Q=\s*(?P<q>[-+0-9.eE]+)",
+    re.IGNORECASE,
+)
+V24_INTERFACE_MASS_PATTERN = re.compile(
+    r"\[V24_INTERFACE_MASS\].*?JB=\s*(?P<jb>\d+).*?QPHYS=\s*(?P<qphys>[-+0-9.eE]+)"
+    r".*?QIFACE=\s*(?P<qiface>[-+0-9.eE]+).*?QRES=\s*(?P<qres>[-+0-9.eE]+)"
+    r".*?DSTORAGE=\s*(?P<dstorage>[-+0-9.eE]+).*?RTAIL=\s*(?P<rtail>[-+0-9.eE]+)"
+    r".*?RFLUX=\s*(?P<rflux>[-+0-9.eE]+).*?RCOMB=\s*(?P<rcomb>[-+0-9.eE]+)"
+    r".*?SEGLOSS=\s*(?P<segloss>[-+0-9.eE]+)",
+    re.IGNORECASE,
+)
+V24_INTERFACE_COMMIT_PATTERN = re.compile(
+    r"\[V24_INTERFACE_COMMIT\].*?JB=\s*(?P<jb>\d+).*?QRES=\s*(?P<qres>[-+0-9.eE]+)"
+    r".*?QCOMMIT=\s*(?P<qcommit>[-+0-9.eE]+).*?ETA_PREV=\s*(?P<eta_prev>[-+0-9.eE]+)"
+    r".*?ETA_COMMIT=\s*(?P<eta_commit>[-+0-9.eE]+).*?DETA_APPLIED=\s*(?P<deta_applied>[-+0-9.eE]+)"
+    r".*?EVALUATED=\s*(?P<evaluated>[TF])",
     re.IGNORECASE,
 )
 
@@ -131,6 +148,8 @@ class SmokeResult:
     has_v19_interface_residual: bool
     has_v20_interface_iter: bool
     has_v21_interface_solve: bool
+    has_v24_interface_mass: bool
+    has_v24_interface_commit: bool
     tail_predictor_pass_count: int
     tail_corrector_pass_count: int
     tail_predictor_skip_count: int
@@ -139,6 +158,15 @@ class SmokeResult:
     tail_iface_iter_max: int
     tail_iface_iter_converged_count: int
     tail_iface_linear_updates: int
+    tail_interface_mass_count: int
+    tail_mass_resid_max: float
+    tail_flux_gap_max: float
+    tail_combined_mass_resid_max: float
+    tail_segment_q_loss_max: float
+    tail_interface_commit_count: int
+    tail_interface_commit_q_gap_max: float
+    tail_interface_commit_eta_applied_max: float
+    tail_interface_commit_all_evaluated: bool
     tail_domain_nseg_min: int
     tail_segment_state_count: int
     tail_mode_set: str
@@ -283,6 +311,10 @@ def evaluate(case_dir: Path) -> SmokeResult:
     has_v20_interface_iter = len(v20_matches) > 0
     v21_matches = list(V21_INTERFACE_SOLVE_PATTERN.finditer(warn_text))
     has_v21_interface_solve = len(v21_matches) > 0
+    v24_matches = list(V24_INTERFACE_MASS_PATTERN.finditer(warn_text))
+    has_v24_interface_mass = len(v24_matches) > 0
+    v24_commit_matches = list(V24_INTERFACE_COMMIT_PATTERN.finditer(warn_text))
+    has_v24_interface_commit = len(v24_commit_matches) > 0
     tail_predictor_pass_count = sum(1 for match in v18_matches if match.group("pass") == "1")
     tail_corrector_pass_count = sum(1 for match in v18_matches if match.group("pass") == "2")
     tail_predictor_skip_count = len(v18_skip_matches)
@@ -291,6 +323,23 @@ def evaluate(case_dir: Path) -> SmokeResult:
     tail_iface_iter_max = max((int(match.group("iter")) for match in v20_matches), default=0)
     tail_iface_iter_converged_count = sum(1 for match in v20_matches if match.group("conv").upper() == "T")
     tail_iface_linear_updates = len(v21_matches)
+    tail_interface_mass_count = len(v24_matches)
+    tail_mass_resid_max = max((abs(float(match.group("rtail"))) for match in v24_matches), default=0.0)
+    tail_flux_gap_max = max((abs(float(match.group("rflux"))) for match in v24_matches), default=0.0)
+    tail_combined_mass_resid_max = max((abs(float(match.group("rcomb"))) for match in v24_matches), default=0.0)
+    tail_segment_q_loss_max = max((abs(float(match.group("segloss"))) for match in v24_matches), default=0.0)
+    tail_interface_commit_count = len(v24_commit_matches)
+    tail_interface_commit_q_gap_max = max(
+        (abs(float(match.group("qres")) - float(match.group("qcommit"))) for match in v24_commit_matches),
+        default=0.0,
+    )
+    tail_interface_commit_eta_applied_max = max(
+        (abs(float(match.group("deta_applied"))) for match in v24_commit_matches),
+        default=0.0,
+    )
+    tail_interface_commit_all_evaluated = bool(v24_commit_matches) and all(
+        match.group("evaluated").upper() == "T" for match in v24_commit_matches
+    )
     tail_domain_nseg_min = min((int(match.group("nseg")) for match in v15_matches), default=0)
     tail_segment_state_count = len(v16_matches)
     tail_mode_values = sorted({int(match.group("mode")) for match in v17_matches})
@@ -348,6 +397,8 @@ def evaluate(case_dir: Path) -> SmokeResult:
         has_v19_interface_residual=has_v19_interface_residual,
         has_v20_interface_iter=has_v20_interface_iter,
         has_v21_interface_solve=has_v21_interface_solve,
+        has_v24_interface_mass=has_v24_interface_mass,
+        has_v24_interface_commit=has_v24_interface_commit,
         tail_predictor_pass_count=tail_predictor_pass_count,
         tail_corrector_pass_count=tail_corrector_pass_count,
         tail_predictor_skip_count=tail_predictor_skip_count,
@@ -356,6 +407,15 @@ def evaluate(case_dir: Path) -> SmokeResult:
         tail_iface_iter_max=tail_iface_iter_max,
         tail_iface_iter_converged_count=tail_iface_iter_converged_count,
         tail_iface_linear_updates=tail_iface_linear_updates,
+        tail_interface_mass_count=tail_interface_mass_count,
+        tail_mass_resid_max=tail_mass_resid_max,
+        tail_flux_gap_max=tail_flux_gap_max,
+        tail_combined_mass_resid_max=tail_combined_mass_resid_max,
+        tail_segment_q_loss_max=tail_segment_q_loss_max,
+        tail_interface_commit_count=tail_interface_commit_count,
+        tail_interface_commit_q_gap_max=tail_interface_commit_q_gap_max,
+        tail_interface_commit_eta_applied_max=tail_interface_commit_eta_applied_max,
+        tail_interface_commit_all_evaluated=tail_interface_commit_all_evaluated,
         tail_domain_nseg_min=tail_domain_nseg_min,
         tail_segment_state_count=tail_segment_state_count,
         tail_mode_set=tail_mode_set,
@@ -400,6 +460,8 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["has_v19_interface_residual", "1" if result.has_v19_interface_residual else "0"])
         writer.writerow(["has_v20_interface_iter", "1" if result.has_v20_interface_iter else "0"])
         writer.writerow(["has_v21_interface_solve", "1" if result.has_v21_interface_solve else "0"])
+        writer.writerow(["has_v24_interface_mass", "1" if result.has_v24_interface_mass else "0"])
+        writer.writerow(["has_v24_interface_commit", "1" if result.has_v24_interface_commit else "0"])
         writer.writerow(["tail_predictor_pass_count", str(result.tail_predictor_pass_count)])
         writer.writerow(["tail_corrector_pass_count", str(result.tail_corrector_pass_count)])
         writer.writerow(["tail_predictor_skip_count", str(result.tail_predictor_skip_count)])
@@ -408,12 +470,55 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["tail_iface_iter_max", str(result.tail_iface_iter_max)])
         writer.writerow(["tail_iface_iter_converged_count", str(result.tail_iface_iter_converged_count)])
         writer.writerow(["tail_iface_linear_updates", str(result.tail_iface_linear_updates)])
+        writer.writerow(["tail_interface_mass_count", str(result.tail_interface_mass_count)])
+        writer.writerow(["tail_mass_resid_max", f"{result.tail_mass_resid_max:.6f}"])
+        writer.writerow(["tail_flux_gap_max", f"{result.tail_flux_gap_max:.6f}"])
+        writer.writerow(["tail_combined_mass_resid_max", f"{result.tail_combined_mass_resid_max:.6f}"])
+        writer.writerow(["tail_segment_q_loss_max", f"{result.tail_segment_q_loss_max:.6f}"])
+        writer.writerow(["tail_interface_commit_count", str(result.tail_interface_commit_count)])
+        writer.writerow(["tail_interface_commit_q_gap_max", f"{result.tail_interface_commit_q_gap_max:.6f}"])
+        writer.writerow(["tail_interface_commit_eta_applied_max", f"{result.tail_interface_commit_eta_applied_max:.6f}"])
+        writer.writerow(
+            ["tail_interface_commit_all_evaluated", "1" if result.tail_interface_commit_all_evaluated else "0"]
+        )
         writer.writerow(["tail_domain_nseg_min", str(result.tail_domain_nseg_min)])
         writer.writerow(["tail_segment_state_count", str(result.tail_segment_state_count)])
         writer.writerow(["tail_mode_set", result.tail_mode_set])
         writer.writerow(["seg2_valid_count", str(result.seg2_valid_count)])
         writer.writerow(["seg222_valid_count", str(result.seg222_valid_count)])
     return summary_path
+
+
+def v24_conservation_errors(result: SmokeResult) -> list[str]:
+    errors: list[str] = []
+    if not result.has_v24_interface_mass:
+        errors.append("Missing V24 interface-mass marker")
+    if not result.has_v24_interface_commit:
+        errors.append("Missing V24 interface-commit marker")
+    if result.tail_interface_mass_count <= 0:
+        errors.append("V24 interface-mass sample count is below 1")
+    if result.tail_interface_commit_count <= 0:
+        errors.append("V24 interface-commit sample count is below 1")
+    if not result.tail_interface_commit_all_evaluated:
+        errors.append("V24 interface commit contains an unevaluated state")
+    conservation_tolerance = 1.0e-6
+    if result.tail_interface_commit_q_gap_max > conservation_tolerance:
+        errors.append(f"V24 committed interface flux gap exceeds tolerance: {result.tail_interface_commit_q_gap_max}")
+    if result.tail_mass_resid_max > conservation_tolerance:
+        errors.append(f"V24 tail mass residual exceeds tolerance: {result.tail_mass_resid_max}")
+    if result.tail_flux_gap_max > conservation_tolerance:
+        errors.append(f"V24 reservoir/tail flux gap exceeds tolerance: {result.tail_flux_gap_max}")
+    if result.tail_combined_mass_resid_max > conservation_tolerance:
+        errors.append(f"V24 combined mass residual exceeds tolerance: {result.tail_combined_mass_resid_max}")
+    if result.tail_segment_q_loss_max > conservation_tolerance:
+        errors.append(f"V24 segment flow loss exceeds tolerance: {result.tail_segment_q_loss_max}")
+    return errors
+
+
+def assert_v24_conservation(result: SmokeResult) -> None:
+    errors = v24_conservation_errors(result)
+    if errors:
+        raise AssertionError(" | ".join(errors))
 
 
 def assert_pass(result: SmokeResult, tmend: float) -> None:
@@ -474,16 +579,17 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append("V18 corrector pass count is below 1")
     if result.tail_predictor_skip_count <= 0:
         errors.append("V18 predictor skip count is below 1")
-    if result.tail_iface_resid_max_eta <= 0.0:
-        errors.append(f"V19 max eta residual is non-positive: {result.tail_iface_resid_max_eta:.6f}")
-    if result.tail_iface_resid_max_q <= 0.0:
-        errors.append(f"V19 max q residual is non-positive: {result.tail_iface_resid_max_q:.6f}")
+    if result.tail_iface_resid_max_eta > 1.0e-6:
+        errors.append(f"V19 committed eta residual exceeds tolerance: {result.tail_iface_resid_max_eta:.6f}")
+    if result.tail_iface_resid_max_q > 1.0e-6:
+        errors.append(f"V19 committed q residual exceeds tolerance: {result.tail_iface_resid_max_q:.6f}")
     if result.tail_iface_iter_max <= 0:
         errors.append(f"V20 max interface iteration is below 1: {result.tail_iface_iter_max}")
     if result.tail_iface_iter_converged_count <= 0:
         errors.append("V20 converged interface-iteration count is below 1")
     if result.tail_iface_linear_updates <= 0:
         errors.append("V21 reduced implicit update count is below 1")
+    errors.extend(v24_conservation_errors(result))
     if result.tail_domain_nseg_min < 2:
         errors.append(f"Tail domain minimum segment count is below 2: {result.tail_domain_nseg_min}")
     if result.tail_segment_state_count < 2:

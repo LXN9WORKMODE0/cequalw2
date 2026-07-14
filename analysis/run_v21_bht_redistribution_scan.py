@@ -331,6 +331,45 @@ def parse_q_update_mode(warn_path: Path) -> str:
     return ""
 
 
+def parse_interface_mass_stats(warn_path: Path, branch: int = 1) -> dict[str, float]:
+    matches = []
+    with open(warn_path, "r", encoding="utf-8", errors="ignore") as handle:
+        for line in handle:
+            match = smoke.V24_INTERFACE_MASS_PATTERN.search(line)
+            if match and int(match.group("jb")) == branch:
+                matches.append(match)
+    return {
+        "v24_count": len(matches),
+        "v24_tail_mass_resid_max": max((abs(float(match.group("rtail"))) for match in matches), default=0.0),
+        "v24_flux_gap_max": max((abs(float(match.group("rflux"))) for match in matches), default=0.0),
+        "v24_combined_mass_resid_max": max((abs(float(match.group("rcomb"))) for match in matches), default=0.0),
+        "v24_segment_q_loss_max": max((abs(float(match.group("segloss"))) for match in matches), default=0.0),
+    }
+
+
+def parse_interface_commit_stats(warn_path: Path, branch: int = 1) -> dict[str, float | int]:
+    matches = []
+    with open(warn_path, "r", encoding="utf-8", errors="ignore") as handle:
+        for line in handle:
+            match = smoke.V24_INTERFACE_COMMIT_PATTERN.search(line)
+            if match and int(match.group("jb")) == branch:
+                matches.append(match)
+    return {
+        "v24_commit_count": len(matches),
+        "v24_commit_q_gap_max": max(
+            (abs(float(match.group("qres")) - float(match.group("qcommit"))) for match in matches),
+            default=0.0,
+        ),
+        "v24_commit_eta_applied_max": max(
+            (abs(float(match.group("deta_applied"))) for match in matches),
+            default=0.0,
+        ),
+        "v24_commit_all_evaluated": int(
+            bool(matches) and all(match.group("evaluated").upper() == "T" for match in matches)
+        ),
+    }
+
+
 def result_row(
     alpha: float,
     case_dir: Path,
@@ -364,6 +403,8 @@ def result_row(
     }
     values.update(tail)
     values.update(parse_boundary_flux_stats(smoke_result.warn_path))
+    values.update(parse_interface_mass_stats(smoke_result.warn_path))
+    values.update(parse_interface_commit_stats(smoke_result.warn_path))
     return {key: trim_float(value) if isinstance(value, float) else str(value) for key, value in values.items()}
 
 
@@ -400,6 +441,15 @@ def write_scan_summary(rows: list[dict[str, str]]) -> Path:
         "v22_qss_sum_mean",
         "v22_tail_q_mean",
         "v23_q_update_mode",
+        "v24_count",
+        "v24_tail_mass_resid_max",
+        "v24_flux_gap_max",
+        "v24_combined_mass_resid_max",
+        "v24_segment_q_loss_max",
+        "v24_commit_count",
+        "v24_commit_q_gap_max",
+        "v24_commit_eta_applied_max",
+        "v24_commit_all_evaluated",
         "warn_path",
     ]
     merged: dict[str, dict[str, str]] = {}
@@ -438,6 +488,7 @@ def main() -> int:
         print(f"Running {case_dir.name} (alpha={alpha})", flush=True)
         smoke.run_case(case_dir)
         result = smoke.evaluate(case_dir)
+        smoke.assert_v24_conservation(result)
         rows.append(result_row(alpha, case_dir, result, moved_stats, args.tmend, args.scope))
     if rows:
         summary = write_scan_summary(rows)

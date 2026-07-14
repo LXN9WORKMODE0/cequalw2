@@ -6,6 +6,8 @@ from tempfile import TemporaryDirectory
 
 from run_v21_bht_redistribution_scan import (
     parse_boundary_flux_stats,
+    parse_interface_commit_stats,
+    parse_interface_mass_stats,
     parse_q_update_mode,
     redistribute_bht_series,
     redistribute_bht_with_sources,
@@ -94,6 +96,43 @@ class RedistributeBhtSeriesTests(unittest.TestCase):
             mode = parse_q_update_mode(path)
 
         self.assertEqual(mode, "RELAX")
+
+    def test_interface_mass_parser_reads_v24_marker(self) -> None:
+        text = "\n".join(
+            [
+                "[V24_INTERFACE_MASS] JB=1 QPHYS=100 QIFACE=80 QRES=90 DSTORAGE=15 RTAIL=-5 RFLUX=10 RCOMB=5 SEGLOSS=3",
+                "[V24_INTERFACE_MASS] JB=2 QPHYS=1000 QIFACE=800 QRES=900 DSTORAGE=150 RTAIL=-50 RFLUX=100 RCOMB=50 SEGLOSS=30",
+            ]
+        )
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "w2.wrn"
+            path.write_text(text, encoding="utf-8")
+
+            stats = parse_interface_mass_stats(path, branch=1)
+
+        self.assertEqual(stats["v24_count"], 1)
+        self.assertEqual(stats["v24_tail_mass_resid_max"], 5.0)
+        self.assertEqual(stats["v24_flux_gap_max"], 10.0)
+        self.assertEqual(stats["v24_combined_mass_resid_max"], 5.0)
+        self.assertEqual(stats["v24_segment_q_loss_max"], 3.0)
+
+    def test_interface_commit_parser_requires_evaluated_single_flux(self) -> None:
+        text = "\n".join(
+            [
+                "[V24_INTERFACE_COMMIT] JB=1 QRES=80 QCOMMIT=80 ETA_PREV=588 ETA_COMMIT=589 DETA_APPLIED=1 EVALUATED=T",
+                "[V24_INTERFACE_COMMIT] JB=2 QRES=800 QCOMMIT=700 ETA_PREV=580 ETA_COMMIT=590 DETA_APPLIED=10 EVALUATED=F",
+            ]
+        )
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "w2.wrn"
+            path.write_text(text, encoding="utf-8")
+
+            stats = parse_interface_commit_stats(path, branch=1)
+
+        self.assertEqual(stats["v24_commit_count"], 1)
+        self.assertEqual(stats["v24_commit_q_gap_max"], 0.0)
+        self.assertEqual(stats["v24_commit_eta_applied_max"], 1.0)
+        self.assertEqual(stats["v24_commit_all_evaluated"], 1)
 
 
 if __name__ == "__main__":
