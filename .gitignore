@@ -21,12 +21,9 @@ Desktop.ini
 *.swo
 
 # Generated build artifacts
-**/build_console/moddir/
-**/build_console/objdir/
-**/build_console/*.exe
-**/build_gui/moddir/
-**/build_gui/objdir/
-**/build_gui/*.exe
+**/build_console/
+**/build_console_debug/
+**/build_gui/
 **/W2 model/x64/
 **/W2_model/x64/Debug/
 
@@ -53,6 +50,7 @@ Desktop.ini
 
 # Batch test work directories
 analysis/__pycache__/
+analysis/.runs/
 analysis/structural_minimal/cases/
 analysis/structural_minimal/results/
 analysis/xld_multifactor/cases/

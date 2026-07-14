@@ -15,10 +15,11 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CASE = REPO_ROOT / "实际案例"
-WORK_ROOT = REPO_ROOT / "analysis" / "xld_multifactor"
+SOURCE_CASE = REPO_ROOT / "cases" / "xld_2021_base"
+WORK_ROOT = REPO_ROOT / "analysis" / ".runs" / "xld_multifactor"
 CASES_ROOT = WORK_ROOT / "cases"
 RESULTS_ROOT = WORK_ROOT / "results"
+DEFAULT_EXE = REPO_ROOT / "w2source_v455_2_11_2026" / "build_console" / "w2_v455_console.exe"
 SCREEN_START = 44430.0
 SCREEN_END = 44458.0
 FULL_END = 44484.0
@@ -238,7 +239,7 @@ def update_tmend(w2_path: Path, tmend: float) -> None:
 
 
 def load_waterbalance_distributed() -> dict[str, list[tuple[float, float]]]:
-    base = SOURCE_CASE / "waterbalance"
+    base = SOURCE_CASE / "fixtures" / "distributed_flow"
     result = {}
     _, result["BHT"] = read_two_col_csv(base / "DT_QIN_BHT.csv", 3)
     for trib in TRIBS:
@@ -260,7 +261,7 @@ def load_current_trib_distributed() -> dict[str, list[tuple[float, float]]]:
 
 def load_qwb() -> list[tuple[float, float]]:
     data: list[tuple[float, float]] = []
-    with open_text(SOURCE_CASE / "waterbalance" / "qwb.opt") as handle:
+    with open_text(SOURCE_CASE / "fixtures" / "distributed_flow" / "qwb.opt") as handle:
         for idx, line in enumerate(handle):
             if idx < 3:
                 continue
@@ -472,6 +473,13 @@ def copy_case_tree(dst: Path) -> None:
     if dst.exists():
         shutil.rmtree(dst)
     shutil.copytree(SOURCE_CASE, dst, ignore=OUTPUT_IGNORE)
+    stage_model_exe(dst)
+
+
+def stage_model_exe(case_dir: Path) -> None:
+    if not DEFAULT_EXE.is_file():
+        raise FileNotFoundError(f"Build the console model first; executable not found: {DEFAULT_EXE}")
+    shutil.copy2(DEFAULT_EXE, case_dir / "w2_v455_console.exe")
 
 
 def prepare_case(spec: CaseSpec, best_geom: str | None = None, best_dist: str | None = None, best_no_dist: str | None = None) -> Path:
@@ -830,9 +838,9 @@ def logical_case_id(case_id: str) -> str:
     return case_id[:-5] if case_id.endswith("_full") else case_id
 
 
-def baseline_row(run_end: float) -> dict[str, str]:
+def baseline_row(run_end: float, case_dir: Path) -> dict[str, str]:
     spec = CaseSpec("B0", "baseline", "", run_end, "baseline", "avg", "dynamic", notes="current actual case")
-    return compute_case_metrics(spec, SOURCE_CASE)
+    return compute_case_metrics(spec, case_dir)
 
 
 def run_phase(specs: list[CaseSpec], best_geom: str | None = None, best_dist: str | None = None, best_no_dist: str | None = None) -> list[dict[str, str]]:
@@ -849,8 +857,9 @@ def run_phase(specs: list[CaseSpec], best_geom: str | None = None, best_dist: st
 
 def main() -> int:
     ensure_dirs()
-    screen_rows = merge_rows(parse_summary(RESULTS_ROOT / "summary_screen.csv"), [baseline_row(SCREEN_END)])
-    full_rows = merge_rows(parse_summary(RESULTS_ROOT / "summary_full.csv"), [baseline_row(FULL_END)])
+    baseline_case = run_case(CASE_LIBRARY["B0"])
+    screen_rows = merge_rows(parse_summary(RESULTS_ROOT / "summary_screen.csv"), [baseline_row(SCREEN_END, baseline_case)])
+    full_rows = merge_rows(parse_summary(RESULTS_ROOT / "summary_full.csv"), [baseline_row(FULL_END, baseline_case)])
     save_summary(RESULTS_ROOT / "summary_screen.csv", screen_rows)
     save_summary(RESULTS_ROOT / "summary_full.csv", full_rows)
 

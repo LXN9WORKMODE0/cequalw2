@@ -12,7 +12,7 @@ import dual_station_waterline_review as ds
 import run_xld_matrix as base
 
 
-WORK_ROOT = base.REPO_ROOT / "analysis" / "structural_minimal"
+WORK_ROOT = base.REPO_ROOT / "analysis" / ".runs" / "structural_minimal"
 CASES_ROOT = WORK_ROOT / "cases"
 RESULTS_ROOT = WORK_ROOT / "results"
 SCREEN_WINDOW = ds.WindowSpec("screen", base.SCREEN_START, base.SCREEN_END)
@@ -71,6 +71,7 @@ def copy_case_tree(src: Path, dst: Path) -> None:
     if dst.exists():
         shutil.rmtree(dst)
     shutil.copytree(src, dst, ignore=base.OUTPUT_IGNORE)
+    base.stage_model_exe(dst)
 
 
 def zero_distributed(case_dir: Path) -> None:

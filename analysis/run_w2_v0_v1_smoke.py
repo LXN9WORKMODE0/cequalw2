@@ -13,12 +13,12 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CASE = REPO_ROOT / "实际案例"
+SOURCE_CASE = REPO_ROOT / "cases" / "xld_2021_base"
 FALLBACK_BTH_FILE = SOURCE_CASE / "InputFiles" / "BTH" / "DIXING20250226.csv"
-WORK_ROOT = REPO_ROOT / "analysis" / "verification" / "w2_v0_v1_smoke"
+WORK_ROOT = REPO_ROOT / "analysis" / ".runs" / "w2_v0_v1_smoke"
 CASE_ROOT = WORK_ROOT / "case"
 RESULTS_ROOT = WORK_ROOT / "results"
-DEFAULT_EXE = SOURCE_CASE / "w2_v455_console.exe"
+DEFAULT_EXE = REPO_ROOT / "w2source_v455_2_11_2026" / "build_console" / "w2_v455_console.exe"
 DEFAULT_TMEND = 44435.4
 CASE_TIMEOUT_SECONDS = 45 * 60
 OUTPUT_IGNORE = shutil.ignore_patterns(

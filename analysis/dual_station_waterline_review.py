@@ -10,8 +10,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ACTUAL_CASE = REPO_ROOT / "\u5b9e\u9645\u6848\u4f8b"
-MULTI_ROOT = REPO_ROOT / "analysis" / "xld_multifactor"
+ACTUAL_CASE = REPO_ROOT / "cases" / "xld_2021_base"
+MULTI_ROOT = REPO_ROOT / "analysis" / ".runs" / "xld_multifactor"
 OUT_ROOT = MULTI_ROOT / "dual_station_review"
 SCREEN_START = 44430.0
 SCREEN_END = 44458.0
@@ -182,7 +182,7 @@ def interpolate_value(series: list[tuple[float, float]], x: float, require_wet: 
 def case_wl_path(case_id: str, window_name: str) -> Path:
     if window_name == "screen":
         if case_id == "B0":
-            return ACTUAL_CASE / "wl.csv"
+            return MULTI_ROOT / "cases" / "baseline" / "B0" / "wl.csv"
         if case_id in {"B1", "D1", "D2", "D3", "D4", "D5", "D6", "D7"}:
             return MULTI_ROOT / "cases" / "distributed" / case_id / "wl.csv"
         if case_id.startswith("G"):
@@ -193,7 +193,7 @@ def case_wl_path(case_id: str, window_name: str) -> Path:
             return MULTI_ROOT / "cases" / "interaction" / case_id / "wl.csv"
     else:
         if case_id == "B0":
-            return ACTUAL_CASE / "wl.csv"
+            return MULTI_ROOT / "cases" / "baseline" / "B0" / "wl.csv"
         return MULTI_ROOT / "cases" / "validation" / f"{case_id}_full" / "wl.csv"
     raise FileNotFoundError(f"No case mapping for {case_id} / {window_name}")
 
@@ -491,9 +491,9 @@ def build_report(screen_rows: list[dict[str, str]], full_rows: list[dict[str, st
         "",
         "## 7. 文件",
         "",
-        "- 屏幕窗口双站点评分：[dual_station_screen_summary.csv](/C:/Users/NING/Desktop/v455/analysis/xld_multifactor/dual_station_review/dual_station_screen_summary.csv)",
-        "- 完整窗口双站点评分：[dual_station_full_summary.csv](/C:/Users/NING/Desktop/v455/analysis/xld_multifactor/dual_station_review/dual_station_full_summary.csv)",
-        "- 三联图：[dual_station_screen.svg](/C:/Users/NING/Desktop/v455/analysis/xld_multifactor/dual_station_review/dual_station_screen.svg)",
+        "- 屏幕窗口双站点评分：[dual_station_screen_summary.csv](dual_station_screen_summary.csv)",
+        "- 完整窗口双站点评分：[dual_station_full_summary.csv](dual_station_full_summary.csv)",
+        "- 三联图：[dual_station_screen.svg](dual_station_screen.svg)",
     ]
     (OUT_ROOT / "dual_station_review.md").write_text("\n".join(text), encoding="utf-8")
 

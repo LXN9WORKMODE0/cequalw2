@@ -14,8 +14,8 @@ import run_w2_v0_v1_smoke as smoke
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CASE = REPO_ROOT / "实际案例"
-WORK_ROOT = REPO_ROOT / "analysis" / "verification" / "v21_bht_redistribution_scan"
+SOURCE_CASE = REPO_ROOT / "cases" / "xld_2021_base"
+WORK_ROOT = REPO_ROOT / "analysis" / ".runs" / "v21_bht_redistribution_scan"
 DEFAULT_EXE = REPO_ROOT / "w2source_v455_2_11_2026" / "build_console" / "w2_v455_console.exe"
 DEFAULT_TMEND = 44436.5
 WINDOW_START = 44430.0
