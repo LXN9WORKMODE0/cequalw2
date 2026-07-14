@@ -60,6 +60,7 @@ analysis/xld_multifactor/results/
 analysis/xld_multifactor/dual_station_review/
 analysis/verification/w2_v0_v1_smoke/case/
 analysis/verification/w2_v0_v1_smoke/results/
+analysis/verification/**/run_logs/
 
 # Local working model directories
 实际案例/
