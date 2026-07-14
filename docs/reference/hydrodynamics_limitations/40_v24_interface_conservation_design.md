@@ -114,7 +114,7 @@ R_combined = dVtail/dt + QRES_USED - QPHYS = 0
 ## 7. 当前未验证前提
 
 - V23 基线已量化：`max|R_tail|=10309`、`max|R_flux|=9619.6`、`max|R_combined|=2732.4`、`max|segment loss|=171.45`。
-- V24 short window 已验证 exact interface 对守恒和 XLD 水位的影响；`TMEND=44436.5` extended window 尚未完成。
+- V24 short 和 `TMEND=44436.5` extended window 均已验证 exact interface 对守恒和 XLD 水位的影响。
 - 尚未实现真正的逐段 continuity/momentum 联立；V24 首要任务是消除已确认的非守恒路径，而不是宣称完整 1D tail solver 已完成。
 
 ## 8. 阶段判断
@@ -140,4 +140,6 @@ max|segment loss| = 0
 QIFACE <= QPHYS + max(Vold - Vmin, 0) / DT
 ```
 
-该约束也应用于 predictor cache 复用判定，避免性能路径绕过守恒边界。short window 已通过，extended window 仍是下一验收步骤。
+该约束也应用于 predictor cache 复用判定，避免性能路径绕过守恒边界。short window 和 `TMEND=44436.5` extended window 均已通过；extended window 的 `max|R_tail|` 仍为 `1.1642e-10 m3/s`，其余通量差与 segment loss 为 0。
+
+同窗口相对 V23 `RELAX`，SEG 2/head bias 分别改善 `0.128771 m` 和 `0.137818 m`，SEG 222 bias 增加 `0.009046 m`。因此当前证据支持 exact conservative interface 作为后续优化基线；剩余工作是定位约 `0.83–0.99 m` 的上游正偏差，而不是恢复非守恒流量修形。

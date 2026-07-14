@@ -211,3 +211,14 @@ Deleted scratch directories:
   - `SECANT`: `tail_eta_max = 0.45645`, `tail_q_max = 10255`, `head_bias = 0.971229`
   - `RELAX`: `tail_eta_max = 0.45858`, `tail_q_max = 1985.8`, `head_bias = 0.967227`
 - Current conclusion: the V21 Q secant update is the immediate amplifier of the `10255` Q residual peak. Q should use conservative relaxation or a gated secant strategy, not unconditional secant during startup.
+
+## 2026-07-15 V24 Interface Conservation Refactor
+
+- Reorganized the workspace around one tracked baseline case and ignored `analysis/.runs/` outputs; started V24 from clean commit `1859ee8`.
+- Quantified the V23 conservation gaps with `[V24_INTERFACE_MASS]`: `max|RTAIL|=10309`, `max|RFLUX|=9619.6`, `max|RCOMB|=2732.4`, and unaccounted segment flow loss `171.45 m3/s`.
+- Replaced the tail-only four-step pseudo-implicit SECANT loop with a single evaluated partitioned commit: predictor, reservoir, and tail storage now use one interface flux.
+- Removed segment flow attenuation without a storage/source term and added the physical available-water cap `QIFACE <= QPHYS + max(Vold-Vmin,0)/DT`, including predictor-cache validation.
+- Added strict commit/mass parsers and `assert_v24_conservation`; 8 Python tests and the reduced Fortran console build pass.
+- Fresh `TMEND=44436.5`, `bht alpha=0` validation passed with 1129 evaluated commits, `max|RTAIL|=1.1642e-10`, and all other interface/segment mass gaps equal to zero.
+- Relative to the same-window V23 RELAX result, SEG 2 bias improved by `0.128771 m`, head bias improved by `0.137818 m`, and SEG 222 bias increased by `0.009046 m`.
+- Current conclusion: V24 is the first conservation-closed baseline for further tailreach optimization. Next work should diagnose the remaining upstream water-level bias before implementing true segmentwise continuity/momentum.

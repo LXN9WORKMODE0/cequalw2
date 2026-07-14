@@ -111,3 +111,47 @@ Next action:
 
 - 运行 `TMEND=44436.5` fresh extended window，并以同一守恒断言和双站水位指标审查。
 - 若 extended window 通过，整理设计页实施状态，提交并推送阶段检查点；再判断是否进入逐段 continuity/momentum 子问题。
+
+## Step 4 — Extended-window validation
+
+Status: complete
+
+Run:
+
+- fresh case：`alpha=0`、`scope=bht`、`TMEND=44436.5`。
+- scan 进程正常退出，`assert_v24_conservation` 通过。
+- 无 runtime error、computational warning、NaN 或 Infinity；SEG 2 有 66 个有效输出。
+
+Conservation:
+
+- 1129 次 interface commit 全部 `EVALUATED=T`。
+- `max|QRES-QCOMMIT|=0`。
+- `max|RTAIL|=1.1642e-10`。
+- `max|RFLUX|=0`。
+- `max|RCOMB|=1.1642e-10`。
+- `max|SEGLOSS|=0`。
+
+Extended-window water-level metrics:
+
+- SEG 2：bias `0.987561 m`，RMSE `1.820609 m`。
+- SEG 222：bias `0.158152 m`，RMSE `0.236300 m`。
+- head：bias `0.829409 m`，RMSE `1.713617 m`。
+
+Comparison with V23 RELAX at the same window:
+
+- SEG 2 bias：`1.116332 -> 0.987561`，改善 `0.128771 m`。
+- SEG 222 bias：`0.149106 -> 0.158152`，增加 `0.009046 m`。
+- head bias：`0.967227 -> 0.829409`，改善 `0.137818 m`。
+- V23 的 ETA/Q residual 是 tail-side fixed-point mismatch；V24 的 committed residual 是已求值状态一致性，语义不同，不能把 `0` 直接当成精度提升倍数。
+
+Review:
+
+- 守恒修复在 extended window 内持续成立，不是启动期特例。
+- exact interface 没有重现历史上的长窗明显刚性或超时退化；predictor pass 58 次、corrector commit 1129 次、cache reuse 27544 次。
+- 上游与 head bias 明显改善，SEG 222 的变化仅为约 `9 mm`；当前没有证据表明守恒修复以整体水位精度为代价。
+- 仍存在约 `0.83–0.99 m` 的上游正偏差。下一步应先定位其空间/时间结构和控制量敏感性，再决定是否需要真正的逐段 continuity/momentum 联立。
+
+Next action:
+
+- 建立 V24 剩余水位误差的空间/时间诊断，区分边界 stage、tail storage geometry、摩阻/坡度与 segment 派生状态的影响。
+- 只有证据指向 segment 内部动力学缺失时，才设计 V25 逐段连续方程；不恢复任何非守恒 Q attenuation。
