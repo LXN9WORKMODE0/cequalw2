@@ -399,6 +399,9 @@ def result_row(
         "tail_corrector_pass_count": smoke_result.tail_corrector_pass_count,
         "tail_predictor_skip_count": smoke_result.tail_predictor_skip_count,
         "v23_q_update_mode": parse_q_update_mode(smoke_result.warn_path),
+        "v25_link_dn": smoke_result.tail_link_dn,
+        "v25_couple_seg": smoke_result.tail_couple_seg,
+        "v25_boundary_aligned": int(smoke_result.tail_interface_boundary_aligned),
         "warn_path": str(smoke_result.warn_path),
     }
     values.update(tail)
@@ -450,6 +453,9 @@ def write_scan_summary(rows: list[dict[str, str]]) -> Path:
         "v24_commit_q_gap_max",
         "v24_commit_eta_applied_max",
         "v24_commit_all_evaluated",
+        "v25_link_dn",
+        "v25_couple_seg",
+        "v25_boundary_aligned",
         "warn_path",
     ]
     merged: dict[str, dict[str, str]] = {}
@@ -489,6 +495,7 @@ def main() -> int:
         smoke.run_case(case_dir)
         result = smoke.evaluate(case_dir)
         smoke.assert_v24_conservation(result)
+        smoke.assert_v25_boundary_alignment(result)
         rows.append(result_row(alpha, case_dir, result, moved_stats, args.tmend, args.scope))
     if rows:
         summary = write_scan_summary(rows)

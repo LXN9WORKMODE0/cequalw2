@@ -69,6 +69,7 @@ DX_REACH = sum(DLX(TAIL_DOMAIN_US:TAIL_DOMAIN_DS))
 - 初始化时先确定 `TAIL_COUPLE_SEG=TAIL_DOMAIN_DS+1`，再令 `TAIL_DNSEG=TAIL_COUPLE_SEG`。
 - `TAIL_UPSEG` 使用 `TAIL_DOMAIN_US`；在当前案例仍等于 segment 2。
 - standard-step residual 使用已经计算的 `TAIL_REACH_LENGTH`。
+- link-flow 的水面坡降使用同一 `TAIL_REACH_LENGTH`，避免两个 closure 对同一 reach 使用不同距离。
 - 在 standard-step 调用前初始化 reach length，避免首步使用零或旧值。
 - 不改变 V24 single-flux commit、可用水量上界和质量断言。
 - 不加入任何经验 stage–Q 校正或非守恒流量衰减。
@@ -96,3 +97,9 @@ DX_REACH = sum(DLX(TAIL_DOMAIN_US:TAIL_DOMAIN_DS))
 - 尚未运行 boundary-aligned 版本，无法确认 segment 6 stage 反馈对自动步长的净影响。
 - 当前 standard-step 仍是上下游断面能量闭合，不返回逐段 profile volume；V25 只先消除已确认的错误边界，不把它包装成完整多段动力学。
 - V10 日志包含可能被 autostep 回滚的试算状态；物理精度判断只使用正式 `wl.csv` 接受态。
+
+## 7. Short-window status
+
+V25 short window 已通过守恒与边界双断言：`LINK_DN=6`、`COUPLE=6`、`max|R_tail|=5.8208e-11 m3/s`。
+
+边界对齐后模拟 head–Q 斜率达到观测的约 `54%`，SEG 2/222 RMSE 均改善；但 head RMSE 从 `1.0281 m` 增至 `1.1744 m`。因此 short 结果为 mixed，`TMEND=44436.5` extended window 仍是是否保留 V25 的必要验证。

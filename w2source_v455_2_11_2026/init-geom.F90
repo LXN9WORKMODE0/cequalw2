@@ -506,10 +506,10 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
       END IF
       IF (TAIL_DOMAIN_DEFINED(JB)) THEN
         TAIL_COUPLED(JB) = .TRUE.
-        TAIL_UPSEG(JB) = FRONT_SEG(JB)
-        TAIL_DNSEG(JB) = CUSMIN(JB)
-        ! Use the downstream boundary interface segment, not an in-domain segment.
+        TAIL_UPSEG(JB) = TAIL_DOMAIN_US(JB)
         TAIL_COUPLE_SEG(JB) = TAIL_DOMAIN_DS(JB) + 1
+        ! The tail downstream boundary is the first reservoir segment, not CUSMIN inside the tail domain.
+        TAIL_DNSEG(JB) = TAIL_COUPLE_SEG(JB)
       ELSE
         TAIL_COUPLED(JB) = .FALSE.
         TAIL_UPSEG(JB) = 0
@@ -563,7 +563,7 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
         WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0)') '[V2_FRONT_SETUP]', 'JB=',JB, &
                                                            'FRONT_SEG=',FRONT_SEG(JB), &
                                                            'IUPHYS=',IUPHYS(JB), 'CUSMIN=',CUSMIN(JB)
-        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V11_TAIL_DOMAIN]', 'JB=',JB, &
+        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V11_TAIL_DOMAIN]', 'JB=',JB, &
                                                                            'US=',TAIL_DOMAIN_US(JB), 'DS=',TAIL_DOMAIN_DS(JB), &
                                                                            'NSEG=',TAIL_DOMAIN_NSEG(JB), 'LINK_US=',TAIL_UPSEG(JB), &
                                                                            'LINK_DN=',TAIL_DNSEG(JB), 'DEFINED=',TAIL_DOMAIN_DEFINED(JB)

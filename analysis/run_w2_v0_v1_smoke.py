@@ -68,6 +68,12 @@ REQUIRED_MARKERS = [
     "[V24_INTERFACE_COMMIT]",
 ]
 LATE_SEG2_PATTERN = "Add segments 2 through 2"
+V11_TAIL_DOMAIN_PATTERN = re.compile(
+    r"\[V11_TAIL_DOMAIN\].*?JB=(?P<jb>\d+).*?US=(?P<us>\d+).*?DS=(?P<ds>\d+)"
+    r".*?NSEG=(?P<nseg>\d+).*?LINK_US=(?P<link_us>\d+).*?LINK_DN=(?P<link_dn>\d+)"
+    r".*?DEFINED=(?P<defined>[TF])",
+    re.IGNORECASE,
+)
 V15_TAIL_DOMAIN_PATTERN = re.compile(
     r"\[V15_TAIL_DOMAIN_MULTI\].*?JB=(?P<jb>\d+).*?US=(?P<us>\d+).*?DS=(?P<ds>\d+).*?NSEG=(?P<nseg>\d+).*?COUPLE=(?P<couple>\d+)",
     re.IGNORECASE,
@@ -167,6 +173,9 @@ class SmokeResult:
     tail_interface_commit_q_gap_max: float
     tail_interface_commit_eta_applied_max: float
     tail_interface_commit_all_evaluated: bool
+    tail_link_dn: int
+    tail_couple_seg: int
+    tail_interface_boundary_aligned: bool
     tail_domain_nseg_min: int
     tail_segment_state_count: int
     tail_mode_set: str
@@ -291,7 +300,8 @@ def evaluate(case_dir: Path) -> SmokeResult:
     has_v8_front_sync = "[V8_FRONT_SYNC] JB=1" in warn_text
     has_v9_tail_feedback = "[V9_TAIL_FEEDBACK] JB=1" in warn_text
     has_v10_tail_reach = "[V10_TAIL_REACH] JB=1" in warn_text
-    has_v11_tail_domain = "[V11_TAIL_DOMAIN] JB=1" in warn_text
+    v11_matches = list(V11_TAIL_DOMAIN_PATTERN.finditer(warn_text))
+    has_v11_tail_domain = any(int(match.group("jb")) == 1 for match in v11_matches)
     has_v12_q_state = "[V12_Q_STATE] JB=1" in warn_text
     has_v13_transition_reach = "[V13_TRANSITION_REACH] JB=1" in warn_text
     has_v14_coupled_hybrid = "[V14_COUPLED_HYBRID] JB=1" in warn_text
@@ -339,6 +349,15 @@ def evaluate(case_dir: Path) -> SmokeResult:
     )
     tail_interface_commit_all_evaluated = bool(v24_commit_matches) and all(
         match.group("evaluated").upper() == "T" for match in v24_commit_matches
+    )
+    branch_v11 = next((match for match in v11_matches if int(match.group("jb")) == 1), None)
+    branch_v15 = next((match for match in v15_matches if int(match.group("jb")) == 1), None)
+    tail_link_dn = int(branch_v11.group("link_dn")) if branch_v11 else 0
+    tail_couple_seg = int(branch_v15.group("couple")) if branch_v15 else 0
+    tail_interface_boundary_aligned = bool(branch_v11 and branch_v15) and (
+        branch_v11.group("defined").upper() == "T"
+        and tail_link_dn == tail_couple_seg
+        and tail_link_dn == int(branch_v11.group("ds")) + 1
     )
     tail_domain_nseg_min = min((int(match.group("nseg")) for match in v15_matches), default=0)
     tail_segment_state_count = len(v16_matches)
@@ -416,6 +435,9 @@ def evaluate(case_dir: Path) -> SmokeResult:
         tail_interface_commit_q_gap_max=tail_interface_commit_q_gap_max,
         tail_interface_commit_eta_applied_max=tail_interface_commit_eta_applied_max,
         tail_interface_commit_all_evaluated=tail_interface_commit_all_evaluated,
+        tail_link_dn=tail_link_dn,
+        tail_couple_seg=tail_couple_seg,
+        tail_interface_boundary_aligned=tail_interface_boundary_aligned,
         tail_domain_nseg_min=tail_domain_nseg_min,
         tail_segment_state_count=tail_segment_state_count,
         tail_mode_set=tail_mode_set,
@@ -481,6 +503,9 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(
             ["tail_interface_commit_all_evaluated", "1" if result.tail_interface_commit_all_evaluated else "0"]
         )
+        writer.writerow(["tail_link_dn", str(result.tail_link_dn)])
+        writer.writerow(["tail_couple_seg", str(result.tail_couple_seg)])
+        writer.writerow(["tail_interface_boundary_aligned", "1" if result.tail_interface_boundary_aligned else "0"])
         writer.writerow(["tail_domain_nseg_min", str(result.tail_domain_nseg_min)])
         writer.writerow(["tail_segment_state_count", str(result.tail_segment_state_count)])
         writer.writerow(["tail_mode_set", result.tail_mode_set])
@@ -519,6 +544,13 @@ def assert_v24_conservation(result: SmokeResult) -> None:
     errors = v24_conservation_errors(result)
     if errors:
         raise AssertionError(" | ".join(errors))
+
+
+def assert_v25_boundary_alignment(result: SmokeResult) -> None:
+    if not result.tail_interface_boundary_aligned:
+        raise AssertionError(
+            f"Tail interface boundary is not aligned: LINK_DN={result.tail_link_dn}, COUPLE={result.tail_couple_seg}"
+        )
 
 
 def assert_pass(result: SmokeResult, tmend: float) -> None:
@@ -590,6 +622,10 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
     if result.tail_iface_linear_updates <= 0:
         errors.append("V21 reduced implicit update count is below 1")
     errors.extend(v24_conservation_errors(result))
+    if not result.tail_interface_boundary_aligned:
+        errors.append(
+            f"Tail interface boundary is not aligned: LINK_DN={result.tail_link_dn}, COUPLE={result.tail_couple_seg}"
+        )
     if result.tail_domain_nseg_min < 2:
         errors.append(f"Tail domain minimum segment count is below 2: {result.tail_domain_nseg_min}")
     if result.tail_segment_state_count < 2:

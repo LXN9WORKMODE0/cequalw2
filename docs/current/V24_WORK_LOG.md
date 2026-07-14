@@ -191,3 +191,42 @@ Next action:
 
 - 按文档 `41_v25_tail_boundary_alignment_design.md` 修复 `TAIL_DNSEG=TAIL_COUPLE_SEG` 和 full reach length。
 - 保持 V24 守恒断言不变，先跑编译/短窗；只有短窗稳定且守恒，才进入 extended 对照。
+
+## Step 6 — V25 boundary-aligned short window
+
+Status: complete
+
+Changes:
+
+- `TAIL_UPSEG=TAIL_DOMAIN_US`。
+- `TAIL_DNSEG=TAIL_COUPLE_SEG=TAIL_DOMAIN_DS+1`。
+- standard-step 和 link-flow 均使用完整 `TAIL_REACH_LENGTH`。
+- 修复 `[V11_TAIL_DOMAIN]` 少一个整数格式槽的问题；新增解析字段和 `assert_v25_boundary_alignment`。
+
+Verification:
+
+- reduced console build：通过。
+- residual structure tests：2 项通过。
+- redistribution/conservation tests：8 项通过。
+- fresh short scan 正常退出；`LINK_DN=6`、`COUPLE=6`、alignment `1`。
+- `max|RTAIL|=5.8208e-11`；`RFLUX/RCOMB/SEGLOSS/commit gap` 除舍入量外均为 0，全部 commit 已求值。
+
+Short-window comparison with V24:
+
+- SEG 2 bias/RMSE：`0.892568/1.115465 -> -0.745048/0.952178`。
+- SEG 222 bias/RMSE：`0.219352/0.350562 -> 0.209560/0.332767`。
+- head bias/RMSE：`0.673216/1.028123 -> -0.954608/1.174444`。
+- 模拟 SEG 2 stage–Q slope：`0.001281 m/(m3/s)`；观测为 `0.002237`。
+- 模拟 head–Q slope：`0.001457 m/(m3/s)`；观测为 `0.002700`。
+
+Review:
+
+- 边界对齐显著恢复了上游动态响应，并改善两个站点各自的 RMSE。
+- short-window head bias 从正偏变为负偏，head RMSE 小幅增加，说明响应幅度改善但截距/时序仍未完全闭合。
+- 该结果是 mixed，不能仅凭 short window 决定接受或回退；下一步必须跑同一 `TMEND=44436.5` extended window。
+
+Next action:
+
+- 建立 V25 short Git 检查点并同步 GitHub。
+- 运行 fresh extended window，继续要求 V24 conservation + V25 boundary alignment 双断言通过。
+- 对比 extended stage–Q slope、bias/RMSE 和运行刚性，再决定边界修复是否作为新基线。
