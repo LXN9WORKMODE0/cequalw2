@@ -29,6 +29,7 @@ V22_BOUNDARY_FLUX_PATTERN = re.compile(
     r".*?QDT_SUM=(?P<qdt_sum>[-+0-9.eE]+).*?QSS_SUM=(?P<qss_sum>[-+0-9.eE]+).*?TAIL_Q=(?P<tail_q>[-+0-9.eE]+)",
     re.IGNORECASE,
 )
+V23_Q_UPDATE_MODE_PATTERN = re.compile(r"\[V23_Q_UPDATE_MODE\].*?MODE=(?P<mode>\S+)", re.IGNORECASE)
 
 
 @dataclass
@@ -321,6 +322,15 @@ def parse_boundary_flux_stats(warn_path: Path, branch: int = 1) -> dict[str, flo
     }
 
 
+def parse_q_update_mode(warn_path: Path) -> str:
+    with open(warn_path, "r", encoding="utf-8", errors="ignore") as handle:
+        for line in handle:
+            match = V23_Q_UPDATE_MODE_PATTERN.search(line)
+            if match:
+                return match.group("mode").upper()
+    return ""
+
+
 def result_row(
     alpha: float,
     case_dir: Path,
@@ -349,6 +359,7 @@ def result_row(
         "tail_predictor_pass_count": smoke_result.tail_predictor_pass_count,
         "tail_corrector_pass_count": smoke_result.tail_corrector_pass_count,
         "tail_predictor_skip_count": smoke_result.tail_predictor_skip_count,
+        "v23_q_update_mode": parse_q_update_mode(smoke_result.warn_path),
         "warn_path": str(smoke_result.warn_path),
     }
     values.update(tail)
@@ -388,6 +399,7 @@ def write_scan_summary(rows: list[dict[str, str]]) -> Path:
         "v22_qdt_sum_mean",
         "v22_qss_sum_mean",
         "v22_tail_q_mean",
+        "v23_q_update_mode",
         "warn_path",
     ]
     merged: dict[str, dict[str, str]] = {}

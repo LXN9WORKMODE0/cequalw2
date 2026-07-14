@@ -52,7 +52,9 @@ CE-QUAL-W2 在“低水位快流河道态”和“高水位淹没回水态”之
 34. [35_v19_interface_residual_implementation.md](./35_v19_interface_residual_implementation.md)
 35. [36_v20_interface_iteration_implementation.md](./36_v20_interface_iteration_implementation.md)
 36. [37_v21_reduced_implicit_interface_implementation.md](./37_v21_reduced_implicit_interface_implementation.md)
-37. [references.md](./references.md)
+37. [38_v22_distributed_path_diagnosis.md](./38_v22_distributed_path_diagnosis.md)
+38. [39_v23_q_update_mode_diagnosis.md](./39_v23_q_update_mode_diagnosis.md)
+39. [references.md](./references.md)
 
 ## 已固定的研究口径
 

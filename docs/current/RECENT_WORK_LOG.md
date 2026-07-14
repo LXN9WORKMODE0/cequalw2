@@ -184,3 +184,30 @@ Deleted scratch directories:
 - Stage 2 behavior is in place: reduced-path initial outputs are no longer initialized through water-quality entry points.
 - Stage 3 behavior is in place: the reduced build no longer compiles or ships the removed dormant water-quality source files.
 - Stage 4 behavior is now in place: the reduced deliverable keeps structure flow and selective withdrawal while explicitly rejecting TDG-related files and output requests.
+
+## 2026-04-27 V22 Hydrodynamic Interface Diagnosis
+
+- Added `V22_BOUNDARY_FLUX` diagnostics for branch 1 to separate physical BHT inflow, effective reservoir inflow, distributed source contribution, total source/sink contribution, and tailreach feedback flow.
+- Fixed the redistribution scan writer so `.npt` integer values keep a decimal point; without this, W2 can misread rewritten BHT outflow values by roughly one order of magnitude.
+- Re-ran full-window redistribution diagnostics with `TMEND=44436.5`:
+  - `bht_a00`: baseline, `QDT_SUM mean = 154.24`, `tail_q_max = 10255`
+  - `bht_a100`: BHT active distributed moved to BHT outflow, `QDT_SUM mean = 0`, `tail_q_max = 10255`
+  - `all_a100`: all positive active distributed moved to BHT outflow, `QDT_SUM mean = 0`, `tail_q_max = 10255`
+- Current conclusion: moving distributed flow to the BHT tail changes the mass-entry path and water-level bias, but does not remove the V21 interface Q residual peak. Next work should focus on the interface Q update and the `TAIL_Q_LINK -> QEFF` coupling path.
+- Additional localization: all three full-window cases hit `tail_q_max = 10255` at the same early warning-log event, with `Q_P = 7315.457` and `Q_C = 15936.757`; this makes the peak look like a shared initial tailreach/interface transient rather than a distributed-flow placement effect.
+
+## 2026-04-28 V23 Q Update Mode Diagnosis
+
+- Added diagnostic environment switch `W2_TAIL_Q_UPDATE_MODE`:
+  - `SECANT`: current V21 behavior
+  - `RELAX`: Q uses residual relaxation only
+  - `HOLD`: Q guess is held fixed inside the interface iteration
+- Added `[V23_Q_UPDATE_MODE]` marker and parser coverage so each scan row records the active Q update mode.
+- Short-window `TMEND=44431.0`, `bht alpha=0` result:
+  - `SECANT`: `tail_q_max = 10255`
+  - `RELAX`: `tail_q_max = 1985.8`
+  - `HOLD`: `tail_q_max = 3002.6`
+- Full-window `TMEND=44436.5`, `bht alpha=0` confirmation:
+  - `SECANT`: `tail_eta_max = 0.45645`, `tail_q_max = 10255`, `head_bias = 0.971229`
+  - `RELAX`: `tail_eta_max = 0.45858`, `tail_q_max = 1985.8`, `head_bias = 0.967227`
+- Current conclusion: the V21 Q secant update is the immediate amplifier of the `10255` Q residual peak. Q should use conservative relaxation or a gated secant strategy, not unconditional secant during startup.

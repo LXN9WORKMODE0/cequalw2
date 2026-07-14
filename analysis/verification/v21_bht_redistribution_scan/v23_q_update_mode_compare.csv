@@ -1,0 +1,6 @@
+window,mode,tmend,scope,alpha,tail_eta_max,tail_q_max,seg2_bias,seg222_bias,head_bias,v22_qin_mean,v22_qdt_sum_mean,notes
+short,SECANT,44431,bht,0,0.31978,10255,,,,5078.498653,154.24,default V21 Q secant update
+short,RELAX,44431,bht,0,0.3027,1985.8,,,,5078.500733,154.24,Q uses residual relaxation only
+short,HOLD,44431,bht,0,0.39031,3002.6,,,,5078.498761,154.24,Q guess is held fixed inside interface iteration
+full,SECANT,44436.5,bht,0,0.45645,10255,1.120442,0.149213,0.971229,4858.22546,154.24,previous full-window V21 baseline
+full,RELAX,44436.5,bht,0,0.45858,1985.8,1.116332,0.149106,0.967227,4858.224028,154.24,full-window confirmation of Q relax mode

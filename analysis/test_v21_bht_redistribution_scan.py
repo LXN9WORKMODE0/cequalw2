@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 
 from run_v21_bht_redistribution_scan import (
     parse_boundary_flux_stats,
+    parse_q_update_mode,
     redistribute_bht_series,
     redistribute_bht_with_sources,
     tail_flow_stats,
@@ -83,6 +84,16 @@ class RedistributeBhtSeriesTests(unittest.TestCase):
             lines = path.read_text(encoding="utf-8").splitlines()
 
         self.assertEqual(lines[-1].split(), ["44430.", "5360."])
+
+    def test_q_update_mode_parser_reads_v23_marker(self) -> None:
+        text = "[V23_Q_UPDATE_MODE] MODE=RELAX\n"
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "w2.wrn"
+            path.write_text(text, encoding="utf-8")
+
+            mode = parse_q_update_mode(path)
+
+        self.assertEqual(mode, "RELAX")
 
 
 if __name__ == "__main__":
