@@ -155,3 +155,39 @@ Next action:
 
 - 建立 V24 剩余水位误差的空间/时间诊断，区分边界 stage、tail storage geometry、摩阻/坡度与 segment 派生状态的影响。
 - 只有证据指向 segment 内部动力学缺失时，才设计 V25 逐段连续方程；不恢复任何非守恒 Q attenuation。
+
+## Step 5 — Residual structure and boundary diagnosis
+
+Status: complete
+
+Tooling:
+
+- 新增 `analysis/analyze_v24_residual_structure.py`，从接受态 `wl.csv` 对齐 SEG 2/222 观测和 BHT 物理入流。
+- 输出完整样本、逐日统计、流量四分位和总体相关/斜率摘要。
+- 新增纯函数测试，覆盖 bias/head identity、相关和线性斜率退化边界；2 项通过。
+
+Accepted-state evidence (`TMEND=44436.5`, 157 samples):
+
+- SEG 2 error–Q correlation：`-0.978532`；head error–Q：`-0.979566`。
+- 观测/模拟 SEG 2 stage–Q slope：`0.001844/0.000226 m/(m3/s)`。
+- 观测/模拟 head–Q slope：`0.001706/0.000117 m/(m3/s)`。
+- 观测/模拟 SEG 222 stage–Q slope：`0.000138/0.000108 m/(m3/s)`。
+- head bias 从最低流量四分位的 `+2.162695 m` 单调变到最高流量四分位的 `-1.336115 m`。
+
+Index-chain finding:
+
+- tail domain 为 segment `2:5`，reservoir 主矩阵从 `TAIL_COUPLE_SEG=6` 开始。
+- `TAIL_DNSEG` 却仍设置为旧 `CUSMIN=3`；`UPDATE_TAIL_STAGE` 因而用未被主矩阵更新的 segment 3 作为 downstream boundary。
+- V7/V10 全窗显示 `DNSEG=3`、`WSE_DN=588.210`、`WSE_HYD=588.210`，与错误边界被锁死完全一致。
+- standard-step residual 同时只用首尾两个断面的半长度之和，没有使用已经定义的 multi-segment reach length。
+
+Review:
+
+- 剩余误差的主要来源已从“可能缺逐段动力学”缩小为一个先验更基础的状态边界错误。
+- 这不是摩阻调参或业务验收取舍；`TAIL_DNSEG` 的语义应与 `TAIL_COUPLE_SEG` 对齐。
+- V10 中间态可能被 autostep 回滚，不能与观测直接回归；精度证据仅来自正式接受态输出。
+
+Next action:
+
+- 按文档 `41_v25_tail_boundary_alignment_design.md` 修复 `TAIL_DNSEG=TAIL_COUPLE_SEG` 和 full reach length。
+- 保持 V24 守恒断言不变，先跑编译/短窗；只有短窗稳定且守恒，才进入 extended 对照。
