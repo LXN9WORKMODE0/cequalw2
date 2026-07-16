@@ -403,6 +403,10 @@ def result_row(
         "v25_link_dn": smoke_result.tail_link_dn,
         "v25_couple_seg": smoke_result.tail_couple_seg,
         "v25_boundary_aligned": int(smoke_result.tail_interface_boundary_aligned),
+        "v26_active_cus": smoke_result.tail_active_cus,
+        "v26_domain_owner_exclusive": int(smoke_result.tail_domain_owner_exclusive),
+        "v26_boundary_consumer_count": smoke_result.reservoir_boundary_consumer_count,
+        "v26_boundary_flux_gap_max": smoke_result.reservoir_boundary_flux_gap_max,
         "warn_path": str(smoke_result.warn_path),
     }
     values.update(tail)
@@ -458,6 +462,10 @@ def write_scan_summary(rows: list[dict[str, str]]) -> Path:
         "v25_link_dn",
         "v25_couple_seg",
         "v25_boundary_aligned",
+        "v26_active_cus",
+        "v26_domain_owner_exclusive",
+        "v26_boundary_consumer_count",
+        "v26_boundary_flux_gap_max",
         "warn_path",
     ]
     merged: dict[str, dict[str, str]] = {}
@@ -498,6 +506,7 @@ def main() -> int:
         result = smoke.evaluate(case_dir)
         smoke.assert_v24_conservation(result)
         smoke.assert_v25_boundary_alignment(result)
+        smoke.assert_v26_domain_ownership(result)
         smoke.assert_no_computational_warning(result)
         rows.append(result_row(alpha, case_dir, result, moved_stats, args.tmend, args.scope))
     if rows:

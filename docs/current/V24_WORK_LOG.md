@@ -275,9 +275,46 @@ Next action:
 
 ## Step 8 — V26 domain ownership
 
-Status: in progress
+Status: complete for short-window structural acceptance
 
 Design:
 
 - 见 `42_v26_tail_reservoir_domain_ownership_design.md`。
 - 不把 V25 的精度改善当作接受依据；先消除已确认的状态所有权和边界通量分叉。
+
+Changes:
+
+- tail defined 时 `CUS=TAIL_COUPLE_SEG=6`，tail 2:5 与 reservoir 6+ 不再重叠。
+- `layeraddsub` 的四条 upstream-lock 路径均以 `TAIL_COUPLE_SEG` 为下界，不再退回 `CUSMIN=3`。
+- reservoir boundary 的 hydrodynamics、temperature source、heat balance 和 `VOLIN` 统一使用 `TAIL_RESERVOIR_Q_USED`。
+- 新增 `[V26_DOMAIN_OWNER]`、`[V26_BOUNDARY_CONSUMER]` 及可解析硬断言。
+- 第二次 `HYDROINOUT` 可能在 predictor 后刷新物理 Q；新增 matrix 消费前 available-water re-cap，使 reservoir Q 与 tail commit 仍是同一通量。
+- exclusive tail domain 下，旧 V2/V4/V5/V6/V8 front markers 不再是必需门；它们描述的是被 V26 所有权契约取代的重叠 front 路径。
+
+Verification:
+
+- Python syntax、2 项 residual tests、10 项 conservation/domain tests：通过。
+- reduced console build：通过。
+- fresh `TMEND=44431`：正常退出，用时约 `8.5 s`。
+- `CUS=6`、`COUPLE=6`、exclusive `T`；12 次 boundary-consumer 样本最大 flux gap 为 0。
+- `max|RTAIL|=5.457e-12`，`RFLUX/RCOMB/SEGLOSS/commit gap=0`。
+- runtime/computational warning 均为 0；完整 `assert_pass` 通过。
+- `flowbal.csv` `%VOLerror` 从 V25 的 `-127.24044%` 降到 `-0.00006133%`。
+
+Short-window accuracy:
+
+- SEG 2 bias/RMSE：`-1.745776/2.912052 m`。
+- SEG 222 bias/RMSE：`0.172456/0.272047 m`。
+- head bias/RMSE：`-1.918232/3.021638 m`。
+- SEG 2/head 模拟 stage–Q slope：`0.002824/0.003135 m/(m3/s)`，观测为 `0.002237/0.002700`。
+
+Review:
+
+- V26 达到结构目标：主水体 balance、输出域和 boundary consumers 终于与接口契约一致；不能为了恢复 V25 较好的 short RMSE 而退回重叠所有权。
+- 精度显著退化揭示下一层已知问题：当前只用 segment 2 体积承受整个 2:5 reach 的 `Qin-Qout`，导致一天内 stage 过度下降；V25 较好的结果部分依赖不一致的 reservoir volume/temperature 路径。
+- 这不是摩阻或截距校准问题。下一步应把 `TAIL_STORAGE_VOL` 改为整个 tail-owned domain 的 profile volume，并让反演与输出 profile 使用同一几何定义。
+
+Next action:
+
+- 设计 V27 conservative profile-volume closure：保持一个 committed interface flux 和一个总 reach storage，自下游 stage 与上游 stage 构造一致 profile，按 segment 2:5 总体积反演上游 stage。
+- 先做几何/反演纯函数与短窗；不直接跳到四个独立 flux 的显式多单元求解器。

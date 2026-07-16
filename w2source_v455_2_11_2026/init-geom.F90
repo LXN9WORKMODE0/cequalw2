@@ -543,7 +543,12 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
       TAIL_Q_STATE_INITIALIZED(JB) = .FALSE.
       TAIL_STAGE_MODE(JB) = 0
       OLDCUS = CUSLAST(JB)
-      CUS(JB) = IUT
+      IF (TAIL_DOMAIN_DEFINED(JB)) THEN
+        ! Tail and reservoir domains must be disjoint in every downstream consumer.
+        CUS(JB) = TAIL_COUPLE_SEG(JB)
+      ELSE
+        CUS(JB) = IUT
+      END IF
       IF (.NOT. BOUNDARY_INIT_LOGGED(JB)) THEN
         WARNING_OPEN = .TRUE.
         WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V0_BOUNDARY_INIT]', 'JB=',JB, &
@@ -570,6 +575,11 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
         WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0)') '[V15_TAIL_DOMAIN_MULTI]', 'JB=',JB, &
                                                                      'US=',TAIL_DOMAIN_US(JB), 'DS=',TAIL_DOMAIN_DS(JB), &
                                                                      'NSEG=',TAIL_DOMAIN_NSEG(JB), 'COUPLE=',TAIL_COUPLE_SEG(JB)
+        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V26_DOMAIN_OWNER]', 'JB=',JB, &
+                                                                     'CUS=',CUS(JB), 'TAIL_US=',TAIL_DOMAIN_US(JB), &
+                                                                     'TAIL_DS=',TAIL_DOMAIN_DS(JB), &
+                                                                     'COUPLE=',TAIL_COUPLE_SEG(JB), &
+                                                                     'EXCLUSIVE=',CUS(JB) == TAIL_COUPLE_SEG(JB)
         FRONT_SETUP_LOGGED(JB) = .TRUE.
       END IF
       CUSLAST(JB) = CUS(JB)

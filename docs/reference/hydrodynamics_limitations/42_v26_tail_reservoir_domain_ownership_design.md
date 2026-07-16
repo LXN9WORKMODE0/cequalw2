@@ -109,3 +109,17 @@ reservoir boundary Q   = TAIL_Q_LINK = TAIL_RESERVOIR_Q_USED
 - 需要编译和 short run 验证把 `CUS` 提到 6 不会触发 layer add/sub 的其他历史路径。
 - 当前仅确认 upstream temperature/`VOLIN` 直接使用 raw `QIN`；若运行诊断显示还有其他 reservoir boundary consumer 分叉，再按同一契约收口，不新增替代通量。
 - V25 的百万立方米 volume error 很可能由域/通量分叉共同导致；在 V26 运行前，不能把其中某一项单独表述为唯一根因。
+
+## 7. Short-window result
+
+V26 fresh short (`TMEND=44431`) 已通过结构验收：
+
+- `CUS=COUPLE=6`，exclusive ownership 为真；
+- hydro/temperature/volume boundary consumer flux gap 为 0；
+- V24 tail/combined mass residual 最大 `5.457e-12 m3/s`；
+- computational warning 为 0；
+- `flowbal.csv` `%VOLerror=-0.00006133%`，V25 同期为 `-127.24044%`。
+
+首次 short 实现还暴露 predictor 后 Q 刷新的边界：第二次 `HYDROINOUT` 可使 committed physical availability 变化 `0.86633 m3/s`。V26 在 reservoir matrix 消费前按同一 storage state 重新执行 available-water cap，随后 reservoir/tail flux gap 回到 0。
+
+结构修复同时使 SEG 2/head short RMSE 变为 `2.912052/3.021638 m`，明显差于 V25。该退化不构成回退所有权契约的理由；它证明现有 tail storage 只包含 segment 2、却代表整个 2:5 reach 的下一层结构缺口已经成为主导项。后续进入 conservative profile-volume closure。

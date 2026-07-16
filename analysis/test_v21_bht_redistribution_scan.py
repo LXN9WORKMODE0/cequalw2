@@ -14,7 +14,7 @@ from run_v21_bht_redistribution_scan import (
     tail_flow_stats,
     write_npt_with_header,
 )
-from run_w2_v0_v1_smoke import count_computational_warnings
+from run_w2_v0_v1_smoke import count_computational_warnings, parse_v26_contract
 
 
 class RedistributeBhtSeriesTests(unittest.TestCase):
@@ -28,6 +28,23 @@ class RedistributeBhtSeriesTests(unittest.TestCase):
         )
 
         self.assertEqual(count_computational_warnings(text), 2)
+
+    def test_v26_contract_parser_requires_exclusive_domain_and_single_consumer_flux(self) -> None:
+        text = "\n".join(
+            [
+                "[V26_DOMAIN_OWNER] JB=1 CUS=6 TAIL_US=2 TAIL_DS=5 COUPLE=6 EXCLUSIVE=T",
+                "[V26_BOUNDARY_CONSUMER] JB=1 QPHYS=100 QRES=80 QTHERM=80 QVOL=80",
+                "[V26_BOUNDARY_CONSUMER] JB=2 QPHYS=1000 QRES=700 QTHERM=600 QVOL=500",
+            ]
+        )
+
+        contract = parse_v26_contract(text, branch=1)
+
+        self.assertTrue(contract["exclusive"])
+        self.assertEqual(contract["active_cus"], 6)
+        self.assertEqual(contract["couple"], 6)
+        self.assertEqual(contract["consumer_count"], 1)
+        self.assertEqual(contract["consumer_gap_max"], 0.0)
 
     def test_moves_only_positive_distributed_flow_and_preserves_total(self) -> None:
         bht = [(1.0, 100.0), (2.0, 200.0), (3.0, 300.0)]

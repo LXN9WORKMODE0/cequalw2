@@ -11,7 +11,7 @@ USE GLOBAL;     USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE 
   IMPLICIT NONE
   EXTERNAL RESTART_OUTPUT
   
-  REAL(R8) :: BTA1(1000),GMA1(1000)   ! places a limit of 1000 vertical layers
+  REAL(R8) :: BTA1(1000),GMA1(1000),QIN_ACTIVE   ! places a limit of 1000 vertical layers
   REAL     :: RN1, IceThicknessChange    
 
 DO JW=1,NWB
@@ -443,10 +443,12 @@ DO JW=1,NWB
           END DO
         END IF
         IF (UP_FLOW(JB)) THEN
+            QIN_ACTIVE = QIN(JB)
+            IF (TAIL_COUPLED(JB) .AND. TAIL_STAGE_VALID(JB)) QIN_ACTIVE = MAX(TAIL_RESERVOIR_Q_USED(JB),0.0D0)
             DO K=KT,KB(IU)
               IF (.NOT. HEAD_FLOW(JB)) THEN
-                TSS(K,IU) = TSS(K,IU)+QINF(K,JB)*QIN(JB)*TIN(JB)
-                TSSIN(JB) = TSSIN(JB)+QINF(K,JB)*QIN(JB)*TIN(JB)*DLT
+                TSS(K,IU) = TSS(K,IU)+QINF(K,JB)*QIN_ACTIVE*TIN(JB)
+                TSSIN(JB) = TSSIN(JB)+QINF(K,JB)*QIN_ACTIVE*TIN(JB)*DLT
               ELSE
                 IF (U(K,IU-1) >= 0.0) THEN
                   TSS(K,IU) = TSS(K,IU)+U(K,IU-1)*BHR1(K,IU-1)*T1(K,IU-1)
@@ -457,7 +459,12 @@ DO JW=1,NWB
                 END IF
               END IF
             END DO
-          VOLIN(JB) = VOLIN(JB)+QIN(JB)*DLT
+          VOLIN(JB) = VOLIN(JB)+QIN_ACTIVE*DLT
+          IF (TAIL_COUPLED(JB) .AND. (NIT <= 10 .OR. MOD(NIT,500) == 0)) THEN
+            WARNING_OPEN = .TRUE.
+            WRITE (WRN,'(A,1X,A,I0,4(1X,A,ES12.4))') '[V26_BOUNDARY_CONSUMER]', 'JB=',JB, &
+              'QPHYS=',QIN(JB), 'QRES=',TAIL_RESERVOIR_Q_USED(JB), 'QTHERM=',QIN_ACTIVE, 'QVOL=',QIN_ACTIVE
+          END IF
         END IF
         IF (DN_FLOW(JB)) THEN
           DO K=KT,KB(ID)

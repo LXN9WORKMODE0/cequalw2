@@ -47,7 +47,13 @@ REAL(R8):: W1,W2,W3, DUMMY, FRONT_WIDTH
             IF (KB(I)-KT < NL(JB)-1) IUT = I+1                                                                        !SR 11/30/2021
           END DO                                                                                                      !SR 11/30/2021
           IUCAND = IUT
-          IF (UPSTREAM_DOMAIN_LOCK(JB)) IUT = MAX(CUSMIN(JB),IUT)
+          IF (UPSTREAM_DOMAIN_LOCK(JB)) THEN
+            IF (TAIL_DOMAIN_DEFINED(JB)) THEN
+              IUT = MAX(TAIL_COUPLE_SEG(JB),IUT)
+            ELSE
+              IUT = MAX(CUSMIN(JB),IUT)
+            END IF
+          END IF
           OLDCUS = CUS(JB)
           IF (.NOT. BOUNDARY_INIT_LOGGED(JB)) THEN
             WARNING_OPEN = .TRUE.
@@ -547,7 +553,13 @@ REAL(R8):: W1,W2,W3, DUMMY, FRONT_WIDTH
 
             ENDDO
             IUCAND = IUT
-            IF (UPSTREAM_DOMAIN_LOCK(JB)) IUT = MAX(CUSMIN(JB),IUT)
+            IF (UPSTREAM_DOMAIN_LOCK(JB)) THEN
+              IF (TAIL_DOMAIN_DEFINED(JB)) THEN
+                IUT = MAX(TAIL_COUPLE_SEG(JB),IUT)
+              ELSE
+                IUT = MAX(CUSMIN(JB),IUT)
+              END IF
+            END IF
             OLDCUS = CUS(JB)
             IF (OLDCUS /= IUT) THEN
               WARNING_OPEN = .TRUE.
@@ -602,7 +614,13 @@ REAL(R8):: W1,W2,W3, DUMMY, FRONT_WIDTH
 !******** Segment addition
 
           IUCAND = IUT
-          IF (UPSTREAM_DOMAIN_LOCK(JB)) IUT = MAX(CUSMIN(JB),IUT)
+          IF (UPSTREAM_DOMAIN_LOCK(JB)) THEN
+            IF (TAIL_DOMAIN_DEFINED(JB)) THEN
+              IUT = MAX(TAIL_COUPLE_SEG(JB),IUT)
+            ELSE
+              IUT = MAX(CUSMIN(JB),IUT)
+            END IF
+          END IF
           IF (UPSTREAM_DOMAIN_LOCK(JB) .AND. FRONT_SEG(JB) > 0) THEN
             IFRONT = FRONT_SEG(JB)
             PREV_FRONT_STATE = FRONT_STATE(JB)
@@ -1099,7 +1117,13 @@ REAL(R8):: W1,W2,W3, DUMMY, FRONT_WIDTH
             ONE_LAYER(I) = KTWB(JW) == KB(I)
           END DO
           IUCAND = IUT
-          IF (UPSTREAM_DOMAIN_LOCK(JB)) IUT = MAX(CUSMIN(JB),IUT)
+          IF (UPSTREAM_DOMAIN_LOCK(JB)) THEN
+            IF (TAIL_DOMAIN_DEFINED(JB)) THEN
+              IUT = MAX(TAIL_COUPLE_SEG(JB),IUT)
+            ELSE
+              IUT = MAX(CUSMIN(JB),IUT)
+            END IF
+          END IF
           OLDCUS = CUS(JB)
           IF (OLDCUS /= IUT) THEN
             WARNING_OPEN = .TRUE.

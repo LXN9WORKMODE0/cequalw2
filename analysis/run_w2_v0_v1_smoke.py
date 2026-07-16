@@ -42,14 +42,8 @@ REQUIRED_MARKERS = [
     "[V0_BOUNDARY_INIT]",
     "[V0_BOUNDARY_SHIFT]",
     "[V0_SOURCE_PLACE]",
-    "[V0_SEGMENT_ADD_CHECK]",
-    "[V2_FRONT_STATE]",
     "[V3_INNER_ITER]",
-    "[V4_FRONT_GEOM]",
-    "[V5_TRANSITION]",
-    "[V6_COUPLING]",
     "[V7_TAIL_STAGE]",
-    "[V8_FRONT_SYNC]",
     "[V9_TAIL_FEEDBACK]",
     "[V10_TAIL_REACH]",
     "[V11_TAIL_DOMAIN]",
@@ -66,6 +60,8 @@ REQUIRED_MARKERS = [
     "[V21_INTERFACE_SOLVE]",
     "[V24_INTERFACE_MASS]",
     "[V24_INTERFACE_COMMIT]",
+    "[V26_DOMAIN_OWNER]",
+    "[V26_BOUNDARY_CONSUMER]",
 ]
 LATE_SEG2_PATTERN = "Add segments 2 through 2"
 V11_TAIL_DOMAIN_PATTERN = re.compile(
@@ -121,6 +117,18 @@ V24_INTERFACE_COMMIT_PATTERN = re.compile(
     r".*?EVALUATED=\s*(?P<evaluated>[TF])",
     re.IGNORECASE,
 )
+V26_DOMAIN_OWNER_PATTERN = re.compile(
+    r"\[V26_DOMAIN_OWNER\].*?JB=\s*(?P<jb>\d+).*?CUS=\s*(?P<cus>\d+)"
+    r".*?TAIL_US=\s*(?P<tail_us>\d+).*?TAIL_DS=\s*(?P<tail_ds>\d+)"
+    r".*?COUPLE=\s*(?P<couple>\d+).*?EXCLUSIVE=\s*(?P<exclusive>[TF])",
+    re.IGNORECASE,
+)
+V26_BOUNDARY_CONSUMER_PATTERN = re.compile(
+    r"\[V26_BOUNDARY_CONSUMER\].*?JB=\s*(?P<jb>\d+).*?QPHYS=\s*(?P<qphys>[-+0-9.eE]+)"
+    r".*?QRES=\s*(?P<qres>[-+0-9.eE]+).*?QTHERM=\s*(?P<qtherm>[-+0-9.eE]+)"
+    r".*?QVOL=\s*(?P<qvol>[-+0-9.eE]+)",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -157,6 +165,8 @@ class SmokeResult:
     has_v21_interface_solve: bool
     has_v24_interface_mass: bool
     has_v24_interface_commit: bool
+    has_v26_domain_owner: bool
+    has_v26_boundary_consumer: bool
     tail_predictor_pass_count: int
     tail_corrector_pass_count: int
     tail_predictor_skip_count: int
@@ -177,6 +187,10 @@ class SmokeResult:
     tail_link_dn: int
     tail_couple_seg: int
     tail_interface_boundary_aligned: bool
+    tail_active_cus: int
+    tail_domain_owner_exclusive: bool
+    reservoir_boundary_consumer_count: int
+    reservoir_boundary_flux_gap_max: float
     tail_domain_nseg_min: int
     tail_segment_state_count: int
     tail_mode_set: str
@@ -195,6 +209,35 @@ def read_text(path: Path) -> str:
 
 def count_computational_warnings(text: str) -> int:
     return text.count("COMPUTATIONAL WARNING AT JULIAN DAY")
+
+
+def parse_v26_contract(text: str, branch: int = 1) -> dict[str, int | float | bool]:
+    domain_match = next(
+        (match for match in V26_DOMAIN_OWNER_PATTERN.finditer(text) if int(match.group("jb")) == branch),
+        None,
+    )
+    consumer_matches = [
+        match for match in V26_BOUNDARY_CONSUMER_PATTERN.finditer(text) if int(match.group("jb")) == branch
+    ]
+    consumer_gap = max(
+        (
+            max(
+                abs(float(match.group("qres")) - float(match.group("qtherm"))),
+                abs(float(match.group("qres")) - float(match.group("qvol"))),
+            )
+            for match in consumer_matches
+        ),
+        default=0.0,
+    )
+    return {
+        "has_domain_owner": domain_match is not None,
+        "has_boundary_consumer": bool(consumer_matches),
+        "active_cus": int(domain_match.group("cus")) if domain_match else 0,
+        "couple": int(domain_match.group("couple")) if domain_match else 0,
+        "exclusive": bool(domain_match) and domain_match.group("exclusive").upper() == "T",
+        "consumer_count": len(consumer_matches),
+        "consumer_gap_max": consumer_gap,
+    }
 
 
 def ensure_dirs() -> None:
@@ -331,6 +374,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
     has_v24_interface_mass = len(v24_matches) > 0
     v24_commit_matches = list(V24_INTERFACE_COMMIT_PATTERN.finditer(warn_text))
     has_v24_interface_commit = len(v24_commit_matches) > 0
+    v26_contract = parse_v26_contract(warn_text)
     tail_predictor_pass_count = sum(1 for match in v18_matches if match.group("pass") == "1")
     tail_corrector_pass_count = sum(1 for match in v18_matches if match.group("pass") == "2")
     tail_predictor_skip_count = len(v18_skip_matches)
@@ -425,6 +469,8 @@ def evaluate(case_dir: Path) -> SmokeResult:
         has_v21_interface_solve=has_v21_interface_solve,
         has_v24_interface_mass=has_v24_interface_mass,
         has_v24_interface_commit=has_v24_interface_commit,
+        has_v26_domain_owner=bool(v26_contract["has_domain_owner"]),
+        has_v26_boundary_consumer=bool(v26_contract["has_boundary_consumer"]),
         tail_predictor_pass_count=tail_predictor_pass_count,
         tail_corrector_pass_count=tail_corrector_pass_count,
         tail_predictor_skip_count=tail_predictor_skip_count,
@@ -445,6 +491,10 @@ def evaluate(case_dir: Path) -> SmokeResult:
         tail_link_dn=tail_link_dn,
         tail_couple_seg=tail_couple_seg,
         tail_interface_boundary_aligned=tail_interface_boundary_aligned,
+        tail_active_cus=int(v26_contract["active_cus"]),
+        tail_domain_owner_exclusive=bool(v26_contract["exclusive"]),
+        reservoir_boundary_consumer_count=int(v26_contract["consumer_count"]),
+        reservoir_boundary_flux_gap_max=float(v26_contract["consumer_gap_max"]),
         tail_domain_nseg_min=tail_domain_nseg_min,
         tail_segment_state_count=tail_segment_state_count,
         tail_mode_set=tail_mode_set,
@@ -492,6 +542,8 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["has_v21_interface_solve", "1" if result.has_v21_interface_solve else "0"])
         writer.writerow(["has_v24_interface_mass", "1" if result.has_v24_interface_mass else "0"])
         writer.writerow(["has_v24_interface_commit", "1" if result.has_v24_interface_commit else "0"])
+        writer.writerow(["has_v26_domain_owner", "1" if result.has_v26_domain_owner else "0"])
+        writer.writerow(["has_v26_boundary_consumer", "1" if result.has_v26_boundary_consumer else "0"])
         writer.writerow(["tail_predictor_pass_count", str(result.tail_predictor_pass_count)])
         writer.writerow(["tail_corrector_pass_count", str(result.tail_corrector_pass_count)])
         writer.writerow(["tail_predictor_skip_count", str(result.tail_predictor_skip_count)])
@@ -514,6 +566,10 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["tail_link_dn", str(result.tail_link_dn)])
         writer.writerow(["tail_couple_seg", str(result.tail_couple_seg)])
         writer.writerow(["tail_interface_boundary_aligned", "1" if result.tail_interface_boundary_aligned else "0"])
+        writer.writerow(["tail_active_cus", str(result.tail_active_cus)])
+        writer.writerow(["tail_domain_owner_exclusive", "1" if result.tail_domain_owner_exclusive else "0"])
+        writer.writerow(["reservoir_boundary_consumer_count", str(result.reservoir_boundary_consumer_count)])
+        writer.writerow(["reservoir_boundary_flux_gap_max", f"{result.reservoir_boundary_flux_gap_max:.6f}"])
         writer.writerow(["tail_domain_nseg_min", str(result.tail_domain_nseg_min)])
         writer.writerow(["tail_segment_state_count", str(result.tail_segment_state_count)])
         writer.writerow(["tail_mode_set", result.tail_mode_set])
@@ -566,6 +622,24 @@ def assert_no_computational_warning(result: SmokeResult) -> None:
         raise AssertionError(f"Detected {result.computational_warning_count} computational warning(s)")
 
 
+def assert_v26_domain_ownership(result: SmokeResult) -> None:
+    errors: list[str] = []
+    if not result.has_v26_domain_owner:
+        errors.append("Missing V26 domain-owner marker")
+    if not result.has_v26_boundary_consumer:
+        errors.append("Missing V26 boundary-consumer marker")
+    if not result.tail_domain_owner_exclusive:
+        errors.append("Tail/reservoir domain ownership is not exclusive")
+    if result.tail_active_cus != result.tail_couple_seg:
+        errors.append(f"Active CUS does not match coupling segment: CUS={result.tail_active_cus}, COUPLE={result.tail_couple_seg}")
+    if result.reservoir_boundary_consumer_count <= 0:
+        errors.append("V26 reservoir boundary-consumer sample count is below 1")
+    if result.reservoir_boundary_flux_gap_max > 1.0e-6:
+        errors.append(f"V26 reservoir boundary consumer flux gap exceeds tolerance: {result.reservoir_boundary_flux_gap_max}")
+    if errors:
+        raise AssertionError(" | ".join(errors))
+
+
 def assert_pass(result: SmokeResult, tmend: float) -> None:
     errors: list[str] = []
     if result.missing_markers:
@@ -576,22 +650,22 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append(f"Detected runtime error output: {result.err_path}")
     if result.computational_warning_count > 0:
         errors.append(f"Detected {result.computational_warning_count} computational warning(s)")
-    if not result.has_v2_front_state:
-        errors.append("Missing V2 front-state marker for JB=1")
+    if not result.tail_domain_owner_exclusive and not result.has_v2_front_state:
+        errors.append("Missing V2 front-state marker for non-exclusive tail domain")
     if not result.has_required_outputs:
         errors.append("Missing required smoke outputs wl.csv or flowbal.csv")
     if not result.has_v3_inner_iter:
         errors.append("Missing V3 inner-iteration marker")
-    if not result.has_v4_front_geom:
-        errors.append("Missing V4 front-geometry marker for JB=1")
-    if not result.has_v5_transition:
-        errors.append("Missing V5 transition marker for JB=1")
-    if not result.has_v6_coupling:
-        errors.append("Missing V6 coupling marker for JB=1")
+    if not result.tail_domain_owner_exclusive and not result.has_v4_front_geom:
+        errors.append("Missing V4 front-geometry marker for non-exclusive tail domain")
+    if not result.tail_domain_owner_exclusive and not result.has_v5_transition:
+        errors.append("Missing V5 transition marker for non-exclusive tail domain")
+    if not result.tail_domain_owner_exclusive and not result.has_v6_coupling:
+        errors.append("Missing V6 coupling marker for non-exclusive tail domain")
     if not result.has_v7_tail_stage:
         errors.append("Missing V7 tail-stage marker for JB=1")
-    if not result.has_v8_front_sync:
-        errors.append("Missing V8 front-sync marker for JB=1")
+    if not result.tail_domain_owner_exclusive and not result.has_v8_front_sync:
+        errors.append("Missing V8 front-sync marker for non-exclusive tail domain")
     if not result.has_v9_tail_feedback:
         errors.append("Missing V9 tail-feedback marker for JB=1")
     if not result.has_v10_tail_reach:
@@ -641,6 +715,16 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append(
             f"Tail interface boundary is not aligned: LINK_DN={result.tail_link_dn}, COUPLE={result.tail_couple_seg}"
         )
+    if not result.has_v26_domain_owner:
+        errors.append("Missing V26 domain-owner marker")
+    if not result.has_v26_boundary_consumer:
+        errors.append("Missing V26 boundary-consumer marker")
+    if not result.tail_domain_owner_exclusive:
+        errors.append("Tail/reservoir domain ownership is not exclusive")
+    if result.tail_active_cus != result.tail_couple_seg:
+        errors.append(f"Active CUS does not match coupling segment: CUS={result.tail_active_cus}, COUPLE={result.tail_couple_seg}")
+    if result.reservoir_boundary_flux_gap_max > 1.0e-6:
+        errors.append(f"V26 reservoir boundary consumer flux gap exceeds tolerance: {result.reservoir_boundary_flux_gap_max}")
     if result.tail_domain_nseg_min < 2:
         errors.append(f"Tail domain minimum segment count is below 2: {result.tail_domain_nseg_min}")
     if result.tail_segment_state_count < 2:
