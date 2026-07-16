@@ -627,3 +627,33 @@ Decision required:
 - 选择以现有端点水位 RMSE/slope 为目标进行工程等效阻力率定；或
 - 先补充中间水位、断面与糙率约束后再实现多控制体；或
 - 保留 V32/V33 结构基线，把该河段交给外部一维非恒定流求解器。
+
+## Step 17 — V34 physical-constraint inventory
+
+Status: complete; repository evidence exhausted, physical decision remains
+
+Inventory:
+
+- Git 中 12 个 `el_obs*.npt` 文件只有两个唯一 SHA-256：坝前与上游各 1 条，其他均为验证 case 的逐字节副本。
+- 没有 segment 3:6 的第三个同步水位站；现有观测文件头也不包含测站链桩、高程基准或 segment 映射元数据。
+- 8 套 bathymetry 中 6 套为 268 segments、2 套为 284 segments；它们共享主干编号约定和 segment 2:6 `DLX`，主要变化是 `0.25/0.5/2 m` 层厚、初始 `ELWS`、统一 `n=0.03/0.035` 与支流分区。
+- 候选 bathymetry 没有附带 segment 3:6 独立断面校核、survey metadata、局部损失系数或分段糙率来源；其中两份还是逐字节重复文件。
+- Git 中常见外部一维模型工程文件数量为 0。
+
+Historical check:
+
+- 旧基线 `G5/G6` 的 `MANN x1.2 + AREA x0.9` 曾使坝前 RMSE 恶化到 `10–11 m`，说明盲调面积/糙率有明显 common-mode 副作用。
+- 该结果来自 V24 前状态，只作为风险证据，不能直接替代 V33 上的率定或确定有效阻力。
+
+Review:
+
+- 仓库现有两端水位只能约束总 head，不能唯一分配 segment 2:6 的局部坡降，也不能区分 profile、几何与局部损失。
+- 因此不能自动把 V33 反推的 `n≈0.070/0.046/0.076` 写回模型。
+- 数据优先路线至少需要一个中间水位站及其链桩/高程基准、segment 2:6 断面来源校核和阻力先验；分别识别三个内部阻力则需要更多空间观测或明确正则化。
+- 无新增数据时，继续工作必须由用户授权工程等效闭合及其验收目标；外部求解器路线则需选择求解器与耦合语义。
+
+Decision required:
+
+- A：补充/指定物理数据；
+- B：授权以端点观测为目标的工程等效闭合；
+- C：选择外部一维求解器耦合。
