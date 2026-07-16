@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 from run_v21_bht_redistribution_scan import (
     parse_boundary_flux_stats,
@@ -15,6 +16,7 @@ from run_v21_bht_redistribution_scan import (
     write_npt_with_header,
 )
 from run_w2_v0_v1_smoke import (
+    assert_v33_local_targets,
     count_computational_warnings,
     parse_v26_contract,
     parse_v27_profile_contract,
@@ -94,6 +96,19 @@ class RedistributeBhtSeriesTests(unittest.TestCase):
 
         self.assertEqual(contract["count"], 1)
         self.assertAlmostEqual(contract["segment_volume_gap_max"], 0.001)
+
+    def test_v33_gate_requires_every_segment_at_every_accepted_step(self) -> None:
+        result = SimpleNamespace(
+            tail_local_target_count=7,
+            tail_segment_volume_count=2,
+            tail_domain_nseg_min=4,
+        )
+
+        with self.assertRaisesRegex(AssertionError, "actual=7, expected_min=8"):
+            assert_v33_local_targets(result)
+
+        result.tail_local_target_count = 8
+        assert_v33_local_targets(result)
 
     def test_moves_only_positive_distributed_flow_and_preserves_total(self) -> None:
         bht = [(1.0, 100.0), (2.0, 200.0), (3.0, 300.0)]

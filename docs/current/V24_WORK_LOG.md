@@ -587,3 +587,43 @@ Next action:
 
 - 设计 V33 conservative multi-control-volume continuity：持久 cell volume、唯一内部界面 flux、局部 available-water cap、逐 cell residual 与 telescoping branch residual。
 - 先以 short 结构门判断稳定性；若需要任意 profile exponent 或粗糙率倍率才能成立，停止并请求物理选择。
+
+## Step 16 — V33 local-target preflight
+
+Status: diagnostic complete; direct local-flux activation rejected before implementation
+
+Experiment:
+
+- 不启用多控制体状态；在每个接受步旁路计算 segment 2:5 各下游界面的局部 Manning `Qtarget`。
+- 输入只使用 V32 接受态 stage、真实断面、center spacing 和活动算例统一 Manning `n=0.03`。
+- 新增 `[V33_LOCAL_TARGET]`、按界面分析器、2 项单元测试及 smoke/scan marker 门禁。
+- 诊断不写入 stage、storage、Q state、interface commit 或 reservoir consumer。
+
+Extended evidence:
+
+- 每个界面 5927 个样本，共 23708 个 marker。
+- interface 1（segment 2）`Qtarget/Qcommit` 中位数 `0.999903`，P10/P90 `0.994234/1.005544`，`99.865%` 在 ±20%。
+- interface 2（segment 3）中位数 `2.325206`，P10/P90 `1.916184/2.489710`，±20% 一致率 `0%`。
+- interface 3（segment 4）中位数 `1.543939`，P10/P90 `1.411247/1.738744`，±20% 一致率 `0%`。
+- interface 4（segment 5）中位数 `2.535427`，P10/P90 `2.168839/2.951035`，±20% 一致率 `0%`。
+- 后三界面的平均 `Qtarget-Qcommit` 分别为 `6094.661/2748.020/7476.003 m3/s`。
+
+Verification:
+
+- 21 项 Python tests、reduced build、fresh short/extended、完整 `assert_pass`：通过。
+- V24–V32 全部门禁继续通过；computational warning 0。
+- segment/total volume gap max `0.0010273 m3`；`flowbal %VOLerror=-0.00005456%`。
+- SEG 2/SEG 222/head bias、RMSE 和 slope 与 V32 完全相同。
+
+Review:
+
+- V32 证明了 cell volume 可守恒；V33 证明了当前局部动量闭合不能直接推广为 cell interface flux。
+- 若直接激活，后三个内部界面会从当前 throughflow 的 `1.54–2.54` 倍启动，不能保持已验证基线，并有重现 V28 过度导流的风险。
+- 按当前 stage 反推的中位等效 Manning `n` 约为 `0.070/0.046/0.076`；这只是等效阻力需求，不是可直接采用的物理糙率。
+- 缺少 segment 3:6 同步水位或独立阻力证据，不能把 profile、几何和局部损失的不可辨识性用自动率定掩盖。
+
+Decision required:
+
+- 选择以现有端点水位 RMSE/slope 为目标进行工程等效阻力率定；或
+- 先补充中间水位、断面与糙率约束后再实现多控制体；或
+- 保留 V32/V33 结构基线，把该河段交给外部一维非恒定流求解器。
