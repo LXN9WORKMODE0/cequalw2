@@ -406,3 +406,32 @@ Next action:
 - 用 segment 2:6 各断面上的 friction slope 梯形积分替代当前仅上下游端点平均的能量损失。
 - 同一个积分能量式同时用于 `TAIL_STANDARD_RESIDUAL` 和已知 stage 下的 link-flow 反演，避免两个 momentum consumer 再次分叉。
 - 不改变 V27 total storage 或任何 Manning 输入参数。
+
+## Step 11 — V28 integrated-energy falsification
+
+Status: rejected at short window; implementation removed
+
+Experiment:
+
+- 在线性距离 profile 的 segment 2:6 断面上计算 `Sf`，按 center spacing 梯形积分能量损失。
+- standard-step residual 与 stage-to-Q inversion 共用同一系数式。
+- 新增 energy closure 回代诊断；12 项门禁测试和 reduced build 通过。
+
+Short evidence (`TMEND=44431`):
+
+- 20 个 energy samples 全部 valid，`max|Renergy|=1.7764e-15 m`。
+- V24–V27 守恒、profile、domain、volume balance 仍全部通过；无 computational warning。
+- 但积分后的平衡流量 `Qeq` 多次达到约 `12000–24000 m3/s`，显著高于 committed Q。
+- SEG 2/head stage–Q slope 提高到 `0.001229/0.001561`，但 bias/RMSE 恶化为 `-3.453268/3.531463 m` 和 `-3.641449/3.739521 m`。
+- V27 同窗 SEG 2/head RMSE 为 `1.059306/1.243497 m`；V28 分别恶化 `2.472157/2.496024 m`。
+
+Review:
+
+- 能量式在数值上闭合，否证的是“中间断面会增加总体阻力”这一物理推断：按当前 bathymetry/profile，中间断面总体更具输水能力，积分反而降低等效阻力。
+- slope 改善来自过强排水和整体负偏，不是可接受的响应修复。
+- short 已提供明确止损证据，无需运行 extended；V28 源码和验收器均恢复到已提交 V27 基线，仅保留设计与否证记录。
+
+Next action:
+
+- 在 V27 上诊断 `Qstate/Qtarget/Qphysical` 的时间响应、available cap 占比与误差相位，区分弱 slope 是流量状态滞后、线性 profile 形状还是物理 Manning 率定问题。
+- 在完成该诊断前不再改变 momentum closure。
