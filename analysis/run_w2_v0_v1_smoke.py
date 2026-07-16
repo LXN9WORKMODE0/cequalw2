@@ -64,6 +64,7 @@ REQUIRED_MARKERS = [
     "[V27_PROFILE_STORAGE]",
     "[V29_ACCEPTED_TAIL]",
     "[V31_SINGLE_STEP]",
+    "[V32_SEGMENT_VOLUME]",
 ]
 LATE_SEG2_PATTERN = "Add segments 2 through 2"
 V11_TAIL_DOMAIN_PATTERN = re.compile(
@@ -143,6 +144,11 @@ V31_SINGLE_STEP_PATTERN = re.compile(
     r".*?RTAIL=\s*(?P<rtail>[-+0-9.eE]+).*?RATEGAP=\s*(?P<rategap>[-+0-9.eE]+)",
     re.IGNORECASE,
 )
+V32_SEGMENT_VOLUME_PATTERN = re.compile(
+    r"\[V32_SEGMENT_VOLUME\].*?JB=\s*(?P<jb>\d+).*?VTOTAL=\s*(?P<vtotal>[-+0-9.eE]+)"
+    r".*?VSEG=\s*(?P<vseg>[-+0-9.eE]+).*?VGAP=\s*(?P<vgap>[-+0-9.eE]+)",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -212,6 +218,8 @@ class SmokeResult:
     tail_single_step_count: int
     tail_full_storage_resid_max: float
     tail_storage_rate_gap_max: float
+    tail_segment_volume_count: int
+    tail_segment_volume_gap_max: float
     tail_domain_nseg_min: int
     tail_segment_state_count: int
     tail_mode_set: str
@@ -283,6 +291,15 @@ def parse_v31_single_step_contract(text: str, branch: int = 1) -> dict[str, int 
         "count": len(matches),
         "full_storage_resid_max": max((abs(float(match.group("rtail"))) for match in matches), default=0.0),
         "storage_rate_gap_max": max((abs(float(match.group("rategap"))) for match in matches), default=0.0),
+    }
+
+
+def parse_v32_segment_volume_contract(text: str, branch: int = 1) -> dict[str, int | float | bool]:
+    matches = [match for match in V32_SEGMENT_VOLUME_PATTERN.finditer(text) if int(match.group("jb")) == branch]
+    return {
+        "has_segment_volume": bool(matches),
+        "count": len(matches),
+        "segment_volume_gap_max": max((abs(float(match.group("vgap"))) for match in matches), default=0.0),
     }
 
 
@@ -421,6 +438,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
     v26_contract = parse_v26_contract(warn_text)
     v27_contract = parse_v27_profile_contract(warn_text)
     v31_contract = parse_v31_single_step_contract(warn_text)
+    v32_contract = parse_v32_segment_volume_contract(warn_text)
     accepted_tail_state_count = warn_text.count("[V29_ACCEPTED_TAIL] JB=1")
     tail_predictor_pass_count = sum(1 for match in v18_matches if match.group("pass") == "1")
     tail_corrector_pass_count = sum(1 for match in v18_matches if match.group("pass") == "2")
@@ -548,6 +566,8 @@ def evaluate(case_dir: Path) -> SmokeResult:
         tail_single_step_count=int(v31_contract["count"]),
         tail_full_storage_resid_max=float(v31_contract["full_storage_resid_max"]),
         tail_storage_rate_gap_max=float(v31_contract["storage_rate_gap_max"]),
+        tail_segment_volume_count=int(v32_contract["count"]),
+        tail_segment_volume_gap_max=float(v32_contract["segment_volume_gap_max"]),
         tail_domain_nseg_min=tail_domain_nseg_min,
         tail_segment_state_count=tail_segment_state_count,
         tail_mode_set=tail_mode_set,
@@ -630,6 +650,8 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["tail_single_step_count", str(result.tail_single_step_count)])
         writer.writerow(["tail_full_storage_resid_max", f"{result.tail_full_storage_resid_max:.12e}"])
         writer.writerow(["tail_storage_rate_gap_max", f"{result.tail_storage_rate_gap_max:.12e}"])
+        writer.writerow(["tail_segment_volume_count", str(result.tail_segment_volume_count)])
+        writer.writerow(["tail_segment_volume_gap_max", f"{result.tail_segment_volume_gap_max:.12e}"])
         writer.writerow(["tail_domain_nseg_min", str(result.tail_domain_nseg_min)])
         writer.writerow(["tail_segment_state_count", str(result.tail_segment_state_count)])
         writer.writerow(["tail_mode_set", result.tail_mode_set])
@@ -733,6 +755,16 @@ def assert_v31_single_step(result: SmokeResult) -> None:
         raise AssertionError(" | ".join(errors))
 
 
+def assert_v32_segment_volume(result: SmokeResult) -> None:
+    errors: list[str] = []
+    if result.tail_segment_volume_count <= 0:
+        errors.append("V32 segment-volume sample count is below 1")
+    if result.tail_segment_volume_gap_max > 1.0e-2:
+        errors.append(f"V32 segment/total volume gap exceeds tolerance: {result.tail_segment_volume_gap_max:.12e}")
+    if errors:
+        raise AssertionError(" | ".join(errors))
+
+
 def assert_pass(result: SmokeResult, tmend: float) -> None:
     errors: list[str] = []
     if result.missing_markers:
@@ -828,6 +860,10 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append(f"V31 full-step tail residual exceeds tolerance: {result.tail_full_storage_resid_max:.12e}")
     if result.tail_storage_rate_gap_max > 1.0e-8:
         errors.append(f"V31 full/local storage-rate gap exceeds tolerance: {result.tail_storage_rate_gap_max:.12e}")
+    if result.tail_segment_volume_count <= 0:
+        errors.append("V32 segment-volume sample count is below 1")
+    if result.tail_segment_volume_gap_max > 1.0e-2:
+        errors.append(f"V32 segment/total volume gap exceeds tolerance: {result.tail_segment_volume_gap_max:.12e}")
     if result.tail_domain_nseg_min < 2:
         errors.append(f"Tail domain minimum segment count is below 2: {result.tail_domain_nseg_min}")
     if result.tail_segment_state_count < 2:

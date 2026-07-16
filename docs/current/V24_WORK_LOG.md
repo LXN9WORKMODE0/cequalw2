@@ -554,3 +554,36 @@ Next action:
 
 - 当前可验证的源汇、整步连续、Q-state、Manning 和 corrector 顺序均已闭合；剩余缺口收敛到“单一线性 profile + 单总 storage”的模型表达能力。
 - 下一步先设计可回退的 conservative multi-control-volume 实验；若需要选择 profile 参数、粗糙率率定范围或以 RMSE/流量响应何者优先，则转为用户物理决策点。
+
+## Step 15 — V32 conservative segment-volume foundation
+
+Status: complete; accepted as a no-behavior-change foundation
+
+Problem:
+
+- segment arrays 先按真实 bathymetry/profile 计算几何，随后又被 V17 transition score 缩放 area、hydraulic radius、celerity 和 volume。
+- 这些缩放不进入 V27 守恒方程，却使 `TAIL_VOL_SEG` 不能与 `TAIL_STORAGE_VOL` 相加，无法作为多控制体状态起点。
+
+Changes:
+
+- transition 继续记录 score/submergence/slope/Froude/mode，但不再覆盖 segment geometry。
+- `TAIL_AREA_SEG/HRAD_SEG/VOL_SEG` 始终保存未缩放 `TAIL_SECTION_PROPS` 与 `AREA*DLX`。
+- 新增接受态 `[V32_SEGMENT_VOLUME]` 和硬门：`sum(VSEG)=TAIL_STORAGE_VOL`。
+
+Verification:
+
+- 18 项 Python tests、reduced build、fresh short/extended：通过。
+- short 990 个样本，segment/total volume gap max `0.00099947 m3`。
+- extended 5927 个样本，gap max `0.0010273 m3`。
+- V24–V31 全部门禁继续通过；computational warning 0；`flowbal %VOLerror=-0.00005456%`。
+- SEG 2/SEG 222/head bias、RMSE、slope 与 V31 完全相同。
+
+Review:
+
+- V32 没有改善精度，也不应改善；它修复的是 segment state 的语义，使各段 volume 成为唯一总 storage 的真实可加分解。
+- 下一步若加入内部 Q，必须同步加入每段 `dVi/dt=Qin_i−Qout_i`；禁止恢复 V16–V18 曾出现的“Q 逐段变化但 storage 不接收差额”。
+
+Next action:
+
+- 设计 V33 conservative multi-control-volume continuity：持久 cell volume、唯一内部界面 flux、局部 available-water cap、逐 cell residual 与 telescoping branch residual。
+- 先以 short 结构门判断稳定性；若需要任意 profile exponent 或粗糙率倍率才能成立，停止并请求物理选择。

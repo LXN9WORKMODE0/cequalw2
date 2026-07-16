@@ -414,6 +414,8 @@ def result_row(
         "v31_single_step_count": smoke_result.tail_single_step_count,
         "v31_full_storage_resid_max": smoke_result.tail_full_storage_resid_max,
         "v31_storage_rate_gap_max": smoke_result.tail_storage_rate_gap_max,
+        "v32_segment_volume_count": smoke_result.tail_segment_volume_count,
+        "v32_segment_volume_gap_max": smoke_result.tail_segment_volume_gap_max,
         "warn_path": str(smoke_result.warn_path),
     }
     values.update(tail)
@@ -480,6 +482,8 @@ def write_scan_summary(rows: list[dict[str, str]]) -> Path:
         "v31_single_step_count",
         "v31_full_storage_resid_max",
         "v31_storage_rate_gap_max",
+        "v32_segment_volume_count",
+        "v32_segment_volume_gap_max",
         "warn_path",
     ]
     merged: dict[str, dict[str, str]] = {}
@@ -524,6 +528,7 @@ def main() -> int:
         smoke.assert_v27_profile_storage(result)
         smoke.assert_v29_accepted_diagnostics(result)
         smoke.assert_v31_single_step(result)
+        smoke.assert_v32_segment_volume(result)
         smoke.assert_no_computational_warning(result)
         rows.append(result_row(alpha, case_dir, result, moved_stats, args.tmend, args.scope))
     if rows:

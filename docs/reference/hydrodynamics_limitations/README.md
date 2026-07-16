@@ -62,7 +62,8 @@ CE-QUAL-W2 在“低水位快流河道态”和“高水位淹没回水态”之
 44. [45_v29_accepted_state_response_diagnosis.md](./45_v29_accepted_state_response_diagnosis.md)
 45. [46_v30_predictor_cache_removal.md](./46_v30_predictor_cache_removal.md)
 46. [47_v31_corrector_state_isolation.md](./47_v31_corrector_state_isolation.md)
-47. [references.md](./references.md)
+47. [48_v32_segment_volume_foundation.md](./48_v32_segment_volume_foundation.md)
+48. [references.md](./references.md)
 
 ## 已固定的研究口径
 

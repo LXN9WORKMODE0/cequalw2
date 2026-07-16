@@ -19,6 +19,7 @@ from run_w2_v0_v1_smoke import (
     parse_v26_contract,
     parse_v27_profile_contract,
     parse_v31_single_step_contract,
+    parse_v32_segment_volume_contract,
 )
 
 
@@ -80,6 +81,19 @@ class RedistributeBhtSeriesTests(unittest.TestCase):
         self.assertEqual(contract["count"], 1)
         self.assertAlmostEqual(contract["full_storage_resid_max"], 1.0e-10)
         self.assertAlmostEqual(contract["storage_rate_gap_max"], 2.0e-10)
+
+    def test_v32_parser_checks_segment_volume_sum(self) -> None:
+        text = "\n".join(
+            [
+                "[V32_SEGMENT_VOLUME] JB=1 VTOTAL=1000 VSEG=999.999 VGAP=0.001",
+                "[V32_SEGMENT_VOLUME] JB=2 VTOTAL=100 VSEG=90 VGAP=10",
+            ]
+        )
+
+        contract = parse_v32_segment_volume_contract(text, branch=1)
+
+        self.assertEqual(contract["count"], 1)
+        self.assertAlmostEqual(contract["segment_volume_gap_max"], 0.001)
 
     def test_moves_only_positive_distributed_flow_and_preserves_total(self) -> None:
         bht = [(1.0, 100.0), (2.0, 200.0), (3.0, 300.0)]
