@@ -472,3 +472,46 @@ Next action:
 
 - 做 predictor-cache invariance 检查。cache 只应影响性能；若关闭 cache 会显著改变接受态 storage/stage，则先移除这条进入物理状态路径的数值捷径。
 - 只有 cache invariance 通过后，才比较 Q-state 动态与 profile shape 两种解释；不提前调 Manning。
+
+## Step 13 — V30 predictor cache removal
+
+Status: complete; accepted as a numerical-correctness cleanup
+
+Invariance experiment:
+
+- 单独令 `TAIL_PREDICT_MAX_SKIP=0`，其余方程和输入不变。
+- `Qstate–Qtarget` correlation `0.7804 -> 0.9938`，RMSE `746.14 -> 108.12 m3/s`。
+- equivalent `FMANN` P10/P90 `0.9178/1.0699 -> 0.9948/1.0043`。
+- hold fraction `89.60% -> 0.0169%`；runtime 仍约 `25 s`。
+- SEG 2/SEG 222/head RMSE 只从 `1.258642/0.229205/1.332942` 变为 `1.257266/0.226510/1.326409 m`。
+
+Review:
+
+- cache 不是剩余水位精度的主因，但显著改变接受态 Q 与自适应步进，且没有当前可见的性能收益；作为性能优化的不变性检查失败。
+- 不接受只把 `MAX_SKIP` 设为 0 的死代码方案。
+
+Changes:
+
+- 完整删除 predictor cache arrays、flags、skip counter、tolerances 和 reuse 分支。
+- `RUN_TAIL_PREDICTOR` 每次都重新执行 `UPDATE_TAIL_STAGE`，之后按原有 save/restore/commit 契约提交 predictor 状态。
+- 删除 `[V18_PREDICT_REUSE]` 及 smoke/scan 的旧 skip 门禁；V18 predictor/corrector 和 V24–V29 门禁继续保留。
+
+Verification:
+
+- 16 项 Python tests、reduced build、fresh extended：通过。
+- 完整 `assert_pass`、V24–V29 独立门禁：通过。
+- `max|RTAIL|=3.8835e-10 m3/s`；profile gap max `0.0010486 m3`。
+- computational warning 为 0；`flowbal %VOLerror=-0.00005456%`。
+
+Post-removal metrics:
+
+- SEG 2 bias/RMSE `-0.648357/1.257266 m`。
+- SEG 222 bias/RMSE `0.160542/0.226510 m`。
+- head bias/RMSE `-0.808898/1.326409 m`。
+- 模拟/观测 SEG 2 slope `0.000717/0.001844`；head slope `0.000614/0.001706`。
+- storage response fraction of observed requirement `53.45%`。
+
+Next action:
+
+- 复核 V26 exclusive domain 后，tail-owned segment 2:5 的分布源汇是否被遗漏；若源汇链完整，则转向 profile/control-volume geometry。
+- 不再把 Q-state lag 或固定 Manning 调整列为当前首要解释。

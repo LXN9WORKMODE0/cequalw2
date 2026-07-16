@@ -54,7 +54,6 @@ REQUIRED_MARKERS = [
     "[V16_SEGMENT_Q_STATE]",
     "[V17_SEGMENT_TRANSITION]",
     "[V18_MULTI_HYBRID]",
-    "[V18_PREDICT_REUSE]",
     "[V19_INTERFACE_RESIDUAL]",
     "[V20_INTERFACE_ITER]",
     "[V21_INTERFACE_SOLVE]",
@@ -86,10 +85,6 @@ V17_SEGMENT_TRANSITION_PATTERN = re.compile(
 )
 V18_MULTI_HYBRID_PATTERN = re.compile(
     r"\[V18_MULTI_HYBRID\].*?JB=(?P<jb>\d+).*?PASS=(?P<pass>\d+).*?COMMIT=(?P<commit>[FT]).*?QLINK=(?P<qlink>[-+0-9.eE]+).*?WSE_DN=(?P<wse_dn>[-+0-9.eE]+)",
-    re.IGNORECASE,
-)
-V18_PREDICT_REUSE_PATTERN = re.compile(
-    r"\[V18_PREDICT_REUSE\].*?JB=(?P<jb>\d+).*?SKIP=(?P<skip>\d+).*?QLINK=(?P<qlink>[-+0-9.eE]+).*?WSE_DN=(?P<wse_dn>[-+0-9.eE]+)",
     re.IGNORECASE,
 )
 V19_INTERFACE_RESIDUAL_PATTERN = re.compile(
@@ -171,7 +166,6 @@ class SmokeResult:
     has_v16_segment_q_state: bool
     has_v17_segment_transition: bool
     has_v18_multi_hybrid: bool
-    has_v18_predict_reuse: bool
     has_v19_interface_residual: bool
     has_v20_interface_iter: bool
     has_v21_interface_solve: bool
@@ -182,7 +176,6 @@ class SmokeResult:
     has_v27_profile_storage: bool
     tail_predictor_pass_count: int
     tail_corrector_pass_count: int
-    tail_predictor_skip_count: int
     tail_iface_resid_max_eta: float
     tail_iface_resid_max_q: float
     tail_iface_iter_max: int
@@ -395,8 +388,6 @@ def evaluate(case_dir: Path) -> SmokeResult:
     has_v17_segment_transition = len(v17_matches) > 0
     v18_matches = list(V18_MULTI_HYBRID_PATTERN.finditer(warn_text))
     has_v18_multi_hybrid = len(v18_matches) > 0
-    v18_skip_matches = list(V18_PREDICT_REUSE_PATTERN.finditer(warn_text))
-    has_v18_predict_reuse = len(v18_skip_matches) > 0
     v19_matches = list(V19_INTERFACE_RESIDUAL_PATTERN.finditer(warn_text))
     has_v19_interface_residual = len(v19_matches) > 0
     v20_matches = list(V20_INTERFACE_ITER_PATTERN.finditer(warn_text))
@@ -412,7 +403,6 @@ def evaluate(case_dir: Path) -> SmokeResult:
     accepted_tail_state_count = warn_text.count("[V29_ACCEPTED_TAIL] JB=1")
     tail_predictor_pass_count = sum(1 for match in v18_matches if match.group("pass") == "1")
     tail_corrector_pass_count = sum(1 for match in v18_matches if match.group("pass") == "2")
-    tail_predictor_skip_count = len(v18_skip_matches)
     tail_iface_resid_max_eta = max((abs(float(match.group("deta"))) for match in v19_matches), default=0.0)
     tail_iface_resid_max_q = max((abs(float(match.group("dq"))) for match in v19_matches), default=0.0)
     tail_iface_iter_max = max((int(match.group("iter")) for match in v20_matches), default=0)
@@ -498,7 +488,6 @@ def evaluate(case_dir: Path) -> SmokeResult:
         has_v16_segment_q_state=has_v16_segment_q_state,
         has_v17_segment_transition=has_v17_segment_transition,
         has_v18_multi_hybrid=has_v18_multi_hybrid,
-        has_v18_predict_reuse=has_v18_predict_reuse,
         has_v19_interface_residual=has_v19_interface_residual,
         has_v20_interface_iter=has_v20_interface_iter,
         has_v21_interface_solve=has_v21_interface_solve,
@@ -509,7 +498,6 @@ def evaluate(case_dir: Path) -> SmokeResult:
         has_v27_profile_storage=bool(v27_contract["has_profile_storage"]),
         tail_predictor_pass_count=tail_predictor_pass_count,
         tail_corrector_pass_count=tail_corrector_pass_count,
-        tail_predictor_skip_count=tail_predictor_skip_count,
         tail_iface_resid_max_eta=tail_iface_resid_max_eta,
         tail_iface_resid_max_q=tail_iface_resid_max_q,
         tail_iface_iter_max=tail_iface_iter_max,
@@ -577,7 +565,6 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["has_v16_segment_q_state", "1" if result.has_v16_segment_q_state else "0"])
         writer.writerow(["has_v17_segment_transition", "1" if result.has_v17_segment_transition else "0"])
         writer.writerow(["has_v18_multi_hybrid", "1" if result.has_v18_multi_hybrid else "0"])
-        writer.writerow(["has_v18_predict_reuse", "1" if result.has_v18_predict_reuse else "0"])
         writer.writerow(["has_v19_interface_residual", "1" if result.has_v19_interface_residual else "0"])
         writer.writerow(["has_v20_interface_iter", "1" if result.has_v20_interface_iter else "0"])
         writer.writerow(["has_v21_interface_solve", "1" if result.has_v21_interface_solve else "0"])
@@ -588,7 +575,6 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["has_v27_profile_storage", "1" if result.has_v27_profile_storage else "0"])
         writer.writerow(["tail_predictor_pass_count", str(result.tail_predictor_pass_count)])
         writer.writerow(["tail_corrector_pass_count", str(result.tail_corrector_pass_count)])
-        writer.writerow(["tail_predictor_skip_count", str(result.tail_predictor_skip_count)])
         writer.writerow(["tail_iface_resid_max_eta", f"{result.tail_iface_resid_max_eta:.6f}"])
         writer.writerow(["tail_iface_resid_max_q", f"{result.tail_iface_resid_max_q:.6f}"])
         writer.writerow(["tail_iface_iter_max", str(result.tail_iface_iter_max)])
@@ -754,8 +740,6 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append("Missing V17 segment-transition marker")
     if not result.has_v18_multi_hybrid:
         errors.append("Missing V18 multi-hybrid marker")
-    if not result.has_v18_predict_reuse:
-        errors.append("Missing V18 predictor-reuse marker")
     if not result.has_v19_interface_residual:
         errors.append("Missing V19 interface-residual marker")
     if not result.has_v20_interface_iter:
@@ -766,8 +750,6 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append("V18 predictor pass count is below 1")
     if result.tail_corrector_pass_count <= 0:
         errors.append("V18 corrector pass count is below 1")
-    if result.tail_predictor_skip_count <= 0:
-        errors.append("V18 predictor skip count is below 1")
     if result.tail_iface_resid_max_eta > 1.0e-6:
         errors.append(f"V19 committed eta residual exceeds tolerance: {result.tail_iface_resid_max_eta:.6f}")
     if result.tail_iface_resid_max_q > 1.0e-6:
