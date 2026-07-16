@@ -411,6 +411,7 @@ def result_row(
         "v27_profile_storage_gap_max": smoke_result.tail_profile_storage_gap_max,
         "v27_reach_length_min": smoke_result.tail_reach_length_min,
         "v27_reach_length_max": smoke_result.tail_reach_length_max,
+        "v29_accepted_tail_state_count": smoke_result.accepted_tail_state_count,
         "warn_path": str(smoke_result.warn_path),
     }
     values.update(tail)
@@ -474,6 +475,7 @@ def write_scan_summary(rows: list[dict[str, str]]) -> Path:
         "v27_profile_storage_gap_max",
         "v27_reach_length_min",
         "v27_reach_length_max",
+        "v29_accepted_tail_state_count",
         "warn_path",
     ]
     merged: dict[str, dict[str, str]] = {}
@@ -516,6 +518,7 @@ def main() -> int:
         smoke.assert_v25_boundary_alignment(result)
         smoke.assert_v26_domain_ownership(result)
         smoke.assert_v27_profile_storage(result)
+        smoke.assert_v29_accepted_diagnostics(result)
         smoke.assert_no_computational_warning(result)
         rows.append(result_row(alpha, case_dir, result, moved_stats, args.tmend, args.scope))
     if rows:

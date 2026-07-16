@@ -59,7 +59,8 @@ CE-QUAL-W2 在“低水位快流河道态”和“高水位淹没回水态”之
 41. [42_v26_tail_reservoir_domain_ownership_design.md](./42_v26_tail_reservoir_domain_ownership_design.md)
 42. [43_v27_conservative_profile_volume_design.md](./43_v27_conservative_profile_volume_design.md)
 43. [44_v28_integrated_tail_energy_design.md](./44_v28_integrated_tail_energy_design.md)
-44. [references.md](./references.md)
+44. [45_v29_accepted_state_response_diagnosis.md](./45_v29_accepted_state_response_diagnosis.md)
+45. [references.md](./references.md)
 
 ## 已固定的研究口径
 

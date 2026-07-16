@@ -63,6 +63,7 @@ REQUIRED_MARKERS = [
     "[V26_DOMAIN_OWNER]",
     "[V26_BOUNDARY_CONSUMER]",
     "[V27_PROFILE_STORAGE]",
+    "[V29_ACCEPTED_TAIL]",
 ]
 LATE_SEG2_PATTERN = "Add segments 2 through 2"
 V11_TAIL_DOMAIN_PATTERN = re.compile(
@@ -207,6 +208,7 @@ class SmokeResult:
     tail_profile_storage_gap_max: float
     tail_reach_length_min: float
     tail_reach_length_max: float
+    accepted_tail_state_count: int
     tail_domain_nseg_min: int
     tail_segment_state_count: int
     tail_mode_set: str
@@ -407,6 +409,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
     has_v24_interface_commit = len(v24_commit_matches) > 0
     v26_contract = parse_v26_contract(warn_text)
     v27_contract = parse_v27_profile_contract(warn_text)
+    accepted_tail_state_count = warn_text.count("[V29_ACCEPTED_TAIL] JB=1")
     tail_predictor_pass_count = sum(1 for match in v18_matches if match.group("pass") == "1")
     tail_corrector_pass_count = sum(1 for match in v18_matches if match.group("pass") == "2")
     tail_predictor_skip_count = len(v18_skip_matches)
@@ -532,6 +535,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
         tail_profile_storage_gap_max=float(v27_contract["profile_gap_max"]),
         tail_reach_length_min=float(v27_contract["reach_length_min"]),
         tail_reach_length_max=float(v27_contract["reach_length_max"]),
+        accepted_tail_state_count=accepted_tail_state_count,
         tail_domain_nseg_min=tail_domain_nseg_min,
         tail_segment_state_count=tail_segment_state_count,
         tail_mode_set=tail_mode_set,
@@ -612,6 +616,7 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["tail_profile_storage_gap_max", f"{result.tail_profile_storage_gap_max:.6f}"])
         writer.writerow(["tail_reach_length_min", f"{result.tail_reach_length_min:.6f}"])
         writer.writerow(["tail_reach_length_max", f"{result.tail_reach_length_max:.6f}"])
+        writer.writerow(["accepted_tail_state_count", str(result.accepted_tail_state_count)])
         writer.writerow(["tail_domain_nseg_min", str(result.tail_domain_nseg_min)])
         writer.writerow(["tail_segment_state_count", str(result.tail_segment_state_count)])
         writer.writerow(["tail_mode_set", result.tail_mode_set])
@@ -696,6 +701,11 @@ def assert_v27_profile_storage(result: SmokeResult) -> None:
         )
     if errors:
         raise AssertionError(" | ".join(errors))
+
+
+def assert_v29_accepted_diagnostics(result: SmokeResult) -> None:
+    if result.accepted_tail_state_count <= 0:
+        raise AssertionError("V29 accepted tail-state sample count is below 1")
 
 
 def assert_pass(result: SmokeResult, tmend: float) -> None:

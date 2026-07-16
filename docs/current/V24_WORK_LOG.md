@@ -435,3 +435,40 @@ Next action:
 
 - 在 V27 上诊断 `Qstate/Qtarget/Qphysical` 的时间响应、available cap 占比与误差相位，区分弱 slope 是流量状态滞后、线性 profile 形状还是物理 Manning 率定问题。
 - 在完成该诊断前不再改变 momentum closure。
+
+## Step 12 — V29 accepted-state response diagnosis
+
+Status: complete; diagnostic accepted, V27 physics unchanged
+
+Changes:
+
+- 在所有 autostep rollback 检查之后写出 `[V29_ACCEPTED_TAIL]`，只采真正接受的 tail 状态。
+- 记录 `QPHYS/QSTATE/QTARGET/QMAX/STORAGE/WUP/WDN` 以及 profile 的 `dV/dWup`、`dV/dWdn` 数值偏导。
+- 新增接受态解析、累计步长时间、lag/hold、Manning 等效倍率和 segment 2→6→222 水头分解。
+- smoke/scan 增加接受态 marker 门禁；不改变任何物理状态、接口通量或 reservoir consumer。
+
+Extended evidence:
+
+- 6010 个接受步；`Qstate/Qphysical` slope/correlation 为 `1.001734/0.960788`，最佳日尺度 lag 为 `0 day`。
+- available-water cap 仅 `1/6010`；cache hold fraction `89.60%`，最长 `0.030804 day`。
+- 使瞬时 `Qtarget=Qstate` 所需 `FMANN` 倍率中位数 `0.999197`，P10/P90 `0.917768/1.069918`，`91.51%` 在 `0.8–1.2`。
+- tail local head slope `-0.0000679`；观测采样对齐后 segment 6→222 与 segment 2→6 head slope 分别为 `0.000668/-0.0000636`。
+- `dV/dWup=382663 m2`、`dV/dWdn=224366 m2`；固定 storage 时 `dWup/dWdn≈-0.588`。
+- 实际/观测所需 storage–Q slope 为 `475.740/878.411 m3/(m3/s)`，当前响应约为需求的 `54.16%`。
+
+Verification:
+
+- Python tests、reduced build、fresh `TMEND=44436.5`：通过。
+- V24–V27 全部门禁继续通过；`max|RTAIL|=3.1105e-10 m3/s`，profile gap max `0.0011204 m3`。
+- computational warning 为 0；`flowbal %VOLerror=-0.00005456%`。
+
+Review:
+
+- cap 和单一固定 Manning 倍率不是主要根因；当前摩阻目标在多数接受步已围绕 committed Q 闭合。
+- 弱上游响应的直接机制是 profile storage 随流量建立不足，且线性 profile 使下游边界上升对 WUP 产生显著反向牵引。
+- segment 6 没有实测水位，尚不能把缺口唯一归因到 tail 或 reservoir；不能据此直接率定粗糙率。
+
+Next action:
+
+- 做 predictor-cache invariance 检查。cache 只应影响性能；若关闭 cache 会显著改变接受态 storage/stage，则先移除这条进入物理状态路径的数值捷径。
+- 只有 cache invariance 通过后，才比较 Q-state 动态与 profile shape 两种解释；不提前调 Manning。
