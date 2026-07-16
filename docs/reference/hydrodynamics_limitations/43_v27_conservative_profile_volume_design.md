@@ -114,3 +114,16 @@ V27 fresh short (`TMEND=44431`) 已通过全部结构门：
 SEG 2/head RMSE 从 V26 的 `2.912052/3.021638 m` 改善到 `1.059306/1.243497 m`，证实 total profile volume 是必要结构修复。与 V25 short 相比仍分别高 `0.107128/0.069053 m`，但 V25 存在 `-127.24%` 主水体 volume error，不能作为物理精度基线。
 
 首次试算中旧的 `WSE_up <= WSE_dn+25 m` cap 造成 `6.96e6 m3` stage/volume gap；移除该无守恒含义的接受态 cap 后，profile identity 恢复并由 autostep 正常处理高水位试算。
+
+## 8. Extended-window result
+
+V27 fresh extended (`TMEND=44436.5`) 在 28 秒内正常完成：
+
+- `max|RTAIL|=3.1105e-10 m3/s`，所有 reservoir/tail/temperature/volume flux gap 为 0；
+- profile identity 最大 gap `0.0011204 m3`，reach length 始终 `3855 m`；
+- computational warning 为 0，`flowbal %VOLerror=-0.00005456%`；
+- SEG 2/222/head RMSE 为 `1.258642/0.229205/1.332942 m`。
+
+三项 RMSE 均优于 V24，也分别比 V25 改善 `0.013298/0.003636/0.013248 m`；V25 同时存在不可接受的主水体 volume error。因此 V27 被接受为新的结构基线。
+
+剩余上游 stage–Q slope 只有观测的约 `40.7%`，而 standard-step 试算态 `WSE_HYD` 也表现为相近的弱响应。下一步转向逐段 friction/energy integration，不再修改储量定义。

@@ -361,3 +361,48 @@ Next action:
 - 提交并同步 V27 short 检查点。
 - 运行 fresh `TMEND=44436.5` extended，要求 V24/V25/V26/V27 与 no-warning 全部门同时通过。
 - extended 后再决定是否把线性 profile 换为逐段 standard-step profile；不提前调参。
+
+## Step 10 — V27 extended-window acceptance
+
+Status: complete; V27 accepted as the new structural baseline
+
+Run:
+
+- fresh `alpha=0`、`scope=bht`、`TMEND=44436.5`。
+- 正常退出，用时约 `28 s`；完整 `assert_pass` 与 V24/V25/V26/V27 独立断言均通过。
+
+Structural evidence:
+
+- 26 次 interface commit 全部 evaluated；`RFLUX/SEGLOSS/commit gap=0`。
+- `max|RTAIL|=3.1105e-10 m3/s`。
+- 23 次 reservoir boundary-consumer 样本最大 flux gap 为 0。
+- 44 次 profile identity 样本，`max|Vstate-Vprofile|=0.0011204 m3`。
+- `CUS=COUPLE=6`，reach length 始终 `3855 m`。
+- runtime/computational/fatal marker 均为 0；`flowbal %VOLerror=-0.00005456%`。
+
+Extended metrics (157 accepted samples):
+
+- SEG 2 bias/RMSE：`-0.671199/1.258642 m`。
+- SEG 222 bias/RMSE：`0.163293/0.229205 m`。
+- head bias/RMSE：`-0.834492/1.332942 m`。
+- 模拟/观测 SEG 2 stage–Q slope：`0.000750/0.001844 m/(m3/s)`。
+- 模拟/观测 head slope：`0.000648/0.001706 m/(m3/s)`。
+- 模拟/观测 SEG 222 slope：`0.000102/0.000138 m/(m3/s)`。
+
+Comparison:
+
+- 相对 V24，SEG 2/SEG 222/head RMSE 分别改善 `0.561967/0.007095/0.380675 m`。
+- 相对 V25，三项 RMSE 分别改善 `0.013298/0.003636/0.013248 m`；同时消除了 V25 的 `-127.24%` volume error。
+- corrector commit 数从 V25 的 1128 降至 26，运行时间从约 33.6 分钟降至 28 秒。该差异主要来自 active domain 所有权收口后不再反复推进悬空 segment 3:5。
+
+Review:
+
+- V27 同时满足局部 tail mass、reservoir boundary flux、主水体 volume balance、profile geometry identity 和三站精度对照，可以作为后续唯一基线。
+- SEG 2/head error–Q correlation 仍为 `-0.9500/-0.9408`，流量响应仅约为观测的 `40.7%/38.0%`。
+- `WSE_HYD` 的 Q slope 约 `0.000680`，与接受态同样偏弱；说明剩余缺口不是 profile storage 反演造成，而在 momentum/friction closure。
+
+Next action:
+
+- 用 segment 2:6 各断面上的 friction slope 梯形积分替代当前仅上下游端点平均的能量损失。
+- 同一个积分能量式同时用于 `TAIL_STANDARD_RESIDUAL` 和已知 stage 下的 link-flow 反演，避免两个 momentum consumer 再次分叉。
+- 不改变 V27 total storage 或任何 Manning 输入参数。
