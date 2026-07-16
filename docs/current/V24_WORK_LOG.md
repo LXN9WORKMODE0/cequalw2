@@ -318,3 +318,46 @@ Next action:
 
 - 设计 V27 conservative profile-volume closure：保持一个 committed interface flux 和一个总 reach storage，自下游 stage 与上游 stage 构造一致 profile，按 segment 2:5 总体积反演上游 stage。
 - 先做几何/反演纯函数与短窗；不直接跳到四个独立 flux 的显式多单元求解器。
+
+## Step 9 — V27 conservative profile volume
+
+Status: complete for short-window acceptance
+
+Changes:
+
+- `TAIL_STORAGE_VOL` 改为 segment 2:5 的 profile volume 总和。
+- stage profile 按 segment center distance 插值；segment 2 center 到 segment 6 center 的 `TAIL_REACH_LENGTH=3855 m`。
+- minimum storage、predictor cache recheck、matrix 前 re-cap、storage inversion 使用同一个 profile geometry。
+- segment 5 stage 不再覆盖 reservoir boundary stage；local transition slope 使用相邻 center spacing。
+- 新增 `[V27_PROFILE_STORAGE]` 和 storage/profile identity 硬断言。
+- 首次试算暴露旧 `WSE_up<=WSE_dn+25 m` cap 会使 volume 与 stage 分叉；移除接受态 cap，由 autostep 与守恒门处理试算高水位。
+
+Verification:
+
+- 11 项 conservation/domain/profile tests、2 项 residual tests：通过。
+- reduced console build：通过。
+- fresh `TMEND=44431` 正常退出，用时约 `8.6 s`；完整 `assert_pass` 通过。
+- 21 个 profile identity 样本，`max|Vstate-Vprofile|=0.0011204 m3`。
+- reach length 全部为 `3855 m`。
+- `max|RTAIL|=7.0031e-11`；reservoir/tail、boundary consumer、segment Q gap 均为 0。
+- computational warning 为 0；`flowbal %VOLerror=-0.00005456%`。
+
+Short-window comparison:
+
+- V26 -> V27 SEG 2 bias/RMSE：`-1.745776/2.912052 -> -0.893248/1.059306 m`。
+- V26 -> V27 SEG 222：`0.172456/0.272047 -> 0.186067/0.277360 m`。
+- V26 -> V27 head：`-1.918232/3.021638 -> -1.079315/1.243497 m`。
+- V27 SEG 2/head stage–Q slope：`0.000673/0.001000 m/(m3/s)`；观测为 `0.002237/0.002700`。
+- 与 V25 short 相比，V27 的 SEG 2/head RMSE 分别高约 `0.107/0.069 m`，但 V27 同时满足 V25 未满足的主水体 volume balance 和全消费者 flux contract。
+
+Review:
+
+- V27 证明 V26 的精度退化主要来自单 segment storage，而不是独占域本身。
+- 目前 short 精度已回到 V25 附近，但流量响应幅度仍偏弱；这可能来自线性 profile/上游断面 Manning closure，而不是总储量大小。
+- 初始 rejected trial 可出现高 `WSE_up`，但 profile identity、autostep 和最终接受态均成立；extended 需继续观察运行刚性。
+
+Next action:
+
+- 提交并同步 V27 short 检查点。
+- 运行 fresh `TMEND=44436.5` extended，要求 V24/V25/V26/V27 与 no-warning 全部门同时通过。
+- extended 后再决定是否把线性 profile 换为逐段 standard-step profile；不提前调参。

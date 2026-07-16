@@ -62,6 +62,7 @@ REQUIRED_MARKERS = [
     "[V24_INTERFACE_COMMIT]",
     "[V26_DOMAIN_OWNER]",
     "[V26_BOUNDARY_CONSUMER]",
+    "[V27_PROFILE_STORAGE]",
 ]
 LATE_SEG2_PATTERN = "Add segments 2 through 2"
 V11_TAIL_DOMAIN_PATTERN = re.compile(
@@ -129,6 +130,16 @@ V26_BOUNDARY_CONSUMER_PATTERN = re.compile(
     r".*?QVOL=\s*(?P<qvol>[-+0-9.eE]+)",
     re.IGNORECASE,
 )
+V12_Q_STATE_PATTERN = re.compile(
+    r"\[V12_Q_STATE\].*?JB=\s*(?P<jb>\d+).*?LENGTH=\s*(?P<length>[-+0-9.eE]+)",
+    re.IGNORECASE,
+)
+V27_PROFILE_STORAGE_PATTERN = re.compile(
+    r"\[V27_PROFILE_STORAGE\].*?JB=\s*(?P<jb>\d+).*?VSTATE=\s*(?P<vstate>[-+0-9.eE]+)"
+    r".*?VPROFILE=\s*(?P<vprofile>[-+0-9.eE]+).*?VGAP=\s*(?P<vgap>[-+0-9.eE]+)"
+    r".*?WUP=\s*(?P<wup>[-+0-9.eE]+).*?WDN=\s*(?P<wdn>[-+0-9.eE]+)",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -167,6 +178,7 @@ class SmokeResult:
     has_v24_interface_commit: bool
     has_v26_domain_owner: bool
     has_v26_boundary_consumer: bool
+    has_v27_profile_storage: bool
     tail_predictor_pass_count: int
     tail_corrector_pass_count: int
     tail_predictor_skip_count: int
@@ -191,6 +203,10 @@ class SmokeResult:
     tail_domain_owner_exclusive: bool
     reservoir_boundary_consumer_count: int
     reservoir_boundary_flux_gap_max: float
+    tail_profile_storage_count: int
+    tail_profile_storage_gap_max: float
+    tail_reach_length_min: float
+    tail_reach_length_max: float
     tail_domain_nseg_min: int
     tail_segment_state_count: int
     tail_mode_set: str
@@ -237,6 +253,21 @@ def parse_v26_contract(text: str, branch: int = 1) -> dict[str, int | float | bo
         "exclusive": bool(domain_match) and domain_match.group("exclusive").upper() == "T",
         "consumer_count": len(consumer_matches),
         "consumer_gap_max": consumer_gap,
+    }
+
+
+def parse_v27_profile_contract(text: str, branch: int = 1) -> dict[str, int | float | bool]:
+    profile_matches = [
+        match for match in V27_PROFILE_STORAGE_PATTERN.finditer(text) if int(match.group("jb")) == branch
+    ]
+    length_matches = [match for match in V12_Q_STATE_PATTERN.finditer(text) if int(match.group("jb")) == branch]
+    lengths = [float(match.group("length")) for match in length_matches]
+    return {
+        "has_profile_storage": bool(profile_matches),
+        "profile_count": len(profile_matches),
+        "profile_gap_max": max((abs(float(match.group("vgap"))) for match in profile_matches), default=0.0),
+        "reach_length_min": min(lengths, default=0.0),
+        "reach_length_max": max(lengths, default=0.0),
     }
 
 
@@ -375,6 +406,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
     v24_commit_matches = list(V24_INTERFACE_COMMIT_PATTERN.finditer(warn_text))
     has_v24_interface_commit = len(v24_commit_matches) > 0
     v26_contract = parse_v26_contract(warn_text)
+    v27_contract = parse_v27_profile_contract(warn_text)
     tail_predictor_pass_count = sum(1 for match in v18_matches if match.group("pass") == "1")
     tail_corrector_pass_count = sum(1 for match in v18_matches if match.group("pass") == "2")
     tail_predictor_skip_count = len(v18_skip_matches)
@@ -471,6 +503,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
         has_v24_interface_commit=has_v24_interface_commit,
         has_v26_domain_owner=bool(v26_contract["has_domain_owner"]),
         has_v26_boundary_consumer=bool(v26_contract["has_boundary_consumer"]),
+        has_v27_profile_storage=bool(v27_contract["has_profile_storage"]),
         tail_predictor_pass_count=tail_predictor_pass_count,
         tail_corrector_pass_count=tail_corrector_pass_count,
         tail_predictor_skip_count=tail_predictor_skip_count,
@@ -495,6 +528,10 @@ def evaluate(case_dir: Path) -> SmokeResult:
         tail_domain_owner_exclusive=bool(v26_contract["exclusive"]),
         reservoir_boundary_consumer_count=int(v26_contract["consumer_count"]),
         reservoir_boundary_flux_gap_max=float(v26_contract["consumer_gap_max"]),
+        tail_profile_storage_count=int(v27_contract["profile_count"]),
+        tail_profile_storage_gap_max=float(v27_contract["profile_gap_max"]),
+        tail_reach_length_min=float(v27_contract["reach_length_min"]),
+        tail_reach_length_max=float(v27_contract["reach_length_max"]),
         tail_domain_nseg_min=tail_domain_nseg_min,
         tail_segment_state_count=tail_segment_state_count,
         tail_mode_set=tail_mode_set,
@@ -544,6 +581,7 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["has_v24_interface_commit", "1" if result.has_v24_interface_commit else "0"])
         writer.writerow(["has_v26_domain_owner", "1" if result.has_v26_domain_owner else "0"])
         writer.writerow(["has_v26_boundary_consumer", "1" if result.has_v26_boundary_consumer else "0"])
+        writer.writerow(["has_v27_profile_storage", "1" if result.has_v27_profile_storage else "0"])
         writer.writerow(["tail_predictor_pass_count", str(result.tail_predictor_pass_count)])
         writer.writerow(["tail_corrector_pass_count", str(result.tail_corrector_pass_count)])
         writer.writerow(["tail_predictor_skip_count", str(result.tail_predictor_skip_count)])
@@ -570,6 +608,10 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["tail_domain_owner_exclusive", "1" if result.tail_domain_owner_exclusive else "0"])
         writer.writerow(["reservoir_boundary_consumer_count", str(result.reservoir_boundary_consumer_count)])
         writer.writerow(["reservoir_boundary_flux_gap_max", f"{result.reservoir_boundary_flux_gap_max:.6f}"])
+        writer.writerow(["tail_profile_storage_count", str(result.tail_profile_storage_count)])
+        writer.writerow(["tail_profile_storage_gap_max", f"{result.tail_profile_storage_gap_max:.6f}"])
+        writer.writerow(["tail_reach_length_min", f"{result.tail_reach_length_min:.6f}"])
+        writer.writerow(["tail_reach_length_max", f"{result.tail_reach_length_max:.6f}"])
         writer.writerow(["tail_domain_nseg_min", str(result.tail_domain_nseg_min)])
         writer.writerow(["tail_segment_state_count", str(result.tail_segment_state_count)])
         writer.writerow(["tail_mode_set", result.tail_mode_set])
@@ -636,6 +678,22 @@ def assert_v26_domain_ownership(result: SmokeResult) -> None:
         errors.append("V26 reservoir boundary-consumer sample count is below 1")
     if result.reservoir_boundary_flux_gap_max > 1.0e-6:
         errors.append(f"V26 reservoir boundary consumer flux gap exceeds tolerance: {result.reservoir_boundary_flux_gap_max}")
+    if errors:
+        raise AssertionError(" | ".join(errors))
+
+
+def assert_v27_profile_storage(result: SmokeResult) -> None:
+    errors: list[str] = []
+    if not result.has_v27_profile_storage:
+        errors.append("Missing V27 profile-storage marker")
+    if result.tail_profile_storage_count <= 0:
+        errors.append("V27 profile-storage sample count is below 1")
+    if result.tail_profile_storage_gap_max > 1.0e-2:
+        errors.append(f"V27 profile storage gap exceeds tolerance: {result.tail_profile_storage_gap_max}")
+    if abs(result.tail_reach_length_min-3855.0) > 1.0e-6 or abs(result.tail_reach_length_max-3855.0) > 1.0e-6:
+        errors.append(
+            f"V27 reach length does not match center distance: min={result.tail_reach_length_min}, max={result.tail_reach_length_max}"
+        )
     if errors:
         raise AssertionError(" | ".join(errors))
 
@@ -725,6 +783,14 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append(f"Active CUS does not match coupling segment: CUS={result.tail_active_cus}, COUPLE={result.tail_couple_seg}")
     if result.reservoir_boundary_flux_gap_max > 1.0e-6:
         errors.append(f"V26 reservoir boundary consumer flux gap exceeds tolerance: {result.reservoir_boundary_flux_gap_max}")
+    if not result.has_v27_profile_storage:
+        errors.append("Missing V27 profile-storage marker")
+    if result.tail_profile_storage_gap_max > 1.0e-2:
+        errors.append(f"V27 profile storage gap exceeds tolerance: {result.tail_profile_storage_gap_max}")
+    if abs(result.tail_reach_length_min-3855.0) > 1.0e-6 or abs(result.tail_reach_length_max-3855.0) > 1.0e-6:
+        errors.append(
+            f"V27 reach length does not match center distance: min={result.tail_reach_length_min}, max={result.tail_reach_length_max}"
+        )
     if result.tail_domain_nseg_min < 2:
         errors.append(f"Tail domain minimum segment count is below 2: {result.tail_domain_nseg_min}")
     if result.tail_segment_state_count < 2:

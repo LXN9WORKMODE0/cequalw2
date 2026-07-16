@@ -14,7 +14,7 @@ from run_v21_bht_redistribution_scan import (
     tail_flow_stats,
     write_npt_with_header,
 )
-from run_w2_v0_v1_smoke import count_computational_warnings, parse_v26_contract
+from run_w2_v0_v1_smoke import count_computational_warnings, parse_v26_contract, parse_v27_profile_contract
 
 
 class RedistributeBhtSeriesTests(unittest.TestCase):
@@ -45,6 +45,22 @@ class RedistributeBhtSeriesTests(unittest.TestCase):
         self.assertEqual(contract["couple"], 6)
         self.assertEqual(contract["consumer_count"], 1)
         self.assertEqual(contract["consumer_gap_max"], 0.0)
+
+    def test_v27_profile_parser_checks_storage_identity_and_center_distance(self) -> None:
+        text = "\n".join(
+            [
+                "[V12_Q_STATE] JB=1 QSTATE=80 QTARGET=90 TAU=1 CEL=2 LENGTH=3855 ALPHA=.25",
+                "[V27_PROFILE_STORAGE] JB=1 VSTATE=1000 VPROFILE=999.9995 VGAP=0.0005 WUP=590 WDN=580",
+                "[V27_PROFILE_STORAGE] JB=2 VSTATE=100 VPROFILE=90 VGAP=10 WUP=590 WDN=580",
+            ]
+        )
+
+        contract = parse_v27_profile_contract(text, branch=1)
+
+        self.assertEqual(contract["profile_count"], 1)
+        self.assertAlmostEqual(contract["profile_gap_max"], 0.0005)
+        self.assertEqual(contract["reach_length_min"], 3855.0)
+        self.assertEqual(contract["reach_length_max"], 3855.0)
 
     def test_moves_only_positive_distributed_flow_and_preserves_total(self) -> None:
         bht = [(1.0, 100.0), (2.0, 200.0), (3.0, 300.0)]
