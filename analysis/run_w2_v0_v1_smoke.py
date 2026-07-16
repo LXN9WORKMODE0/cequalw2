@@ -132,6 +132,7 @@ class SmokeResult:
     missing_markers: list[str]
     has_late_seg2_add: bool
     has_runtime_error: bool
+    computational_warning_count: int
     has_v2_front_state: bool
     has_required_outputs: bool
     has_v3_inner_iter: bool
@@ -190,6 +191,10 @@ def read_text(path: Path) -> str:
         except OSError:
             continue
     return path.read_text(encoding="latin-1", errors="ignore")
+
+
+def count_computational_warnings(text: str) -> int:
+    return text.count("COMPUTATIONAL WARNING AT JULIAN DAY")
 
 
 def ensure_dirs() -> None:
@@ -291,6 +296,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
     missing_markers = [marker for marker in REQUIRED_MARKERS if marker not in warn_text]
     has_late_seg2_add = LATE_SEG2_PATTERN in warn_text
     has_runtime_error = "Runtime error" in log_text or len(err_text.strip()) > 0
+    computational_warning_count = count_computational_warnings(warn_text)
     has_v2_front_state = "[V2_FRONT_STATE] JB=1" in warn_text
     has_v3_inner_iter = "[V3_INNER_ITER]" in warn_text
     has_v4_front_geom = "[V4_FRONT_GEOM] JB=1" in warn_text
@@ -394,6 +400,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
         missing_markers=missing_markers,
         has_late_seg2_add=has_late_seg2_add,
         has_runtime_error=has_runtime_error,
+        computational_warning_count=computational_warning_count,
         has_v2_front_state=has_v2_front_state,
         has_required_outputs=has_required_outputs,
         has_v3_inner_iter=has_v3_inner_iter,
@@ -460,6 +467,7 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["missing_markers", ";".join(result.missing_markers)])
         writer.writerow(["has_late_seg2_add", "1" if result.has_late_seg2_add else "0"])
         writer.writerow(["has_runtime_error", "1" if result.has_runtime_error else "0"])
+        writer.writerow(["computational_warning_count", str(result.computational_warning_count)])
         writer.writerow(["has_v2_front_state", "1" if result.has_v2_front_state else "0"])
         writer.writerow(["has_required_outputs", "1" if result.has_required_outputs else "0"])
         writer.writerow(["has_v3_inner_iter", "1" if result.has_v3_inner_iter else "0"])
@@ -553,6 +561,11 @@ def assert_v25_boundary_alignment(result: SmokeResult) -> None:
         )
 
 
+def assert_no_computational_warning(result: SmokeResult) -> None:
+    if result.computational_warning_count > 0:
+        raise AssertionError(f"Detected {result.computational_warning_count} computational warning(s)")
+
+
 def assert_pass(result: SmokeResult, tmend: float) -> None:
     errors: list[str] = []
     if result.missing_markers:
@@ -561,6 +574,8 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append(f"Found late upstream activation pattern: {LATE_SEG2_PATTERN}")
     if result.has_runtime_error:
         errors.append(f"Detected runtime error output: {result.err_path}")
+    if result.computational_warning_count > 0:
+        errors.append(f"Detected {result.computational_warning_count} computational warning(s)")
     if not result.has_v2_front_state:
         errors.append("Missing V2 front-state marker for JB=1")
     if not result.has_required_outputs:

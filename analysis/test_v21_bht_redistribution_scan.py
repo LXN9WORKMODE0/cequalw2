@@ -14,9 +14,21 @@ from run_v21_bht_redistribution_scan import (
     tail_flow_stats,
     write_npt_with_header,
 )
+from run_w2_v0_v1_smoke import count_computational_warnings
 
 
 class RedistributeBhtSeriesTests(unittest.TestCase):
+    def test_computational_warning_counter_detects_volume_balance_warning(self) -> None:
+        text = "\n".join(
+            [
+                "COMPUTATIONAL WARNING AT JULIAN DAY = 44430.0034",
+                "VOLUME ERROR = -0.10642802E+07 M^3",
+                "COMPUTATIONAL WARNING AT JULIAN DAY = 44431.0000",
+            ]
+        )
+
+        self.assertEqual(count_computational_warnings(text), 2)
+
     def test_moves_only_positive_distributed_flow_and_preserves_total(self) -> None:
         bht = [(1.0, 100.0), (2.0, 200.0), (3.0, 300.0)]
         distributed = [(1.0, 40.0), (2.0, -20.0), (3.0, 0.0)]

@@ -56,7 +56,8 @@ CE-QUAL-W2 在“低水位快流河道态”和“高水位淹没回水态”之
 38. [39_v23_q_update_mode_diagnosis.md](./39_v23_q_update_mode_diagnosis.md)
 39. [40_v24_interface_conservation_design.md](./40_v24_interface_conservation_design.md)
 40. [41_v25_tail_boundary_alignment_design.md](./41_v25_tail_boundary_alignment_design.md)
-41. [references.md](./references.md)
+41. [42_v26_tail_reservoir_domain_ownership_design.md](./42_v26_tail_reservoir_domain_ownership_design.md)
+42. [references.md](./references.md)
 
 ## 已固定的研究口径
 

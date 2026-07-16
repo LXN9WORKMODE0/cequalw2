@@ -230,3 +230,54 @@ Next action:
 - 建立 V25 short Git 检查点并同步 GitHub。
 - 运行 fresh extended window，继续要求 V24 conservation + V25 boundary alignment 双断言通过。
 - 对比 extended stage–Q slope、bias/RMSE 和运行刚性，再决定边界修复是否作为新基线。
+
+## Step 7 — V25 extended-window validation
+
+Status: complete; V25 result not accepted as the next baseline
+
+Run record:
+
+- 首次 fresh extended run 在 `JDAY=44432.4` 后随执行终端异常退出，进程返回 `0x40010004`；模型没有留下 runtime error、computational warning、NaN 或 Infinity，最后一条完整守恒记录为 `RTAIL=-6.3665e-12`、`RFLUX=0`、`SEGLOSS=0`。
+- 操作系统中已无该模型或包装进程；Git 工作树保持干净。该次输出不足以覆盖目标窗口，不能用于接受 V25。
+- 随后从干净 case 重跑相同的 `alpha=0`、`scope=bht`、`TMEND=44436.5`，正常退出，用时约 33.6 分钟。
+
+Extended-window metrics (157 accepted samples):
+
+- SEG 2 bias/RMSE：`0.987561/1.820609 -> -0.673884/1.271940 m`。
+- SEG 222 bias/RMSE：`0.158152/0.236300 -> 0.157403/0.232841 m`。
+- head bias/RMSE：`0.829409/1.713617 -> -0.831287/1.346190 m`。
+- 模拟 SEG 2 stage–Q slope：`0.000226 -> 0.000722 m/(m3/s)`；观测为 `0.001844`。
+- 模拟 head stage–Q slope：`0.000117 -> 0.000615 m/(m3/s)`；观测为 `0.001706`。
+- 模拟 SEG 222 stage–Q slope：`0.000108 -> 0.000107 m/(m3/s)`；观测为 `0.000138`。
+
+Interface checks:
+
+- `LINK_DN=COUPLE=6`，边界索引断言通过。
+- 1128 次 commit 全部 `EVALUATED=T`；commit Q gap 为 0。
+- `max|RTAIL|=1.1642e-10`，`RFLUX/SEGLOSS=0`。
+
+Blocking finding:
+
+- `JDAY=44430.0034` 出现一次主水体体积 `COMPUTATIONAL WARNING`：spatial change `-947755.54 m3`、temporal change `116524.66 m3`、volume error `-1064280.2 m3`。
+- `flowbal.csv` 同时报告初始 `%VOLerror=-127.24044`。原 smoke/scan 验收器只检查 runtime error，没有检查该 warning，因而出现“脚本通过但物理验收不通过”的缺口。
+- 已新增 `computational_warning_count` 和硬断言；9 项相关单元测试及 2 项残差分析测试通过。现有 V25 extended 输出在新门禁下明确为 `FAIL (1 warning)`。
+
+Review:
+
+- 边界对齐确实恢复了一部分上游流量响应并显著改善 SEG 2/head RMSE；该索引修复本身应保留。
+- 但 V25 还不能作为新基线：主矩阵从 segment 6 求解，`CUS`/volume balance/output ownership 仍可能从 segment 3 开始；hydro 使用 `TAIL_Q_LINK`，temperature/`VOLIN` 仍使用物理 `QIN`。同一接口被不同下游消费者按不同域和流量解释。
+- `TAIL_REACH_LENGTH=3770 m` 是 segment 2:5 的单元长度和；segment 2 中心到 segment 6 中心的几何距离为 `3855 m`。这个 2.2% 语义差异须独立修复，但不是百万立方米体积误差的主因。
+
+Next action:
+
+- 先实施 V26 domain-ownership contract：tail 独占 2:5，reservoir 的 `CUS`、主矩阵、balance、water-level output 和 boundary transport 统一从 6 开始，reservoir 所有消费者统一使用 committed interface flux。
+- V26 先以“主水体无 computational warning + V24/V25 断言继续通过”为结构门；之后再重构 lumped reach 的总储量/动量闭合。
+
+## Step 8 — V26 domain ownership
+
+Status: in progress
+
+Design:
+
+- 见 `42_v26_tail_reservoir_domain_ownership_design.md`。
+- 不把 V25 的精度改善当作接受依据；先消除已确认的状态所有权和边界通量分叉。

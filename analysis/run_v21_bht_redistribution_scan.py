@@ -398,6 +398,7 @@ def result_row(
         "tail_predictor_pass_count": smoke_result.tail_predictor_pass_count,
         "tail_corrector_pass_count": smoke_result.tail_corrector_pass_count,
         "tail_predictor_skip_count": smoke_result.tail_predictor_skip_count,
+        "computational_warning_count": smoke_result.computational_warning_count,
         "v23_q_update_mode": parse_q_update_mode(smoke_result.warn_path),
         "v25_link_dn": smoke_result.tail_link_dn,
         "v25_couple_seg": smoke_result.tail_couple_seg,
@@ -431,6 +432,7 @@ def write_scan_summary(rows: list[dict[str, str]]) -> Path:
         "tail_predictor_pass_count",
         "tail_corrector_pass_count",
         "tail_predictor_skip_count",
+        "computational_warning_count",
         "v10_count",
         "v10_qphys_mean",
         "v10_qout_mean",
@@ -496,6 +498,7 @@ def main() -> int:
         result = smoke.evaluate(case_dir)
         smoke.assert_v24_conservation(result)
         smoke.assert_v25_boundary_alignment(result)
+        smoke.assert_no_computational_warning(result)
         rows.append(result_row(alpha, case_dir, result, moved_stats, args.tmend, args.scope))
     if rows:
         summary = write_scan_summary(rows)

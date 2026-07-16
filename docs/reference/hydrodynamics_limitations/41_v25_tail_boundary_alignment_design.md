@@ -2,7 +2,7 @@
 
 本页回答什么问题：V24 守恒闭合以后，为什么 SEG 2/head 的流量响应仍明显偏弱，以及 V25 在不引入新物理模型前应先修复哪个状态边界。
 
-Updated: 2026-07-15
+Updated: 2026-07-16
 
 ## 1. V24 剩余误差的证据
 
@@ -64,6 +64,8 @@ DX_REACH = sum(DLX(TAIL_DOMAIN_US:TAIL_DOMAIN_DS))
 
 不能继续使用首尾两个断面的半长度之和。
 
+扩展复核补充：上式是 tail 单元总体长度；如果 residual 两端的 stage 分别定义在 segment 2 和 segment 6 的单元中心，则当前案例严格的中心距为 `3855 m`，而上述总体长度为 `3770 m`。V25 保留后者以隔离边界索引效应；该 2.2% 几何语义差异转入后续独立修复。
+
 ## 4. 最小实施范围
 
 - 初始化时先确定 `TAIL_COUPLE_SEG=TAIL_DOMAIN_DS+1`，再令 `TAIL_DNSEG=TAIL_COUPLE_SEG`。
@@ -92,14 +94,25 @@ DX_REACH = sum(DLX(TAIL_DOMAIN_US:TAIL_DOMAIN_DS))
 - 重新计算 SEG 2、SEG 222、head 的 bias/RMSE 和 stage–Q 斜率。
 - 如果边界对齐后上游响应仍显著不足，再进入“profile volume + continuity”闭合；不提前宣称需要完整 Saint-Venant 子求解器。
 
-## 6. 未验证前提
+## 6. 实施后确认的限制
 
-- 尚未运行 boundary-aligned 版本，无法确认 segment 6 stage 反馈对自动步长的净影响。
 - 当前 standard-step 仍是上下游断面能量闭合，不返回逐段 profile volume；V25 只先消除已确认的错误边界，不把它包装成完整多段动力学。
 - V10 日志包含可能被 autostep 回滚的试算状态；物理精度判断只使用正式 `wl.csv` 接受态。
+- `WSE_HYD` 在初始化以后并不控制接受水位；接受水位主要由只代表 segment 2 的 lumped storage 反演，segment 2:5 状态又在每次调用中线性重建。
+- reservoir hydro 使用 `TAIL_Q_LINK`，但 temperature/`VOLIN` 仍使用物理 `QIN`；`CUS`/balance/output 的域起点也尚未统一到 segment 6。
 
 ## 7. Short-window status
 
 V25 short window 已通过守恒与边界双断言：`LINK_DN=6`、`COUPLE=6`、`max|R_tail|=5.8208e-11 m3/s`。
 
 边界对齐后模拟 head–Q 斜率达到观测的约 `54%`，SEG 2/222 RMSE 均改善；但 head RMSE 从 `1.0281 m` 增至 `1.1744 m`。因此 short 结果为 mixed，`TMEND=44436.5` extended window 仍是是否保留 V25 的必要验证。
+
+## 8. Extended-window status
+
+V25 extended window 正常完成，接口守恒与边界索引断言均通过；SEG 2/head RMSE 分别由 V24 的 `1.820609/1.713617 m` 改善到 `1.271940/1.346190 m`，stage–Q 响应也明显恢复。
+
+但主水体在 `JDAY=44430.0034` 产生 `-1.0642802e6 m3` 的 volume error 和 computational warning。原因链指向 tail 2:5 与 reservoir 6+ 尚未形成贯穿主矩阵、balance、output 和 temperature/volume boundary 的统一所有权契约。因此结论是：
+
+- 保留 `TAIL_DNSEG=TAIL_COUPLE_SEG=6` 这一结构修复；
+- 不接受 V25 整体为新基线；
+- 先完成 V26 domain ownership，再评价后续 profile-volume/continuity 重构。
