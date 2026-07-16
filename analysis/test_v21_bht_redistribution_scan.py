@@ -14,7 +14,12 @@ from run_v21_bht_redistribution_scan import (
     tail_flow_stats,
     write_npt_with_header,
 )
-from run_w2_v0_v1_smoke import count_computational_warnings, parse_v26_contract, parse_v27_profile_contract
+from run_w2_v0_v1_smoke import (
+    count_computational_warnings,
+    parse_v26_contract,
+    parse_v27_profile_contract,
+    parse_v31_single_step_contract,
+)
 
 
 class RedistributeBhtSeriesTests(unittest.TestCase):
@@ -61,6 +66,20 @@ class RedistributeBhtSeriesTests(unittest.TestCase):
         self.assertAlmostEqual(contract["profile_gap_max"], 0.0005)
         self.assertEqual(contract["reach_length_min"], 3855.0)
         self.assertEqual(contract["reach_length_max"], 3855.0)
+
+    def test_v31_parser_checks_full_timestep_storage_identity(self) -> None:
+        text = "\n".join(
+            [
+                "[V31_SINGLE_STEP] JB=1 VPRE=1000 VFINAL=1010 RATE=10 RTAIL=1E-10 RATEGAP=-2E-10",
+                "[V31_SINGLE_STEP] JB=2 VPRE=100 VFINAL=200 RATE=100 RTAIL=50 RATEGAP=50",
+            ]
+        )
+
+        contract = parse_v31_single_step_contract(text, branch=1)
+
+        self.assertEqual(contract["count"], 1)
+        self.assertAlmostEqual(contract["full_storage_resid_max"], 1.0e-10)
+        self.assertAlmostEqual(contract["storage_rate_gap_max"], 2.0e-10)
 
     def test_moves_only_positive_distributed_flow_and_preserves_total(self) -> None:
         bht = [(1.0, 100.0), (2.0, 200.0), (3.0, 300.0)]

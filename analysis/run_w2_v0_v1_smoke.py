@@ -63,6 +63,7 @@ REQUIRED_MARKERS = [
     "[V26_BOUNDARY_CONSUMER]",
     "[V27_PROFILE_STORAGE]",
     "[V29_ACCEPTED_TAIL]",
+    "[V31_SINGLE_STEP]",
 ]
 LATE_SEG2_PATTERN = "Add segments 2 through 2"
 V11_TAIL_DOMAIN_PATTERN = re.compile(
@@ -136,6 +137,12 @@ V27_PROFILE_STORAGE_PATTERN = re.compile(
     r".*?WUP=\s*(?P<wup>[-+0-9.eE]+).*?WDN=\s*(?P<wdn>[-+0-9.eE]+)",
     re.IGNORECASE,
 )
+V31_SINGLE_STEP_PATTERN = re.compile(
+    r"\[V31_SINGLE_STEP\].*?JB=\s*(?P<jb>\d+).*?VPRE=\s*(?P<vpre>[-+0-9.eE]+)"
+    r".*?VFINAL=\s*(?P<vfinal>[-+0-9.eE]+).*?RATE=\s*(?P<rate>[-+0-9.eE]+)"
+    r".*?RTAIL=\s*(?P<rtail>[-+0-9.eE]+).*?RATEGAP=\s*(?P<rategap>[-+0-9.eE]+)",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -202,6 +209,9 @@ class SmokeResult:
     tail_reach_length_min: float
     tail_reach_length_max: float
     accepted_tail_state_count: int
+    tail_single_step_count: int
+    tail_full_storage_resid_max: float
+    tail_storage_rate_gap_max: float
     tail_domain_nseg_min: int
     tail_segment_state_count: int
     tail_mode_set: str
@@ -263,6 +273,16 @@ def parse_v27_profile_contract(text: str, branch: int = 1) -> dict[str, int | fl
         "profile_gap_max": max((abs(float(match.group("vgap"))) for match in profile_matches), default=0.0),
         "reach_length_min": min(lengths, default=0.0),
         "reach_length_max": max(lengths, default=0.0),
+    }
+
+
+def parse_v31_single_step_contract(text: str, branch: int = 1) -> dict[str, int | float | bool]:
+    matches = [match for match in V31_SINGLE_STEP_PATTERN.finditer(text) if int(match.group("jb")) == branch]
+    return {
+        "has_single_step": bool(matches),
+        "count": len(matches),
+        "full_storage_resid_max": max((abs(float(match.group("rtail"))) for match in matches), default=0.0),
+        "storage_rate_gap_max": max((abs(float(match.group("rategap"))) for match in matches), default=0.0),
     }
 
 
@@ -400,6 +420,7 @@ def evaluate(case_dir: Path) -> SmokeResult:
     has_v24_interface_commit = len(v24_commit_matches) > 0
     v26_contract = parse_v26_contract(warn_text)
     v27_contract = parse_v27_profile_contract(warn_text)
+    v31_contract = parse_v31_single_step_contract(warn_text)
     accepted_tail_state_count = warn_text.count("[V29_ACCEPTED_TAIL] JB=1")
     tail_predictor_pass_count = sum(1 for match in v18_matches if match.group("pass") == "1")
     tail_corrector_pass_count = sum(1 for match in v18_matches if match.group("pass") == "2")
@@ -524,6 +545,9 @@ def evaluate(case_dir: Path) -> SmokeResult:
         tail_reach_length_min=float(v27_contract["reach_length_min"]),
         tail_reach_length_max=float(v27_contract["reach_length_max"]),
         accepted_tail_state_count=accepted_tail_state_count,
+        tail_single_step_count=int(v31_contract["count"]),
+        tail_full_storage_resid_max=float(v31_contract["full_storage_resid_max"]),
+        tail_storage_rate_gap_max=float(v31_contract["storage_rate_gap_max"]),
         tail_domain_nseg_min=tail_domain_nseg_min,
         tail_segment_state_count=tail_segment_state_count,
         tail_mode_set=tail_mode_set,
@@ -603,6 +627,9 @@ def write_summary(result: SmokeResult, exe_path: Path, tmend: float) -> Path:
         writer.writerow(["tail_reach_length_min", f"{result.tail_reach_length_min:.6f}"])
         writer.writerow(["tail_reach_length_max", f"{result.tail_reach_length_max:.6f}"])
         writer.writerow(["accepted_tail_state_count", str(result.accepted_tail_state_count)])
+        writer.writerow(["tail_single_step_count", str(result.tail_single_step_count)])
+        writer.writerow(["tail_full_storage_resid_max", f"{result.tail_full_storage_resid_max:.12e}"])
+        writer.writerow(["tail_storage_rate_gap_max", f"{result.tail_storage_rate_gap_max:.12e}"])
         writer.writerow(["tail_domain_nseg_min", str(result.tail_domain_nseg_min)])
         writer.writerow(["tail_segment_state_count", str(result.tail_segment_state_count)])
         writer.writerow(["tail_mode_set", result.tail_mode_set])
@@ -694,6 +721,18 @@ def assert_v29_accepted_diagnostics(result: SmokeResult) -> None:
         raise AssertionError("V29 accepted tail-state sample count is below 1")
 
 
+def assert_v31_single_step(result: SmokeResult) -> None:
+    errors: list[str] = []
+    if result.tail_single_step_count <= 0:
+        errors.append("V31 single-step sample count is below 1")
+    if result.tail_full_storage_resid_max > 1.0e-8:
+        errors.append(f"V31 full-step tail residual exceeds tolerance: {result.tail_full_storage_resid_max:.12e}")
+    if result.tail_storage_rate_gap_max > 1.0e-8:
+        errors.append(f"V31 full/local storage-rate gap exceeds tolerance: {result.tail_storage_rate_gap_max:.12e}")
+    if errors:
+        raise AssertionError(" | ".join(errors))
+
+
 def assert_pass(result: SmokeResult, tmend: float) -> None:
     errors: list[str] = []
     if result.missing_markers:
@@ -783,6 +822,12 @@ def assert_pass(result: SmokeResult, tmend: float) -> None:
         errors.append(
             f"V27 reach length does not match center distance: min={result.tail_reach_length_min}, max={result.tail_reach_length_max}"
         )
+    if result.tail_single_step_count <= 0:
+        errors.append("V31 single-step sample count is below 1")
+    if result.tail_full_storage_resid_max > 1.0e-8:
+        errors.append(f"V31 full-step tail residual exceeds tolerance: {result.tail_full_storage_resid_max:.12e}")
+    if result.tail_storage_rate_gap_max > 1.0e-8:
+        errors.append(f"V31 full/local storage-rate gap exceeds tolerance: {result.tail_storage_rate_gap_max:.12e}")
     if result.tail_domain_nseg_min < 2:
         errors.append(f"Tail domain minimum segment count is below 2: {result.tail_domain_nseg_min}")
     if result.tail_segment_state_count < 2:

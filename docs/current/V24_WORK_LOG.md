@@ -515,3 +515,42 @@ Next action:
 
 - 复核 V26 exclusive domain 后，tail-owned segment 2:5 的分布源汇是否被遗漏；若源汇链完整，则转向 profile/control-volume geometry。
 - 不再把 Q-state lag 或固定 Manning 调整列为当前首要解释。
+
+## Step 14 — V31 corrector state isolation
+
+Status: complete; state-isolation cleanup accepted, initial double-storage hypothesis rejected
+
+Initial hypothesis:
+
+- 从调用顺序看，predictor 与 corrector 都调用 `UPDATE_TAIL_STAGE`，一度怀疑 persistent storage 在同一 W2 timestep 被推进两次。
+
+Variable-level audit:
+
+- `RUN_TAIL_PREDICTOR` 在试算后先恢复完整步初 tail state，只复制 predictor 的 WUP/Qlink/depth 和 segment-derived arrays。
+- `TAIL_STORAGE_VOL/Q_STATE/Q_TARGET` 没有从 predictor 复制回来，因此持久 storage 实际没有双推进。
+- 旧 corrector 的真实起点是“步初 persistent storage/Q + predictor WUP/Qlink”的混合态；初始双推进判断被 extended 不变性证据和变量链共同证伪。
+
+Changes:
+
+- reservoir 求解后、所有 branch corrector 之前统一恢复一次完整步初 tail state。
+- predictor interface arrays 与 reservoir committed Q 不在该 restore 中，接口校正证据和单一通量契约保持不变。
+- 新增接受态 `[V31_SINGLE_STEP]`：用 `(Vfinal−Vpre)/dt` 独立验证整步 `Qin−Qinterface`，并比较局部 storage rate。
+- 初始化步和 rollback trial 不进入 V31 门禁。
+
+Verification:
+
+- short：989 个样本，`max|RTAIL_full|=3.8835e-10 m3/s`，`max|RATEGAP|=0`。
+- extended：5926 个样本，同样的 residual 上限与零 rate gap。
+- 17 项 Python tests、reduced build、完整 `assert_pass`、V24–V31 独立门禁：通过。
+- profile gap max `0.0010486 m3`；computational warning 0；`flowbal %VOLerror=-0.00005456%`。
+
+Extended review:
+
+- SEG 2/SEG 222/head bias、RMSE 和 slope 与 V30 相同；V31 不是精度修复。
+- `Qstate–Qtarget` RMSE `108.12 -> 99.80 m3/s`，只说明 corrector 内部 target 不再读 predictor 派生态。
+- tail 2:5 的 distributed 源汇没有遗漏：V26 的 `CUS=6` 使 reservoir 源项从 6 开始分配，tail 控制体只包含物理上游入流与接口出流。
+
+Next action:
+
+- 当前可验证的源汇、整步连续、Q-state、Manning 和 corrector 顺序均已闭合；剩余缺口收敛到“单一线性 profile + 单总 storage”的模型表达能力。
+- 下一步先设计可回退的 conservative multi-control-volume 实验；若需要选择 profile 参数、粗糙率率定范围或以 RMSE/流量响应何者优先，则转为用户物理决策点。
