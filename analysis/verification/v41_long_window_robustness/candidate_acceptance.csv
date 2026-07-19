@@ -1,0 +1,4 @@
+candidate,bht_holdout_rmse_reduction,xld_bht_head_holdout_rmse_reduction,maximum_other_station_relative_worsening,all_regimes_improve,passed
+v38_neff_0700,0.6595924558,0.7852797208,0.0368929724,True,True
+v38_neff_0725,0.7037149242,0.8073934953,0.0361171783,True,True
+v38_neff_0750,0.7420268240,0.8057155365,0.0364502204,True,True

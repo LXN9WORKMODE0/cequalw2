@@ -1,0 +1,3 @@
+candidate,storage_m3,dt_s,raw_residual_m3s,half_ulp_bound_m3s,adjusted_residual_m3s,rate_gap_m3s
+v38_neff_0700,1.672059e8,1.195897,-1.1095e-08,1.2460e-08,0.0,0.0
+v38_neff_0750,1.526759e8,1.167039,1.0731e-08,1.2768e-08,0.0,0.0

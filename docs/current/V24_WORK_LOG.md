@@ -796,3 +796,49 @@ Review and next action:
 - 长窗证据支持保留 optional active macro closure 和 `0.0725` validation candidate；当前实现可以作为继续探索的起点。
 - 仍未证明 `NEFF` 是真实糙率，也未证明应默认开启。
 - 下一步优先寻找具有 BHT 端点的独立年份或不同流量过程做真正的 out-of-sample 验证；只有残余误差显示单状态能力不足时，才引入 SJ–YMT 第二状态。
+
+## Step 23 — V40 strict holdout and regime validation
+
+Status: complete; all predeclared holdout gates passed
+
+Contract:
+
+- 完全排除参数选择窗口 JDAY `44430.0–44436.5`，只评价之后至 `44484.0` 的 1140 个逐时样本。
+- 预先固定门禁：BHT 与 XLD→BHT head RMSE 各至少下降 50%；XLD/YMT/SJ 任一站恶化不超过 10%；无 warning、所有守恒门禁通过；六类工况逐类改善。
+- 物理流量三分位为 `5733.33/6830 m3/s`；另按中心逐时流量差分成 rising/steady/falling。
+- 观测与流量文件的小数日舍入相位不同，因此在观测时刻插值物理流量，不按时间字符串强拼接。
+
+Evidence:
+
+- 严格留出期 BHT RMSE `3.428 -> 1.016 m`，下降 `70.37%`；总水头 RMSE `2.745 -> 0.529 m`，下降 `80.74%`。
+- XLD/YMT RMSE 仅恶化 `3.61%/3.16%`，SJ 改善 `10.67%`。
+- 低/中/高流量 BHT 分别改善 `64.71%/72.04%/70.51%`。
+- rising/steady/falling BHT 分别改善 `71.09%/69.98%/70.00%`；六类总水头也全部改善。
+
+Review:
+
+- 改善不是由校准窗口、单一流量区间或单一涨退水方向产生。
+- 下一步只验证已声明的 `0.070–0.075` 参数区间，不依据留出结果重新选点。
+
+## Step 24 — V41 long-window parameter-interval robustness
+
+Status: complete; interval accepted, center candidate retained
+
+Initial numerical review:
+
+- 第一次边界长跑在 V31 raw residual 上略超 `1e-8`：`0.070` 为 `1.1095e-8 m3/s`，`0.075` 为 `1.0731e-8 m3/s`。
+- 对应 storage 为 `O(1e8 m3)`、时间步约 `1.2 s`；双精度 half-ULP 折算上界分别为 `1.2460e-8/1.2768e-8 m3/s`，已经高于原门槛，且 `RATEGAP=0`。
+- 未放宽 `1e-8` 门槛。新增统一 `TAIL_CONTINUITY_RESIDUAL`，日志同时记录 `RRAW/RBOUND`，门禁只检查 `max(abs(raw)-bound,0)`；不改变 storage、stage、Q、consumer 或任何物理状态。
+
+Interval evidence:
+
+- `NEFF=0.070/0.0725/0.075` 的严格留出期 BHT RMSE 改善 `65.96%/70.37%/74.20%`。
+- 总水头改善 `78.53%/80.74%/80.57%`；其他站最大恶化 `3.69%/3.61%/3.65%`。
+- 三个候选的六类工况全部改善；任一工况最小 BHT 改善仍大于 `60.9%`。
+- fresh default-off 6.5 天 smoke 通过，`wl.csv` 和 `flowbal.csv` SHA-256 继续分别为 `4BF244...D9FE` 与 `020705...4FBE`。
+
+Decision:
+
+- 证据支持的是 `0.070–0.075` 工程等效区间，而不是唯一物理系数。
+- 不利用验证集把候选改成 `0.075`；保留预先选定的区间中心 `0.0725`，并继续默认关闭。
+- 下一项真正独立的验收需要新的 BHT 端点和对应强迫数据；现有 2023 包不能单独完成 BHT–SJ 验收。

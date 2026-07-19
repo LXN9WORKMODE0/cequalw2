@@ -27,6 +27,10 @@
   BHT–SJ 单控制体的工程等效阻力；输出到 `.runs/v38_active_macro_scan/`。
 - `run_v39_long_window_validation.py`：冻结 V38 候选并在原始 54 天窗口对比默认基线，
   同时输出全窗与分周多站点指标；`--reuse` 可只重做后处理。
+- `analyze_v40_holdout_regimes.py`：完全排除参数选择窗口，按严格留出期、流量三分位和
+  涨/稳/退水过程执行预声明验收门禁。
+- `run_v41_long_window_robustness.py`：冻结 V38 结构，补跑 `NEFF=0.070/0.075` 长窗边界值，
+  并统一复用 V40 留出期与六类工况门禁。
 
 2026-07-15 整理前的本地运行产物保存在
 `.runs/archive_pre_v24/`，仅供追溯，不应作为新实验的完成状态复用。V21/V23 的
