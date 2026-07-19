@@ -578,6 +578,15 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
         WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0)') '[V36_TAIL_DOMAIN_CONFIG]', 'JB=',JB, &
                                                                      'MIN_NSEG=',TAIL_FIXED_MIN_NSEG(JB), &
                                                                      'MAX_SUPPORTED=',MAX_TAIL_SEG
+        IF (TAIL_MACRO_ACTIVE_SEG(JB) > 0) THEN
+          IF (TAIL_MACRO_ACTIVE_SEG(JB) /= TAIL_COUPLE_SEG(JB)) THEN
+            WRITE(*,'(A,I0,A,I0)') 'Active macro segment must equal coupling segment: active=', &
+              TAIL_MACRO_ACTIVE_SEG(JB), '; coupling=', TAIL_COUPLE_SEG(JB)
+            STOP 2
+          END IF
+          WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,ES12.4)') '[V38_ACTIVE_MACRO_CONFIG]', &
+            'JB=',JB, 'ISEG=',TAIL_MACRO_ACTIVE_SEG(JB), 'NEFF=',TAIL_MACRO_ACTIVE_MANNING(JB)
+        END IF
         WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V26_DOMAIN_OWNER]', 'JB=',JB, &
                                                                      'CUS=',CUS(JB), 'TAIL_US=',TAIL_DOMAIN_US(JB), &
                                                                      'TAIL_DS=',TAIL_DOMAIN_DS(JB), &
@@ -749,9 +758,10 @@ SUBROUTINE LOAD_TAIL_DOMAIN_OPTIONS
   USE GLOBAL
   IMPLICIT NONE
 
-  INTEGER, PARAMETER :: CONFIG_UNIT = 987, MACRO_UNIT = 988
+  INTEGER, PARAMETER :: CONFIG_UNIT = 987, MACRO_UNIT = 988, ACTIVE_UNIT = 989
   INTEGER :: IOS, JB_CONFIG, NSEG_CONFIG, MACRO_SEG_CONFIG
-  LOGICAL :: CONFIG_EXISTS, MACRO_EXISTS
+  REAL(R8) :: ACTIVE_MANNING_CONFIG
+  LOGICAL :: CONFIG_EXISTS, MACRO_EXISTS, ACTIVE_EXISTS
 
   INQUIRE(FILE='tail_domain.opt', EXIST=CONFIG_EXISTS)
   IF (CONFIG_EXISTS) THEN
@@ -786,31 +796,67 @@ SUBROUTINE LOAD_TAIL_DOMAIN_OPTIONS
   END IF
 
   INQUIRE(FILE='tail_macro.opt', EXIST=MACRO_EXISTS)
-  IF (.NOT. MACRO_EXISTS) RETURN
-  OPEN(UNIT=MACRO_UNIT, FILE='tail_macro.opt', STATUS='OLD', ACTION='READ', IOSTAT=IOS)
+  IF (MACRO_EXISTS) THEN
+    OPEN(UNIT=MACRO_UNIT, FILE='tail_macro.opt', STATUS='OLD', ACTION='READ', IOSTAT=IOS)
+    IF (IOS /= 0) THEN
+      WRITE(*,'(A,I0)') 'Unable to open tail_macro.opt, IOSTAT=', IOS
+      STOP 2
+    END IF
+    DO
+      READ(MACRO_UNIT,*,IOSTAT=IOS) JB_CONFIG, MACRO_SEG_CONFIG
+      IF (IOS < 0) EXIT
+      IF (IOS > 0) THEN
+        WRITE(*,'(A,I0)') 'Invalid row in tail_macro.opt, IOSTAT=', IOS
+        CLOSE(MACRO_UNIT)
+        STOP 2
+      END IF
+      IF (JB_CONFIG < 1 .OR. JB_CONFIG > NBR) THEN
+        WRITE(*,'(A,I0)') 'Invalid branch in tail_macro.opt: ', JB_CONFIG
+        CLOSE(MACRO_UNIT)
+        STOP 2
+      END IF
+      IF (MACRO_SEG_CONFIG <= US(JB_CONFIG) .OR. MACRO_SEG_CONFIG > DS(JB_CONFIG)) THEN
+        WRITE(*,'(A,I0)') 'Invalid interface segment in tail_macro.opt: ', MACRO_SEG_CONFIG
+        CLOSE(MACRO_UNIT)
+        STOP 2
+      END IF
+      TAIL_MACRO_INTERFACE_SEG(JB_CONFIG) = MACRO_SEG_CONFIG
+    END DO
+    CLOSE(MACRO_UNIT)
+  END IF
+
+  INQUIRE(FILE='tail_macro_active.opt', EXIST=ACTIVE_EXISTS)
+  IF (.NOT. ACTIVE_EXISTS) RETURN
+  OPEN(UNIT=ACTIVE_UNIT, FILE='tail_macro_active.opt', STATUS='OLD', ACTION='READ', IOSTAT=IOS)
   IF (IOS /= 0) THEN
-    WRITE(*,'(A,I0)') 'Unable to open tail_macro.opt, IOSTAT=', IOS
+    WRITE(*,'(A,I0)') 'Unable to open tail_macro_active.opt, IOSTAT=', IOS
     STOP 2
   END IF
   DO
-    READ(MACRO_UNIT,*,IOSTAT=IOS) JB_CONFIG, MACRO_SEG_CONFIG
+    READ(ACTIVE_UNIT,*,IOSTAT=IOS) JB_CONFIG, MACRO_SEG_CONFIG, ACTIVE_MANNING_CONFIG
     IF (IOS < 0) EXIT
     IF (IOS > 0) THEN
-      WRITE(*,'(A,I0)') 'Invalid row in tail_macro.opt, IOSTAT=', IOS
-      CLOSE(MACRO_UNIT)
+      WRITE(*,'(A,I0)') 'Invalid row in tail_macro_active.opt, IOSTAT=', IOS
+      CLOSE(ACTIVE_UNIT)
       STOP 2
     END IF
     IF (JB_CONFIG < 1 .OR. JB_CONFIG > NBR) THEN
-      WRITE(*,'(A,I0)') 'Invalid branch in tail_macro.opt: ', JB_CONFIG
-      CLOSE(MACRO_UNIT)
+      WRITE(*,'(A,I0)') 'Invalid branch in tail_macro_active.opt: ', JB_CONFIG
+      CLOSE(ACTIVE_UNIT)
       STOP 2
     END IF
     IF (MACRO_SEG_CONFIG <= US(JB_CONFIG) .OR. MACRO_SEG_CONFIG > DS(JB_CONFIG)) THEN
-      WRITE(*,'(A,I0)') 'Invalid interface segment in tail_macro.opt: ', MACRO_SEG_CONFIG
-      CLOSE(MACRO_UNIT)
+      WRITE(*,'(A,I0)') 'Invalid interface segment in tail_macro_active.opt: ', MACRO_SEG_CONFIG
+      CLOSE(ACTIVE_UNIT)
       STOP 2
     END IF
-    TAIL_MACRO_INTERFACE_SEG(JB_CONFIG) = MACRO_SEG_CONFIG
+    IF (ACTIVE_MANNING_CONFIG < 0.01D0 .OR. ACTIVE_MANNING_CONFIG > 0.20D0) THEN
+      WRITE(*,'(A,ES12.4)') 'Invalid effective Manning n in tail_macro_active.opt: ', ACTIVE_MANNING_CONFIG
+      CLOSE(ACTIVE_UNIT)
+      STOP 2
+    END IF
+    TAIL_MACRO_ACTIVE_SEG(JB_CONFIG) = MACRO_SEG_CONFIG
+    TAIL_MACRO_ACTIVE_MANNING(JB_CONFIG) = ACTIVE_MANNING_CONFIG
   END DO
-  CLOSE(MACRO_UNIT)
+  CLOSE(ACTIVE_UNIT)
 END SUBROUTINE LOAD_TAIL_DOMAIN_OPTIONS

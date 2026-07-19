@@ -23,6 +23,10 @@
   输出到 `.runs/v36_tail_domain_scan/`。
 - `run_v37_macro_target.py`：通过可选 `tail_macro.opt` 运行 BHT–SJ 单断面与断面积分
   动量闭合的只读预检；输出到 `.runs/v37_macro_target/`。
+- `run_v38_active_macro_scan.py`：通过显式 `tail_domain.opt` 与 `tail_macro_active.opt` 扫描
+  BHT–SJ 单控制体的工程等效阻力；输出到 `.runs/v38_active_macro_scan/`。
+- `run_v39_long_window_validation.py`：冻结 V38 候选并在原始 54 天窗口对比默认基线，
+  同时输出全窗与分周多站点指标；`--reuse` 可只重做后处理。
 
 2026-07-15 整理前的本地运行产物保存在
 `.runs/archive_pre_v24/`，仅供追溯，不应作为新实验的完成状态复用。V21/V23 的

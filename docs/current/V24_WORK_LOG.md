@@ -742,3 +742,57 @@ Review:
 - 路线 A 已把不可辨识问题从 segment 2:5 三个局部阻力收敛为 BHT–SJ 一个宏观等效阻力，并给出稳定候选范围。
 - 现有 local 与 aggregate 原始闭合都不能直接激活；`n≈0.046` 也不能写回全库统一 Manning。
 - 下一步需要用户决定是否授权把该范围作为 BHT–SJ 工程等效先验，或继续补齐高程基准、断面和阻力来源后再实施两状态模型。
+
+## Step 21 — V38 active BHT–SJ macro closure
+
+Status: complete; optional active closure retained
+
+Input and ownership:
+
+- 新增可选 `tail_macro_active.opt`，格式为 `JB SEG NEFF`；缺失时保持默认关闭。
+- 最终候选使用 `tail_domain.opt = 1 26` 与 `tail_macro_active.opt = 1 28 NEFF`，即 branch 1 拥有 segment 2:27，并在 BR2 汇入点之前的 segment 28 耦合。
+- active segment 必须与 coupling segment 一致；`NEFF` 限制在 `0.01–0.20`，并只解释为 BHT–SJ 宏河段的工程等效阻力。
+
+Changes:
+
+- 用同一条距离加权线性水面 profile 同时计算真实断面几何、逐断面积分 Manning 阻力、端点速度头和 profile storage。
+- 同一闭合同时服务 `Q -> WUP` 水位反演和 continuity 更新前后的 `WUP -> Qtarget`，避免再次出现 stage 与 target 使用不同方程的 V28 型分裂。
+- 连续方程仍为唯一宏控制体的 `dV/dt = Qin - Qinterface`；reservoir consumer 和唯一接口通量契约不变。
+- 首个 active accepted state 以 physical inflow 初始化 committed Q；之后仍使用已有动态 Q state。
+- active profile storage 反演使用更严格数值容差，但没有放宽 V27/V32 门禁。
+
+Short-window evidence:
+
+- `NEFF=0.065/0.070/0.0725/0.075` 均无 computational warning，质量残差不超过 `6.71e-9 m3/s`，profile 与 segment volume gap 小于 `1e-4 m3`。
+- 候选范围是平坦的 `0.070–0.075`，不是可唯一辨识的点。
+- `0.0725` 的 BHT bias/RMSE/slope ratio 为 `-0.052 m / 0.659 m / 0.686`；XLD→BHT head bias/RMSE 为 `-0.112 m / 0.633 m`。
+
+Review:
+
+- V38 的改善来自宏河段动量表达，不是把旧 local closure 原样扩大；单控制体已能在不跨支流的前提下满足当前目的，因此不再把两状态实现当作必然的第一步。
+- `0.0725` 不写入全库物理 Manning，也不默认启用；必须先做未再调参的长窗验证。
+
+## Step 22 — V39 untuned 54-day validation
+
+Status: complete; V38 direction accepted for continued exploration
+
+Experiment:
+
+- 冻结短窗候选 `NEFF=0.0725`，在 JDAY `44430.0–44484.0` 分别运行无配置基线和 V38 candidate。
+- 关键四站在该窗口的 processed/flagged 点均为 0；两组只在显式 macro option 上不同。
+- 除全窗指标外，分成 7 个七天窗口和 1 个五天窗口检查局部漂移。
+
+Evidence:
+
+- BHT RMSE `3.244 -> 0.979 m`（下降 `69.80%`），stage–Q slope ratio `0.381 -> 0.798`。
+- SJ RMSE `1.415 -> 1.245 m`；XLD→BHT head RMSE `2.614 -> 0.542 m`（下降 `79.25%`）。
+- XLD/YMT RMSE 仅 `0.733 -> 0.757 m`、`0.969 -> 1.000 m`，相对增加约 `3.27%/3.17%`。
+- BHT 与 SJ 在全部 8 个子窗口均改善；最差 BHT 周从 `5.772 m` 降到 `1.678 m`。
+- candidate 无 computational warning；V24/V31 residual `9.3169e-9 m3/s`，V27/V32 gap 均小于 `1e-4 m3`。
+- fresh default-off 6.5 天输出与 V37 前基线逐字节一致：`wl.csv` 为 `4BF244...D9FE`，`flowbal.csv` 为 `020705...4FBE`。
+
+Review and next action:
+
+- 长窗证据支持保留 optional active macro closure 和 `0.0725` validation candidate；当前实现可以作为继续探索的起点。
+- 仍未证明 `NEFF` 是真实糙率，也未证明应默认开启。
+- 下一步优先寻找具有 BHT 端点的独立年份或不同流量过程做真正的 out-of-sample 验证；只有残余误差显示单状态能力不足时，才引入 SJ–YMT 第二状态。

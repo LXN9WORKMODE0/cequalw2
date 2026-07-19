@@ -65,7 +65,12 @@ CE-QUAL-W2 在“低水位快流河道态”和“高水位淹没回水态”之
 47. [48_v32_segment_volume_foundation.md](./48_v32_segment_volume_foundation.md)
 48. [49_v33_local_target_preflight.md](./49_v33_local_target_preflight.md)
 49. [50_v34_physical_constraint_inventory.md](./50_v34_physical_constraint_inventory.md)
-50. [references.md](./references.md)
+50. [51_v35_multistation_waterline_validation.md](./51_v35_multistation_waterline_validation.md)
+51. [52_v36_observation_anchored_domain_scan.md](./52_v36_observation_anchored_domain_scan.md)
+52. [53_v37_macro_interface_preflight.md](./53_v37_macro_interface_preflight.md)
+53. [54_v38_active_macro_closure.md](./54_v38_active_macro_closure.md)
+54. [55_v39_long_window_validation.md](./55_v39_long_window_validation.md)
+55. [references.md](./references.md)
 
 ## 已固定的研究口径
 

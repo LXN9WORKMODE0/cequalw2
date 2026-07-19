@@ -1,0 +1,3 @@
+case,xld_rmse_m,ymt_rmse_m,sj_rmse_m,bht_bias_m,bht_rmse_m,bht_stage_q_slope_ratio,ymt_sj_head_rmse_m,sj_bht_head_rmse_m,xld_bht_head_bias_m,xld_bht_head_rmse_m,xld_bht_head_q_slope_ratio,computational_warning_count,v24_mass_residual_max,v27_profile_gap_max,v32_segment_volume_gap_max
+baseline,0.7326060363,0.9693841549,1.4148360875,-2.6603660550,3.2435735219,0.3812248548,0.5414804512,1.9312180472,-2.1119228681,2.6141987574,-0.2926526153,0,1.0318e-09,0.0012516,0.0012501
+v38_neff_0725,0.7565733518,1.0001530601,1.2453104438,-0.6374215927,0.9794692147,0.7983667494,0.2947451355,0.6019641767,-0.0548342800,0.5423787047,0.7513264307,0,9.3169e-09,9.8705e-05,9.9987e-05
