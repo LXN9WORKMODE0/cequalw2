@@ -657,3 +657,88 @@ Decision required:
 - A：补充/指定物理数据；
 - B：授权以端点观测为目标的工程等效闭合；
 - C：选择外部一维求解器耦合。
+
+## Step 18 — V35 multi-station waterline validation
+
+Status: complete; route A is useful, original V33 activation path remains rejected
+
+Input QA:
+
+- 2021/2023 共 12 个 NPT 通过文件头、8760 点时间轴、单调 JDAY、逐时步长和 500–650 m 数值门禁。
+- 10 个内部站的处理分类、gap 小时数、区间数和最大区间全部对账；2021 XLD/BHT 与既有端点文件逐字节一致。
+- extended 窗口 JDAY 44430.0–44436.5 内五个新增站均为 157 个未处理原始点；与 2021 工作簿逐点复核共 785 点，0.01 m 精度下差异为 0。
+- 全年自动处理尚不能直接视为物理验收：2021/2023 分别插值 293/885 点，最长连续 68/74 h，且工作簿未明确给出高程基准元数据。
+
+Mapping review:
+
+- 转换包映射为 XLD/SS/HH/SLB/YMT/SJ/BHT → segment 222/215/168/116/57/26/2。
+- XLD 0 km 的边界/中心参考差异会使 SS 改到 segment 214；两种映射 RMSE 只差 `0.000016 m`，不影响结论。
+
+Extended evidence:
+
+- XLD、SS、HH、SLB、YMT、SJ、BHT bias 为 `0.161/0.298/0.276/0.075/-0.022/-0.804/-0.648 m`。
+- 模拟/观测 stage–Q slope 比率沿上游依次为 `0.738/0.699/0.664/0.625/0.573/0.409/0.389`。
+- YMT→SJ 观测/模拟平均 head 为 `0.900/0.118 m`，bias `-0.783 m`，head–Q slope 比率 `0.252`。
+- SJ→BHT 观测/模拟平均 head 为 `10.667/10.823 m`，bias `0.156 m`，但动态 slope 比率仍只有 `0.383`。
+- 用观测 BHT/YMT 端点构造单线性 profile，在 SJ 处仍高估 `5.137 m`，RMSE `5.211 m`。
+
+Review:
+
+- 新数据把主要静态坡降缺口定位在约 segment 26:57，而非当前 tail-owned 2:5；它不支持激活 V33 的 segment 2:5 局部 target。
+- 现有单总 storage + 单线性 profile 不能原样扩到 YMT；至少需要 BHT–SJ、SJ–YMT 两个宏观状态区。
+- segment 28 是 BR2 汇入主干的位置。若 ownership 跨过该点，必须同时接管支流水量、温度和组分，不能仅把 `TAIL_FIXED_MIN_NSEG` 从 4 改大。
+
+Next action:
+
+- 设计 V36 observation-anchored macro-domain preflight，先闭合候选控制域、支流源汇和接口状态，再决定是否运行可回退的域扩展实验。
+
+## Step 19 — V36 observation-anchored domain scan
+
+Status: complete; optional domain override accepted as infrastructure, single-state expansion rejected
+
+Changes:
+
+- 将 `TAIL_FIXED_MIN_NSEG` 改为逐 branch 数组，并把诊断上限扩到 64；默认值仍为 4。
+- 新增可选 `tail_domain.opt`（`JB NSEG`）和 `[V36_TAIL_DOMAIN_CONFIG]`；文件缺失时不改变基线。
+- 建立 current、stop-before-BR2、two-zone-to-YMT 三种候选域的 ownership、station、junction 和 source-contract 清单。
+- 扫描 `NSEG=4/8/12/16/20/24/25/26`，每个案例都运行完整守恒门禁和 V35 多站指标。
+
+Evidence:
+
+- 所有 8 个案例均无 computational warning，V24/V31 residual 不超过 `3.57e-9 m3/s`，segment volume gap 不超过 `0.0086 m3`。
+- `NSEG=26` 把 YMT→SJ head bias 从 `-0.783 m` 改为 `-0.125 m`，但 BHT bias 从 `-0.648 m` 恶化到 `+1.882 m`，SJ→BHT head bias 恶化到 `+2.306 m`。
+- 各站和区间的动态 slope 没有形成一致改善；不存在稳健的单状态 `NSEG`。
+- 最新无配置 fresh extended 保持 V35 基线指标和 `CUS=COUPLE=6`、reach `3855 m`。
+
+Review:
+
+- 不从扫描中挑选“最佳 NSEG”；单状态扩域只是搬移空间误差。
+- 跨过 segment 28 会纳入 BR2 汇流，必须新增支流水量、温度和组分的守恒契约。
+- 最小正确结构仍是以 SJ 为接口的 BHT–SJ、SJ–YMT 两个独立状态区。
+
+Next action:
+
+- 先对 BHT–SJ 宏接口做只读动量闭合预检，不激活第二状态或新通量。
+
+## Step 20 — V37 BHT–SJ macro-interface preflight
+
+Status: complete; direct target activation rejected, engineering-equivalent resistance identified
+
+Changes:
+
+- 新增可选 `tail_macro.opt`（`JB SEG`），本次以 SJ/segment 26 为只读宏接口。
+- accepted state 同时记录 BHT 单断面 local target 与 segment 2:26 逐断面积分摩阻、端点速度头的 aggregate target。
+- 诊断不拥有 volume、不提交 Q、不改变 stage 或 reservoir consumer；分析器同时用实测 BHT–SJ head 做边界敏感性复核。
+
+Evidence:
+
+- 5927 个状态中，local `Qtarget/Qcommit` 中位数 `0.452`，aggregate 为 `1.537`；两者 ±20% 一致率分别为 `0.051%/0%`。
+- 145 个实测重叠时刻的 BHT–SJ 平均 head 为 `10.676 m`，模拟为 `10.560 m`；替换实测 head 后 local/aggregate target-to-physical 中位数为 `0.436/1.626`。
+- 若把未解析损失合并成逐段统一工程等效 Manning，观测约束所需 `n` 中位数 `0.04577`，P10/P90 `0.04270/0.05053`；这不是已验证物理糙率。
+- V37 与无诊断基线的 `wl.csv`、`flowbal.csv` SHA-256 分别逐字节相同；V24–V33 门禁继续通过，无 computational warning。
+
+Review:
+
+- 路线 A 已把不可辨识问题从 segment 2:5 三个局部阻力收敛为 BHT–SJ 一个宏观等效阻力，并给出稳定候选范围。
+- 现有 local 与 aggregate 原始闭合都不能直接激活；`n≈0.046` 也不能写回全库统一 Manning。
+- 下一步需要用户决定是否授权把该范围作为 BHT–SJ 工程等效先验，或继续补齐高程基准、断面和阻力来源后再实施两状态模型。

@@ -498,10 +498,10 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
       TAIL_DOMAIN_DEFINED(JB) = .FALSE.
       IF (UPSTREAM_DOMAIN_LOCK(JB) .AND. FRONT_SEG(JB) > 0) THEN
         TAIL_DOMAIN_US(JB) = IUPHYS(JB)
-        TAIL_DOMAIN_DS(JB) = MAX(FRONT_SEG(JB), IUPHYS(JB) + TAIL_FIXED_MIN_NSEG - 1)
+        TAIL_DOMAIN_DS(JB) = MAX(FRONT_SEG(JB), IUPHYS(JB) + TAIL_FIXED_MIN_NSEG(JB) - 1)
         TAIL_DOMAIN_DS(JB) = MIN(TAIL_DOMAIN_DS(JB), DS(JB))
         TAIL_DOMAIN_NSEG(JB) = TAIL_DOMAIN_DS(JB)-TAIL_DOMAIN_US(JB)+1
-        TAIL_MULTI_SEGMENT(JB) = TAIL_DOMAIN_NSEG(JB) >= TAIL_FIXED_MIN_NSEG
+        TAIL_MULTI_SEGMENT(JB) = TAIL_DOMAIN_NSEG(JB) >= TAIL_FIXED_MIN_NSEG(JB)
         TAIL_DOMAIN_DEFINED(JB) = TAIL_MULTI_SEGMENT(JB)
       END IF
       IF (TAIL_DOMAIN_DEFINED(JB)) THEN
@@ -575,6 +575,9 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
         WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0)') '[V15_TAIL_DOMAIN_MULTI]', 'JB=',JB, &
                                                                      'US=',TAIL_DOMAIN_US(JB), 'DS=',TAIL_DOMAIN_DS(JB), &
                                                                      'NSEG=',TAIL_DOMAIN_NSEG(JB), 'COUPLE=',TAIL_COUPLE_SEG(JB)
+        WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0)') '[V36_TAIL_DOMAIN_CONFIG]', 'JB=',JB, &
+                                                                     'MIN_NSEG=',TAIL_FIXED_MIN_NSEG(JB), &
+                                                                     'MAX_SUPPORTED=',MAX_TAIL_SEG
         WRITE (WRN,'(A,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,L1)') '[V26_DOMAIN_OWNER]', 'JB=',JB, &
                                                                      'CUS=',CUS(JB), 'TAIL_US=',TAIL_DOMAIN_US(JB), &
                                                                      'TAIL_DS=',TAIL_DOMAIN_DS(JB), &
@@ -741,3 +744,73 @@ USE GLOBAL;USE NAMESC; USE GEOMC;  USE LOGICC; USE PREC;  USE SURFHE;  USE KINET
 
   RETURN
   END SUBROUTINE INITGEOM
+
+SUBROUTINE LOAD_TAIL_DOMAIN_OPTIONS
+  USE GLOBAL
+  IMPLICIT NONE
+
+  INTEGER, PARAMETER :: CONFIG_UNIT = 987, MACRO_UNIT = 988
+  INTEGER :: IOS, JB_CONFIG, NSEG_CONFIG, MACRO_SEG_CONFIG
+  LOGICAL :: CONFIG_EXISTS, MACRO_EXISTS
+
+  INQUIRE(FILE='tail_domain.opt', EXIST=CONFIG_EXISTS)
+  IF (CONFIG_EXISTS) THEN
+    OPEN(UNIT=CONFIG_UNIT, FILE='tail_domain.opt', STATUS='OLD', ACTION='READ', IOSTAT=IOS)
+    IF (IOS /= 0) THEN
+      WRITE(*,'(A,I0)') 'Unable to open tail_domain.opt, IOSTAT=', IOS
+      STOP 2
+    END IF
+
+    DO
+      READ(CONFIG_UNIT,*,IOSTAT=IOS) JB_CONFIG, NSEG_CONFIG
+      IF (IOS < 0) EXIT
+      IF (IOS > 0) THEN
+        WRITE(*,'(A,I0)') 'Invalid row in tail_domain.opt, IOSTAT=', IOS
+        CLOSE(CONFIG_UNIT)
+        STOP 2
+      END IF
+      IF (JB_CONFIG < 1 .OR. JB_CONFIG > NBR) THEN
+        WRITE(*,'(A,I0)') 'Invalid branch in tail_domain.opt: ', JB_CONFIG
+        CLOSE(CONFIG_UNIT)
+        STOP 2
+      END IF
+      IF (NSEG_CONFIG < 4 .OR. NSEG_CONFIG > MAX_TAIL_SEG) THEN
+        WRITE(*,'(A,I0,A,I0)') 'Invalid segment count in tail_domain.opt: ', NSEG_CONFIG, &
+                               '; supported maximum=', MAX_TAIL_SEG
+        CLOSE(CONFIG_UNIT)
+        STOP 2
+      END IF
+      TAIL_FIXED_MIN_NSEG(JB_CONFIG) = NSEG_CONFIG
+    END DO
+    CLOSE(CONFIG_UNIT)
+  END IF
+
+  INQUIRE(FILE='tail_macro.opt', EXIST=MACRO_EXISTS)
+  IF (.NOT. MACRO_EXISTS) RETURN
+  OPEN(UNIT=MACRO_UNIT, FILE='tail_macro.opt', STATUS='OLD', ACTION='READ', IOSTAT=IOS)
+  IF (IOS /= 0) THEN
+    WRITE(*,'(A,I0)') 'Unable to open tail_macro.opt, IOSTAT=', IOS
+    STOP 2
+  END IF
+  DO
+    READ(MACRO_UNIT,*,IOSTAT=IOS) JB_CONFIG, MACRO_SEG_CONFIG
+    IF (IOS < 0) EXIT
+    IF (IOS > 0) THEN
+      WRITE(*,'(A,I0)') 'Invalid row in tail_macro.opt, IOSTAT=', IOS
+      CLOSE(MACRO_UNIT)
+      STOP 2
+    END IF
+    IF (JB_CONFIG < 1 .OR. JB_CONFIG > NBR) THEN
+      WRITE(*,'(A,I0)') 'Invalid branch in tail_macro.opt: ', JB_CONFIG
+      CLOSE(MACRO_UNIT)
+      STOP 2
+    END IF
+    IF (MACRO_SEG_CONFIG <= US(JB_CONFIG) .OR. MACRO_SEG_CONFIG > DS(JB_CONFIG)) THEN
+      WRITE(*,'(A,I0)') 'Invalid interface segment in tail_macro.opt: ', MACRO_SEG_CONFIG
+      CLOSE(MACRO_UNIT)
+      STOP 2
+    END IF
+    TAIL_MACRO_INTERFACE_SEG(JB_CONFIG) = MACRO_SEG_CONFIG
+  END DO
+  CLOSE(MACRO_UNIT)
+END SUBROUTINE LOAD_TAIL_DOMAIN_OPTIONS

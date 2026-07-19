@@ -1,0 +1,11 @@
+﻿year,station_code,reported_interpolated,gap_hours,gap_count,max_gap_hours,reconciled,output_exists
+2021,SS,6,6,3,2,True,True
+2021,HH,22,22,18,2,True,True
+2021,SLB,218,218,20,68,True,True
+2021,YMT,47,47,3,45,True,True
+2021,SJ,0,0,0,0,True,True
+2023,SS,165,165,8,72,True,True
+2023,HH,167,167,7,74,True,True
+2023,SLB,74,74,7,47,True,True
+2023,YMT,229,229,12,60,True,True
+2023,SJ,250,250,19,61,True,True

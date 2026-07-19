@@ -1,0 +1,11 @@
+﻿year,station_code,station_name,raw_missing,raw_out_of_range,raw_temporal_inconsistent,raw_spatial_inconsistent,interpolated_total,gap_count,max_gap_hours,output_file
+2021,SS,双狮,0,0,6,0,6,3,2,2021/el_obs_ss_2021.npt
+2021,HH,黄华,0,0,0,22,22,18,2,2021/el_obs_hh_2021.npt
+2021,SLB,双龙坝,24,127,18,49,218,20,68,2021/el_obs_slb_2021.npt
+2021,YMT,幺米沱,0,0,4,43,47,3,45,2021/el_obs_ymt_2021.npt
+2021,SJ,山江,0,0,0,0,0,0,0,2021/el_obs_sj_2021.npt
+2023,SS,双狮,57,0,0,108,165,8,72,2023/el_obs_ss_2023.npt
+2023,HH,黄华,56,0,6,105,167,7,74,2023/el_obs_hh_2023.npt
+2023,SLB,双龙坝,56,0,1,17,74,7,47,2023/el_obs_slb_2023.npt
+2023,YMT,幺米沱,57,0,7,165,229,12,60,2023/el_obs_ymt_2023.npt
+2023,SJ,山江,57,34,11,148,250,19,61,2023/el_obs_sj_2023.npt

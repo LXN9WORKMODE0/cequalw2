@@ -1,0 +1,4 @@
+﻿candidate,tail_us,tail_ds,couple_segment,owned_segment_count,center_to_center_length_km,fits_current_max_tail_seg,required_state_zones,stations_in_owned_domain,owned_branch_junctions,junctions_at_coupling_boundary,required_source_contract,addressed_observation_intervals,review_status
+current_v35_baseline,2,5,6,4,3.855,True,1,BHT,,,BHT_QIN;Q_INTERFACE_SEG6,none_between_new_stations,accepted_baseline
+stop_before_br2_at_segment28,2,27,28,26,23.83,False,1,SJ;BHT,,BR2@SEG28,BHT_QIN;Q_INTERFACE_SEG28,BHT_to_SJ_near_downstream_boundary,diagnostic_candidate_only
+two_zone_to_ymt,2,56,57,55,47.165,False,2,SJ;BHT,BR2@SEG28,,BHT_QIN;Q_INTERFACE_SEG57;BR2_Q_T_C,BHT_to_SJ_and_SJ_to_YMT,requires_new_source_and_state_contract

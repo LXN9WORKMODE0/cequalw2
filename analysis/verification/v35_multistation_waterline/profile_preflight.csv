@@ -1,0 +1,2 @@
+﻿candidate,downstream_anchor,interior_station,upstream_anchor,interior_fraction_from_downstream,count,observed_interior_mean_m,linear_prediction_mean_m,prediction_minus_observation_bias_m,prediction_rmse_m,prediction_error_min_m,prediction_error_max_m
+single_linear_BHT_to_YMT_at_SJ,YMT,SJ,BHT,0.521954720428003,157,577.3369426751592,582.4741803129152,5.137237637755938,5.210971508617538,3.585687349122395,7.448548965877194

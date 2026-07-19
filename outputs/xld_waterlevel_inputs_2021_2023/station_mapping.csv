@@ -1,0 +1,8 @@
+﻿station_code,station_name,chainage_km_from_XLD,model_segment,segment_center_km_from_XLD,offset_km,mapping_basis
+XLD,溪洛渡坝前,0,222,,,项目现有约定
+SS,双狮,6.3,215,5.840,-0.460,按活动地形 DIXING20250226.csv 的 DLX 累计距离匹配最近 segment 中心
+HH,黄华,50,168,49.825,-0.175,按活动地形 DIXING20250226.csv 的 DLX 累计距离匹配最近 segment 中心
+SLB,双龙坝,95,116,95.350,0.350,按活动地形 DIXING20250226.csv 的 DLX 累计距离匹配最近 segment 中心
+YMT,幺米沱,148,57,147.650,-0.350,按活动地形 DIXING20250226.csv 的 DLX 累计距离匹配最近 segment 中心
+SJ,山江,172,26,172.305,0.305,按活动地形 DIXING20250226.csv 的 DLX 累计距离匹配最近 segment 中心
+BHT,白鹤滩坝下,193.981,2,,,项目现有约定；站点里程最接近 segment 3 中心，但端点分析继续使用 segment 2
