@@ -945,7 +945,7 @@ def main() -> None:
     if len(reference):
         first_reference_error = float(reference.iloc[0]["python_minus_logged_target_m3s"])
     manifest = {
-        "purpose": "frozen cross-year validation; no parameter retuning",
+        "purpose": "frozen cross-year hydraulic component test; no parameter retuning",
         "source_workbooks": [str(args.water_level_workbook), str(args.flow_workbook)],
         "source_sha256": {
             str(args.water_level_workbook): sha256_file(args.water_level_workbook),
@@ -962,6 +962,18 @@ def main() -> None:
         },
         "frozen_neff_values": list(NEFF_VALUES),
         "primary_neff": PRIMARY_NEFF,
+        "confirmed_data_semantics": {
+            "flow_sources": "TD and SW are comparable sources; BHT is available from TD only",
+            "bht_discharge": "instantaneous Beijing-time inflow at segment 2; dam release only",
+            "water_level_datum": "BHT, SJ, YMT and other stations may be treated as one datum",
+            "time_alignment": "instantaneous Beijing time; discharge and stage treated as synchronous",
+            "bht_station_segment": 2,
+            "interval_inflow_or_withdrawal": "none assumed in segments 2-27",
+            "distributed_flow": "historical virtual water-level correction; not physical observed inflow",
+            "internal_branch_junctions": "none in segments 2-27; BR2 joins at segment 28",
+            "missing_station_data": "exclude missing periods rather than fabricate values",
+            "closing_timestamp": "2026-01-01 00:00 is excluded from the 2025 analysis period",
+        },
         "qc": qc,
         "fortran_replica_first_logged_step_error_m3s": first_reference_error,
         "limitations": [
@@ -969,6 +981,7 @@ def main() -> None:
             "Full-model runs require complete meteorology, temperature, tributary and operating boundary inputs.",
             "The downstream segment-28 stage is spatially interpolated from SJ and YMT observations.",
             "One-hour internal BHT discharge gaps are linearly interpolated and separately labelled.",
+            "The component test omits the historical virtual distributed-flow correction.",
             "Storage derivatives are centered finite differences; 2/6/12/24-hour windows quantify derivative sensitivity.",
         ],
         "files": [*outputs, "hourly_diagnostics.csv.gz"],

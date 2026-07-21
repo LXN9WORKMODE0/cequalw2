@@ -1,5 +1,5 @@
 {
-  "purpose": "frozen cross-year validation; no parameter retuning",
+  "purpose": "frozen cross-year hydraulic component test; no parameter retuning",
   "source_workbooks": [
     "XLD库区水位2020-2025.xlsx",
     "XLD库区流量2020-2025.xlsx"
@@ -26,6 +26,18 @@
     0.075
   ],
   "primary_neff": 0.0725,
+  "confirmed_data_semantics": {
+    "flow_sources": "TD and SW are comparable sources; BHT is available from TD only",
+    "bht_discharge": "instantaneous Beijing-time inflow at segment 2; dam release only",
+    "water_level_datum": "BHT, SJ, YMT and other stations may be treated as one datum",
+    "time_alignment": "instantaneous Beijing time; discharge and stage treated as synchronous",
+    "bht_station_segment": 2,
+    "interval_inflow_or_withdrawal": "none assumed in segments 2-27",
+    "distributed_flow": "historical virtual water-level correction; not physical observed inflow",
+    "internal_branch_junctions": "none in segments 2-27; BR2 joins at segment 28",
+    "missing_station_data": "exclude missing periods rather than fabricate values",
+    "closing_timestamp": "2026-01-01 00:00 is excluded from the 2025 analysis period"
+  },
   "qc": {
     "BHT_WL": {
       "numeric": 44170,
@@ -100,6 +112,7 @@
     "Full-model runs require complete meteorology, temperature, tributary and operating boundary inputs.",
     "The downstream segment-28 stage is spatially interpolated from SJ and YMT observations.",
     "One-hour internal BHT discharge gaps are linearly interpolated and separately labelled.",
+    "The component test omits the historical virtual distributed-flow correction.",
     "Storage derivatives are centered finite differences; 2/6/12/24-hour windows quantify derivative sensitivity."
   ],
   "files": [
