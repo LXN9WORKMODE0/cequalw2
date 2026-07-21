@@ -1,0 +1,3 @@
+﻿source,row_count,start,end,expected_inclusive_rows,duplicate_timestamp_count,missing_timestamp_count,nonhourly_step_count
+XLD库区水位2020-2025.xlsx,52609,2020-01-01 00:00:00,2026-01-01 00:00:00,52609,0,0,0
+XLD库区流量2020-2025.xlsx,52609,2020-01-01 00:00:00,2026-01-01 00:00:00,52609,0,0,0

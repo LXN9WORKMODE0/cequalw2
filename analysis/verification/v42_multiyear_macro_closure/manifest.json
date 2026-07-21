@@ -1,0 +1,117 @@
+{
+  "purpose": "frozen cross-year validation; no parameter retuning",
+  "source_workbooks": [
+    "XLD库区水位2020-2025.xlsx",
+    "XLD库区流量2020-2025.xlsx"
+  ],
+  "source_sha256": {
+    "XLD库区水位2020-2025.xlsx": "c407c2504a57f83517c9c377936a102f64afcccbc099ca4eb476572252c399f4",
+    "XLD库区流量2020-2025.xlsx": "49128b697cc5502ac39f11781c7f4084932357fd2193f2244f378bc8b7fc6c1e"
+  },
+  "raw_workbooks_modified": false,
+  "hourly_diagnostics_git_policy": "local-only; aggregate summaries are publishable",
+  "bathymetry": "cases\\xld_2021_base\\InputFiles\\BTH\\DIXING20250226.csv",
+  "domain": {
+    "owned_segments": [
+      2,
+      27
+    ],
+    "interface_segment": 28,
+    "reach_length_m": 23830.0,
+    "maximum_upstream_stage_rise_m": 25.0
+  },
+  "frozen_neff_values": [
+    0.07,
+    0.0725,
+    0.075
+  ],
+  "primary_neff": 0.0725,
+  "qc": {
+    "BHT_WL": {
+      "numeric": 44170,
+      "out_of_range": 2,
+      "isolated_spikes": 1,
+      "retained": 44167
+    },
+    "XLD_WL": {
+      "numeric": 52577,
+      "out_of_range": 0,
+      "isolated_spikes": 0,
+      "retained": 52577
+    },
+    "SJ_WL": {
+      "numeric": 48701,
+      "out_of_range": 34,
+      "isolated_spikes": 4,
+      "retained": 48663
+    },
+    "SLB_WL": {
+      "numeric": 36384,
+      "out_of_range": 127,
+      "isolated_spikes": 12,
+      "retained": 36245
+    },
+    "YMT_WL": {
+      "numeric": 52327,
+      "out_of_range": 21,
+      "isolated_spikes": 6,
+      "retained": 52300
+    },
+    "HH_WL": {
+      "numeric": 48703,
+      "out_of_range": 0,
+      "isolated_spikes": 0,
+      "retained": 48703
+    },
+    "SS_WL": {
+      "numeric": 38056,
+      "out_of_range": 1,
+      "isolated_spikes": 0,
+      "retained": 38055
+    },
+    "BHT_Q": {
+      "numeric": 22394,
+      "out_of_range": 0,
+      "observed": 22394,
+      "one_hour_linear": 22065,
+      "retained": 44459
+    },
+    "boundary_mapping": {
+      "method": "linear interpolation between SJ segment 26 and YMT segment 57",
+      "interface_segment": 28,
+      "interpolation_weight": 0.05353883593591564,
+      "sj_distance_m_from_segment_2": 22510.0,
+      "interface_distance_m_from_segment_2": 23830.0,
+      "ymt_distance_m_from_segment_2": 47165.0,
+      "unused_profile_fraction_diagnostic_sj": 0.9446076374318086,
+      "unused_profile_fraction_diagnostic_interface": 1.0,
+      "unused_profile_fraction_diagnostic_ymt_to_222": 0.24235028132466666,
+      "gross_spatial_inconsistency_excluded_hours": 151,
+      "gross_spatial_rules_m": {
+        "SJ_above_BHT": 10.0,
+        "YMT_above_SJ": 10.0,
+        "SJ_minus_YMT_upper": 30.0
+      }
+    }
+  },
+  "fortran_replica_first_logged_step_error_m3s": 3.0892134905971034,
+  "limitations": [
+    "This is a quasi-steady component test, not a complete 2020-2025 CE-QUAL-W2 simulation.",
+    "Full-model runs require complete meteorology, temperature, tributary and operating boundary inputs.",
+    "The downstream segment-28 stage is spatially interpolated from SJ and YMT observations.",
+    "One-hour internal BHT discharge gaps are linearly interpolated and separately labelled.",
+    "Storage derivatives are centered finite differences; 2/6/12/24-hour windows quantify derivative sensitivity."
+  ],
+  "files": [
+    "annual_and_regime_metrics.csv",
+    "stage_flow_regime_matrix.csv",
+    "required_neff_diagnostic.csv",
+    "storage_continuity_metrics.csv",
+    "declared_period_metrics.csv",
+    "boundary_mapping_sensitivity.csv",
+    "sample_acceptance.csv",
+    "head_feasibility.csv",
+    "fortran_replica_check.csv",
+    "hourly_diagnostics.csv.gz"
+  ]
+}

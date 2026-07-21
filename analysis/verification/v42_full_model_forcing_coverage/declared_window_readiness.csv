@@ -1,0 +1,5 @@
+﻿window,start_jday,end_jday,role,required_files,files_covering_window,role_ready,all_required_roles_ready
+existing_v39_44430_44484,44430.0,44484.0,inflow_or_distributed_flow,12,12,True,True
+existing_v39_44430_44484,44430.0,44484.0,meteorology,13,13,True,True
+existing_v39_44430_44484,44430.0,44484.0,reservoir_outflow,1,1,True,True
+existing_v39_44430_44484,44430.0,44484.0,temperature,12,12,True,True

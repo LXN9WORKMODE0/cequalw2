@@ -1,0 +1,11 @@
+{
+  "case_dir": "cases\\xld_2021_base",
+  "audit_scope": "time-range coverage of active referenced files",
+  "range_audit_only": true,
+  "does_not_fabricate_missing_inputs": true,
+  "files": [
+    "active_forcing_file_ranges.csv",
+    "year_readiness.csv",
+    "declared_window_readiness.csv"
+  ]
+}

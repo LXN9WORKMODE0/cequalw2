@@ -21,6 +21,8 @@ Desktop.ini
 *.swo
 /.codex_tmp/
 /XLD库区水面线数据*.xlsx
+/XLD库区水位2020-2025.xlsx
+/XLD库区流量2020-2025.xlsx
 /outputs/*.zip
 
 # Generated build artifacts
@@ -62,6 +64,7 @@ analysis/xld_multifactor/dual_station_review/
 analysis/verification/w2_v0_v1_smoke/case/
 analysis/verification/w2_v0_v1_smoke/results/
 analysis/verification/**/run_logs/
+/analysis/verification/v42_multiyear_macro_closure/hourly_diagnostics.csv.gz
 
 # Local working model directories
 实际案例/

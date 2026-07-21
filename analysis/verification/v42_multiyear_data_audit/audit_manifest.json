@@ -1,0 +1,31 @@
+{
+  "source_workbooks": [
+    "XLD库区水位2020-2025.xlsx",
+    "XLD库区流量2020-2025.xlsx"
+  ],
+  "audit_period": [
+    "2020-01-01 00:00:00",
+    "2025-12-31 23:00:00"
+  ],
+  "expected_hours": 52608,
+  "raw_workbooks_modified": false,
+  "quality_bounds": {
+    "water_level_m": [
+      500.0,
+      650.0
+    ],
+    "flow_m3s": [
+      0.0,
+      50000.0
+    ],
+    "zero_flow": "retained in range but flagged for review"
+  },
+  "files": [
+    "time_axis_audit.csv",
+    "year_variable_audit.csv",
+    "flow_source_comparison.csv",
+    "common_overlap_audit.csv",
+    "observed_head_audit.csv",
+    "regime_coverage.csv"
+  ]
+}

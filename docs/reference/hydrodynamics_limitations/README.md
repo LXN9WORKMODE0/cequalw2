@@ -72,7 +72,8 @@ CE-QUAL-W2 在“低水位快流河道态”和“高水位淹没回水态”之
 54. [55_v39_long_window_validation.md](./55_v39_long_window_validation.md)
 55. [56_v40_strict_holdout_regime_validation.md](./56_v40_strict_holdout_regime_validation.md)
 56. [57_v41_parameter_interval_robustness.md](./57_v41_parameter_interval_robustness.md)
-57. [references.md](./references.md)
+57. [58_v42_multiyear_cross_validation.md](./58_v42_multiyear_cross_validation.md)
+58. [references.md](./references.md)
 
 ## 已固定的研究口径
 

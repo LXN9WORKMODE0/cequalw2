@@ -31,9 +31,12 @@
   涨/稳/退水过程执行预声明验收门禁。
 - `run_v41_long_window_robustness.py`：冻结 V38 结构，补跑 `NEFF=0.070/0.075` 长窗边界值，
   并统一复用 V40 留出期与六类工况门禁。
+- `audit_v42_multiyear_hydro_data.py`：只读审计 2020—2025 水位、流量工作簿的时间轴、缺测、异常值、来源重叠和工况覆盖。
+- `analyze_v42_multiyear_macro_closure.py`：复刻生产版 BHT—SJ 断面积分闭合，冻结 V41 参数区间做跨年、工况、蓄水连续方程和边界敏感性验证。
+- `audit_v42_full_model_forcing_coverage.py`：审计活动控制文件引用的流量、温度、气象和水库出流覆盖，区分可运行的原 V39 窗口与尚不能完整运行的年度。
 
 2026-07-15 整理前的本地运行产物保存在
 `.runs/archive_pre_v24/`，仅供追溯，不应作为新实验的完成状态复用。V21/V23 的
 已提交汇总表继续保存在 `verification/v21_bht_redistribution_scan/`。
 
-当前脚本只依赖 Python 标准库。
+既有运行编排脚本只依赖 Python 标准库；V42 工作簿审计和跨年数值分析额外依赖 `pandas`、`numpy` 与 `openpyxl`，可使用 Codex 工作区自带 Python 环境。
